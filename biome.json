@@ -44,11 +44,12 @@
   "files": {
     "includes": [
       "**",
-      "!src-tauri/",
-      "!dist/",
-      "!node_modules/",
-      "!src/components/ui/",
-      "!coverage/"
+      "!src-tauri",
+      "!dist",
+      "!node_modules",
+      "!src/components/ui",
+      "!coverage",
+      "!src/assets"
     ]
   },
   "overrides": [
