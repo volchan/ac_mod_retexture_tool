@@ -1,0 +1,37 @@
+{
+  "name": "ac-mod-toolkit",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-store": "^2",
+    "vue": "^3.5",
+    "vue-router": "^4",
+    "@vueuse/core": "^12",
+    "lucide-vue-next": "^0.468",
+    "clsx": "^2",
+    "tailwind-merge": "^3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@tauri-apps/cli": "^2",
+    "@tailwindcss/vite": "^4",
+    "@vitejs/plugin-vue": "^5",
+    "@vitest/coverage-v8": "^3",
+    "@vue/test-utils": "^2",
+    "jsdom": "^26",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vite": "^6",
+    "vitest": "^3",
+    "vue-tsc": "^2"
+  }
+}

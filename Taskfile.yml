@@ -1,0 +1,87 @@
+version: "3"
+
+vars:
+  TAURI_DIR: src-tauri
+
+tasks:
+  dev:
+    desc: Start Tauri dev server
+    cmd: bun run tauri dev
+
+  build:
+    desc: Build production binaries
+    cmd: bun run tauri build
+
+  # --- Linting ---
+
+  lint:
+    desc: Lint frontend and backend
+    deps: [lint:frontend, lint:backend]
+
+  lint:frontend:
+    desc: Lint frontend with Biome
+    cmd: bunx biome check .
+
+  lint:backend:
+    desc: Lint Rust with Clippy
+    dir: "{{.TAURI_DIR}}"
+    cmd: cargo clippy -- -D warnings
+
+  # --- Formatting ---
+
+  format:
+    desc: Format frontend and backend
+    deps: [format:frontend, format:backend]
+
+  format:frontend:
+    desc: Format frontend with Biome
+    cmd: bunx biome check --write .
+
+  format:backend:
+    desc: Format Rust with rustfmt
+    dir: "{{.TAURI_DIR}}"
+    cmd: cargo fmt
+
+  # --- Testing ---
+
+  test:
+    desc: Run all tests
+    deps: [test:frontend, test:backend]
+
+  test:frontend:
+    desc: Run frontend tests
+    cmd: bunx vitest run
+
+  test:backend:
+    desc: Run Rust tests
+    dir: "{{.TAURI_DIR}}"
+    cmd: cargo test
+
+  test:watch:
+    desc: Run frontend tests in watch mode
+    cmd: bunx vitest
+
+  test:coverage:
+    desc: Run all tests with coverage reports
+    cmds:
+      - bunx vitest run --coverage
+      - cd {{.TAURI_DIR}} && cargo tarpaulin --out html
+
+  # --- Utilities ---
+
+  ui:add:
+    desc: Add a shadcn-vue component
+    cmd: bunx shadcn-vue@latest add {{.CLI_ARGS}}
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf dist
+      - cd {{.TAURI_DIR}} && cargo clean
+
+  check:
+    desc: Full check — format, lint, test
+    cmds:
+      - task: format
+      - task: lint
+      - task: test

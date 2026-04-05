@@ -1,0 +1,30 @@
+{
+  "productName": "AC Mod Toolkit",
+  "version": "0.1.0",
+  "identifier": "com.volchan.ac-mod-toolkit",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AC Mod Toolkit",
+        "width": 1200,
+        "height": 700,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  }
+}
