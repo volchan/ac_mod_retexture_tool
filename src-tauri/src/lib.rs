@@ -12,6 +12,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::scan::scan_mod_folder,
             commands::decode::decode_mod_textures,
+            commands::track_hero::list_track_hero_images,
             commands::track_hero::get_track_hero_image,
             commands::track_hero::extract_track_hero_image,
             commands::track_hero::preview_replacement_image,

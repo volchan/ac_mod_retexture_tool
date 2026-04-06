@@ -41,7 +41,7 @@ const {
 const activeCategory = ref<TextureCategory>('all')
 
 const categories = computed<TextureCategory[]>(() =>
-  props.mod.type === 'car' ? CAR_CATEGORIES : TRACK_CATEGORIES,
+  props.mod.modType === 'car' ? CAR_CATEGORIES : TRACK_CATEGORIES,
 )
 
 const visibleTextures = computed(() => filteredTextures(activeCategory.value))
@@ -54,7 +54,7 @@ const progressPercent = computed(() => {
 const selectedCount = computed(() => selected.value.size)
 
 const showTrackHeroImages = computed(
-  () => props.mod.type === 'track' && activeCategory.value === 'all',
+  () => props.mod.modType === 'track' && activeCategory.value === 'all',
 )
 
 function handleCategoryChange(cat: TextureCategory) {

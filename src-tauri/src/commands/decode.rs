@@ -57,15 +57,13 @@ pub async fn decode_mod_textures(
     app: AppHandle,
     mod_path: String,
     mod_type: String,
-) -> Result<Vec<TextureEntry>, String> {
+) -> Result<(), String> {
     let path = Path::new(&mod_path);
     let mt = if mod_type == "car" {
         ModType::Car
     } else {
         ModType::Track
     };
-
-    let mut entries: Vec<TextureEntry> = Vec::new();
 
     let kn5_files: Vec<_> = walkdir::WalkDir::new(path)
         .into_iter()
@@ -102,7 +100,7 @@ pub async fn decode_mod_textures(
             let (width, height) = dds::parse_dds_dimensions(data);
             let category = categorize(tex_name, &mt);
 
-            entries.push(TextureEntry {
+            let tex = TextureEntry {
                 id: Uuid::new_v4().to_string(),
                 name: tex_name.to_string(),
                 path: kn5_path.to_string_lossy().to_string(),
@@ -116,58 +114,8 @@ pub async fn decode_mod_textures(
                 preview_url,
                 is_decoded: true,
                 replacement: None,
-            });
-        }
-
-        let skins_path = path.join("skins");
-        if skins_path.is_dir() {
-            if let Ok(skin_dirs) = std::fs::read_dir(&skins_path) {
-                for skin_entry in skin_dirs.flatten() {
-                    let skin_path = skin_entry.path();
-                    if !skin_path.is_dir() {
-                        continue;
-                    }
-                    let skin_name = skin_path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-                    if let Ok(files) = std::fs::read_dir(&skin_path) {
-                        for file_entry in files.flatten() {
-                            let fp = file_entry.path();
-                            if fp.extension().and_then(|s| s.to_str()) != Some("dds") {
-                                continue;
-                            }
-                            let tex_name = fp
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string();
-                            if let Ok(data) = std::fs::read(&fp) {
-                                let preview_url =
-                                    dds::generate_thumbnail(&data, 128).unwrap_or_default();
-                                let format = dds::detect_format(&data);
-                                let (width, height) = dds::parse_dds_dimensions(&data);
-                                entries.push(TextureEntry {
-                                    id: Uuid::new_v4().to_string(),
-                                    name: tex_name,
-                                    path: fp.to_string_lossy().to_string(),
-                                    source: TextureSource::Skin,
-                                    kn5_file: None,
-                                    skin_folder: Some(skin_name.clone()),
-                                    category: TextureCategory::Livery,
-                                    width,
-                                    height,
-                                    format,
-                                    preview_url,
-                                    is_decoded: true,
-                                    replacement: None,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
+            };
+            let _ = app.emit("decode-texture", &tex);
         }
 
         let _ = app.emit(
@@ -180,7 +128,59 @@ pub async fn decode_mod_textures(
         );
     }
 
-    Ok(entries)
+    let skins_path = path.join("skins");
+    if skins_path.is_dir() {
+        if let Ok(skin_dirs) = std::fs::read_dir(&skins_path) {
+            for skin_entry in skin_dirs.flatten() {
+                let skin_path = skin_entry.path();
+                if !skin_path.is_dir() {
+                    continue;
+                }
+                let skin_name = skin_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                if let Ok(files) = std::fs::read_dir(&skin_path) {
+                    for file_entry in files.flatten() {
+                        let fp = file_entry.path();
+                        if fp.extension().and_then(|s| s.to_str()) != Some("dds") {
+                            continue;
+                        }
+                        let tex_name = fp
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        if let Ok(data) = std::fs::read(&fp) {
+                            let preview_url =
+                                dds::generate_thumbnail(&data, 128).unwrap_or_default();
+                            let format = dds::detect_format(&data);
+                            let (width, height) = dds::parse_dds_dimensions(&data);
+                            let tex = TextureEntry {
+                                id: Uuid::new_v4().to_string(),
+                                name: tex_name,
+                                path: fp.to_string_lossy().to_string(),
+                                source: TextureSource::Skin,
+                                kn5_file: None,
+                                skin_folder: Some(skin_name.clone()),
+                                category: TextureCategory::Livery,
+                                width,
+                                height,
+                                format,
+                                preview_url,
+                                is_decoded: true,
+                                replacement: None,
+                            };
+                            let _ = app.emit("decode-texture", &tex);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

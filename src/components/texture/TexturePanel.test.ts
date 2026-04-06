@@ -7,7 +7,7 @@ import type { Mod, Texture } from '@/types/index'
 import TexturePanel from './TexturePanel.vue'
 
 const baseMod: Mod = {
-  type: 'car',
+  modType: 'car',
   path: '/mods/ferrari',
   meta: { name: 'Ferrari', folderName: 'ferrari', author: '', version: '', description: '' },
   files: [],
@@ -36,35 +36,50 @@ async function waitForDecoding() {
   await nextTick()
 }
 
+type EventHandler = (e: { payload: unknown }) => void
+let capturedHandlers: Map<string, EventHandler>
+
 beforeEach(() => {
   clearInvokeHandlers()
-  vi.mocked(listen).mockResolvedValue(() => {})
+  capturedHandlers = new Map()
+  vi.mocked(listen).mockImplementation(async (eventName, handler) => {
+    capturedHandlers.set(eventName, handler as EventHandler)
+    return () => {}
+  })
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
+function emitDecodeTexture(texture: Texture) {
+  capturedHandlers.get('decode-texture')?.({ payload: texture })
+}
+
+function emitDecodeProgress(current: number, total: number, label: string) {
+  capturedHandlers.get('decode-progress')?.({ payload: { current, total, label } })
+}
+
 describe('TexturePanel', () => {
   it('shows progress bar while decoding', async () => {
-    let resolveTextures!: (value: Texture[]) => void
-    const pendingTextures = new Promise<Texture[]>((r) => {
-      resolveTextures = r
+    let resolveDecoding!: () => void
+    const pending = new Promise<void>((r) => {
+      resolveDecoding = r
     })
-    mockInvokeHandler('decode_mod_textures', () => pendingTextures)
+    mockInvokeHandler('decode_mod_textures', () => pending)
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await nextTick()
 
     expect(wrapper.find('.h-1').exists()).toBe(true)
 
-    resolveTextures([])
+    resolveDecoding()
     await waitForDecoding()
     wrapper.unmount()
   })
 
   it('hides progress bar after decoding completes', async () => {
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve([]))
+    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(undefined))
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
@@ -74,11 +89,11 @@ describe('TexturePanel', () => {
   })
 
   it('renders texture cards after loading', async () => {
-    const textures = [
-      makeTexture({ id: 'a', name: 'tex_a.dds' }),
-      makeTexture({ id: 'b', name: 'tex_b.dds' }),
-    ]
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(textures))
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', name: 'tex_a.dds' }))
+      emitDecodeTexture(makeTexture({ id: 'b', name: 'tex_b.dds' }))
+      return undefined
+    })
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
@@ -89,7 +104,7 @@ describe('TexturePanel', () => {
   })
 
   it('shows car categories for car mod', async () => {
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve([]))
+    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(undefined))
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await nextTick()
@@ -101,10 +116,10 @@ describe('TexturePanel', () => {
   })
 
   it('shows track categories for track mod', async () => {
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve([]))
+    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(undefined))
     mockInvokeHandler('get_track_hero_image', () => null)
 
-    const trackMod: Mod = { ...baseMod, type: 'track' }
+    const trackMod: Mod = { ...baseMod, modType: 'track' }
     const wrapper = mount(TexturePanel, { props: { mod: trackMod } })
     await nextTick()
 
@@ -115,8 +130,10 @@ describe('TexturePanel', () => {
   })
 
   it('shows selected count', async () => {
-    const textures = [makeTexture({ id: 'a' })]
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(textures))
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      return undefined
+    })
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
@@ -126,8 +143,11 @@ describe('TexturePanel', () => {
   })
 
   it('emits selection-change when select all is clicked', async () => {
-    const textures = [makeTexture({ id: 'a' }), makeTexture({ id: 'b' })]
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(textures))
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      emitDecodeTexture(makeTexture({ id: 'b' }))
+      return undefined
+    })
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
@@ -141,8 +161,10 @@ describe('TexturePanel', () => {
   })
 
   it('emits selection-change when deselect all is clicked', async () => {
-    const textures = [makeTexture({ id: 'a' })]
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(textures))
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      return undefined
+    })
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
@@ -156,56 +178,53 @@ describe('TexturePanel', () => {
   })
 
   it('shows empty state message when no textures in active category', async () => {
-    const textures = [makeTexture({ id: 'a', category: 'interior' })]
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(textures))
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', category: 'interior' }))
+      return undefined
+    })
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
 
-    // Active category is 'all' by default which shows all textures
-    // The empty state message appears when filtered list is empty
-    // Verify the component renders
     expect(wrapper.text()).toContain('selected')
     wrapper.unmount()
   })
 
   it('shows progress count when decodeProgress total > 0', async () => {
-    let resolveTextures!: (value: Texture[]) => void
-    let capturedProgressHandler: ((e: unknown) => void) | null = null
-
-    vi.mocked(listen).mockImplementation(async (_name, handler) => {
-      capturedProgressHandler = handler as (e: unknown) => void
-      return () => {}
+    let resolveDecoding!: () => void
+    const pending = new Promise<void>((r) => {
+      resolveDecoding = r
     })
-
-    const pendingTextures = new Promise<Texture[]>((r) => {
-      resolveTextures = r
-    })
-    mockInvokeHandler('decode_mod_textures', () => pendingTextures)
+    mockInvokeHandler('decode_mod_textures', () => pending)
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    // Wait for all listeners in init() to register (two await listen() calls)
+    await nextTick()
+    await nextTick()
     await nextTick()
 
-    capturedProgressHandler?.({ payload: { current: 1, total: 3, label: 'car.kn5' } })
+    emitDecodeProgress(1, 3, 'car.kn5')
     await nextTick()
 
     expect(wrapper.text()).toContain('1/3')
 
-    resolveTextures([])
+    resolveDecoding()
     await waitForDecoding()
     wrapper.unmount()
   })
 
   it('emits selection-change when texture card is toggled', async () => {
-    const textures = [makeTexture({ id: 'a', category: 'body' })]
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(textures))
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', category: 'body' }))
+      return undefined
+    })
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
 
-    const card = wrapper.find('.checkerboard').element.closest('div[class*="relative"]')
-    if (card) {
-      await wrapper.find('div.relative.cursor-pointer').trigger('click')
+    const card = wrapper.find('div.relative.cursor-pointer')
+    if (card.exists()) {
+      await card.trigger('click')
     }
 
     await nextTick()
@@ -213,21 +232,19 @@ describe('TexturePanel', () => {
   })
 
   it('changes active category when CategoryTabs emits change', async () => {
-    const textures = [
-      makeTexture({ id: 'a', category: 'body' }),
-      makeTexture({ id: 'b', category: 'interior' }),
-    ]
-    mockInvokeHandler('decode_mod_textures', () => Promise.resolve(textures))
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', category: 'body' }))
+      emitDecodeTexture(makeTexture({ id: 'b', category: 'interior' }))
+      return undefined
+    })
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
 
-    // Trigger category change through CategoryTabs expose
     const categoryTabsVm = wrapper.findComponent({ name: 'CategoryTabs' }).vm
     categoryTabsVm.$emit('change', 'interior')
     await nextTick()
 
-    // Now filtering should show only interior textures
     expect(wrapper.text()).toContain('0 selected')
     wrapper.unmount()
   })

@@ -21,7 +21,7 @@ async function withSetup<T>(composable: () => T): Promise<{ result: T; unmount: 
 }
 
 const baseMod: Mod = {
-  type: 'car',
+  modType: 'car',
   path: '/mods/ferrari',
   meta: { name: 'Ferrari', folderName: 'ferrari', author: '', version: '', description: '' },
   files: [],
@@ -45,19 +45,33 @@ function makeTexture(overrides: Partial<Texture> = {}): Texture {
   }
 }
 
+type EventHandler = (e: { payload: unknown }) => void
+let capturedHandlers: Map<string, EventHandler>
+
 beforeEach(() => {
   clearInvokeHandlers()
-  vi.mocked(listen).mockResolvedValue(() => {})
+  capturedHandlers = new Map()
+  vi.mocked(listen).mockImplementation(async (eventName, handler) => {
+    capturedHandlers.set(eventName, handler as EventHandler)
+    return () => {}
+  })
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
+function emitDecodeTexture(texture: Texture) {
+  capturedHandlers.get('decode-texture')?.({ payload: texture })
+}
+
 describe('useTextures', () => {
-  it('init loads textures and sets isDecoding to false after', async () => {
-    const textures = [makeTexture({ id: 'tex1' }), makeTexture({ id: 'tex2' })]
-    mockInvokeHandler('decode_mod_textures', () => textures)
+  it('init loads textures progressively via events', async () => {
+    const textureList = [makeTexture({ id: 'tex1' }), makeTexture({ id: 'tex2' })]
+    mockInvokeHandler('decode_mod_textures', () => {
+      for (const t of textureList) emitDecodeTexture(t)
+      return undefined
+    })
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
@@ -68,18 +82,22 @@ describe('useTextures', () => {
     unmount()
   })
 
-  it('init registers progress listener', async () => {
-    mockInvokeHandler('decode_mod_textures', () => [])
+  it('init registers decode-texture and decode-progress listeners', async () => {
+    mockInvokeHandler('decode_mod_textures', () => undefined)
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
 
+    expect(listen).toHaveBeenCalledWith('decode-texture', expect.any(Function))
     expect(listen).toHaveBeenCalledWith('decode-progress', expect.any(Function))
     unmount()
   })
 
   it('toggleSelect adds id to selected', async () => {
-    mockInvokeHandler('decode_mod_textures', () => [makeTexture({ id: 'tex1' })])
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'tex1' }))
+      return undefined
+    })
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
@@ -91,7 +109,10 @@ describe('useTextures', () => {
   })
 
   it('toggleSelect removes id when already selected', async () => {
-    mockInvokeHandler('decode_mod_textures', () => [makeTexture({ id: 'tex1' })])
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'tex1' }))
+      return undefined
+    })
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
@@ -104,8 +125,10 @@ describe('useTextures', () => {
   })
 
   it('selectAll selects all texture ids', async () => {
-    const textures = [makeTexture({ id: 'a' }), makeTexture({ id: 'b' }), makeTexture({ id: 'c' })]
-    mockInvokeHandler('decode_mod_textures', () => textures)
+    mockInvokeHandler('decode_mod_textures', () => {
+      for (const id of ['a', 'b', 'c']) emitDecodeTexture(makeTexture({ id }))
+      return undefined
+    })
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
@@ -119,8 +142,10 @@ describe('useTextures', () => {
   })
 
   it('deselectAll clears selection', async () => {
-    const textures = [makeTexture({ id: 'a' }), makeTexture({ id: 'b' })]
-    mockInvokeHandler('decode_mod_textures', () => textures)
+    mockInvokeHandler('decode_mod_textures', () => {
+      for (const id of ['a', 'b']) emitDecodeTexture(makeTexture({ id }))
+      return undefined
+    })
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
@@ -133,11 +158,11 @@ describe('useTextures', () => {
   })
 
   it('filteredTextures returns all when category is all', async () => {
-    const textures = [
-      makeTexture({ id: 'a', category: 'body' }),
-      makeTexture({ id: 'b', category: 'interior' }),
-    ]
-    mockInvokeHandler('decode_mod_textures', () => textures)
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', category: 'body' }))
+      emitDecodeTexture(makeTexture({ id: 'b', category: 'interior' }))
+      return undefined
+    })
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
@@ -147,12 +172,12 @@ describe('useTextures', () => {
   })
 
   it('filteredTextures filters by category', async () => {
-    const textures = [
-      makeTexture({ id: 'a', category: 'body' }),
-      makeTexture({ id: 'b', category: 'interior' }),
-      makeTexture({ id: 'c', category: 'body' }),
-    ]
-    mockInvokeHandler('decode_mod_textures', () => textures)
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', category: 'body' }))
+      emitDecodeTexture(makeTexture({ id: 'b', category: 'interior' }))
+      emitDecodeTexture(makeTexture({ id: 'c', category: 'body' }))
+      return undefined
+    })
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
@@ -165,8 +190,11 @@ describe('useTextures', () => {
 
   it('cleanup calls unlisten', async () => {
     const unlistenFn = vi.fn()
-    vi.mocked(listen).mockResolvedValue(unlistenFn)
-    mockInvokeHandler('decode_mod_textures', () => [])
+    vi.mocked(listen).mockImplementation(async (eventName, handler) => {
+      capturedHandlers.set(eventName, handler as EventHandler)
+      return unlistenFn
+    })
+    mockInvokeHandler('decode_mod_textures', () => undefined)
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)

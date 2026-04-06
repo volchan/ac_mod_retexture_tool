@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { decodeModTextures, onDecodeProgress } from '@/lib/tauri'
+import { decodeModTextures, onDecodeProgress, onDecodeTexture } from '@/lib/tauri'
 import type { Mod, ProgressInfo, Texture, TextureCategory } from '@/types/index'
 
 const textures = ref<Texture[]>([])
@@ -16,12 +16,21 @@ export function useTextures() {
     textures.value = []
     selected.value = new Set()
 
-    unlisten = await onDecodeProgress((info) => {
+    const unlistenTexture = await onDecodeTexture((tex) => {
+      textures.value = [...textures.value, tex]
+    })
+
+    const unlistenProgress = await onDecodeProgress((info) => {
       decodeProgress.value = info
     })
 
+    unlisten = () => {
+      unlistenTexture()
+      unlistenProgress()
+    }
+
     try {
-      textures.value = await decodeModTextures(mod.path, mod.type)
+      await decodeModTextures(mod.path, mod.modType)
     } finally {
       isDecoding.value = false
     }

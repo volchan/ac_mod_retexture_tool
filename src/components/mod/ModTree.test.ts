@@ -5,7 +5,7 @@ import type { Mod } from '@/types/index'
 import ModTree from './ModTree.vue'
 
 const baseMod: Mod = {
-  type: 'car',
+  modType: 'car',
   path: '/mods/ferrari_488',
   meta: {
     name: 'Ferrari 488',
@@ -14,15 +14,22 @@ const baseMod: Mod = {
     version: '1.0',
     description: '',
   },
-  files: [],
+  files: [
+    { name: 'ferrari_488.kn5', path: '/mods/ferrari_488/ferrari_488.kn5', fileType: 'kn5' },
+    { name: 'ui_car.json', path: '/mods/ferrari_488/ui/ui_car.json', fileType: 'json' },
+  ],
   kn5Files: ['/mods/ferrari_488/ferrari_488.kn5'],
   skinFolders: [
     {
       name: 'default',
       path: '/mods/ferrari_488/skins/default',
       files: [
-        { name: 'livery.dds', path: '/mods/ferrari_488/skins/default/livery.dds', type: 'dds' },
-        { name: 'sponsors.dds', path: '/mods/ferrari_488/skins/default/sponsors.dds', type: 'dds' },
+        { name: 'livery.dds', path: '/mods/ferrari_488/skins/default/livery.dds', fileType: 'dds' },
+        {
+          name: 'sponsors.dds',
+          path: '/mods/ferrari_488/skins/default/sponsors.dds',
+          fileType: 'dds',
+        },
       ],
     },
   ],
@@ -44,18 +51,29 @@ describe('ModTree', () => {
     expect(wrapper.text()).toContain('ferrari_488.kn5')
   })
 
-  it('renders skin folder names', () => {
+  it('renders skin folder names when skins expanded', async () => {
     const wrapper = mount(ModTree, { props: { mod: baseMod } })
+    const skinsButton = wrapper.findAll('button').find((b) => b.text().includes('skins'))
+    await skinsButton?.trigger('click')
+    await nextTick()
     expect(wrapper.text()).toContain('default')
   })
 
-  it('does not show skin files when folder is collapsed', () => {
+  it('does not show skin files when skin folder is collapsed', async () => {
     const wrapper = mount(ModTree, { props: { mod: baseMod } })
+    // Expand skins but not default
+    const skinsButton = wrapper.findAll('button').find((b) => b.text().includes('skins'))
+    await skinsButton?.trigger('click')
+    await nextTick()
     expect(wrapper.text()).not.toContain('livery.dds')
   })
 
   it('shows skin files when folder is expanded', async () => {
     const wrapper = mount(ModTree, { props: { mod: baseMod } })
+    // Expand skins, then default
+    const skinsButton = wrapper.findAll('button').find((b) => b.text().includes('skins'))
+    await skinsButton?.trigger('click')
+    await nextTick()
     const folderButton = wrapper.findAll('button').find((b) => b.text().includes('default'))
     await folderButton?.trigger('click')
     await nextTick()
@@ -65,6 +83,9 @@ describe('ModTree', () => {
 
   it('collapses skin folder on second click', async () => {
     const wrapper = mount(ModTree, { props: { mod: baseMod } })
+    const skinsButton = wrapper.findAll('button').find((b) => b.text().includes('skins'))
+    await skinsButton?.trigger('click')
+    await nextTick()
     const folderButton = wrapper.findAll('button').find((b) => b.text().includes('default'))
     await folderButton?.trigger('click')
     await nextTick()
@@ -81,7 +102,7 @@ describe('ModTree', () => {
   })
 
   it('renders track badge for track mod', () => {
-    const trackMod: Mod = { ...baseMod, type: 'track' }
+    const trackMod: Mod = { ...baseMod, modType: 'track' }
     const wrapper = mount(ModTree, { props: { mod: trackMod } })
     expect(wrapper.text()).toContain('Track')
   })

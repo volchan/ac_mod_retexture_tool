@@ -1,17 +1,25 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { Mod, ProgressInfo, Texture } from '@/types/index'
+import type { Mod, ProgressInfo, Texture, TrackLayoutHero } from '@/types/index'
 
 export async function scanModFolder(path: string): Promise<Mod> {
   return invoke('scan_mod_folder', { path })
 }
 
-export async function decodeModTextures(modPath: string, modType: string): Promise<Texture[]> {
+export async function decodeModTextures(modPath: string, modType: string): Promise<void> {
   return invoke('decode_mod_textures', { modPath, modType })
+}
+
+export async function onDecodeTexture(cb: (tex: Texture) => void): Promise<() => void> {
+  return listen('decode-texture', (e) => cb(e.payload as Texture))
 }
 
 export async function onDecodeProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
   return listen('decode-progress', (e) => cb(e.payload as ProgressInfo))
+}
+
+export async function listTrackHeroImages(modPath: string): Promise<TrackLayoutHero[]> {
+  return invoke('list_track_hero_images', { modPath })
 }
 
 export async function getTrackHeroImage(modPath: string, filename: string): Promise<string | null> {

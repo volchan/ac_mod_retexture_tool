@@ -24,7 +24,7 @@ export interface TrackMeta {
 export interface ModFile {
   name: string
   path: string
-  type: 'kn5' | 'dds' | 'json' | 'folder' | 'other'
+  fileType: 'kn5' | 'dds' | 'json' | 'folder' | 'other'
 }
 
 export interface SkinFolder {
@@ -34,7 +34,7 @@ export interface SkinFolder {
 }
 
 export interface Mod {
-  type: ModType
+  modType: ModType
   path: string
   meta: ModMeta
   carMeta?: CarMeta
@@ -86,6 +86,12 @@ export interface ProgressInfo {
   current: number
   total: number
   label: string
+}
+
+export interface TrackLayoutHero {
+  label: string
+  filename: string
+  url: string | null
 }
 
 export interface RepackOptions {

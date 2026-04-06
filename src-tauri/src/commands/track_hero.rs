@@ -1,20 +1,112 @@
 use base64::engine::general_purpose;
 use base64::Engine;
 use image::imageops::FilterType;
+use serde::Serialize;
 use std::io::Cursor;
 use std::path::Path;
 
 const THUMBNAIL_MAX: u32 = 256;
+const PREVIEW_FILENAME: &str = "preview.png";
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackLayoutHero {
+    pub label: String,
+    pub filename: String,
+    pub url: Option<String>,
+}
+
+fn read_png_as_data_url(path: &Path) -> Result<String, String> {
+    let data = std::fs::read(path).map_err(|e| e.to_string())?;
+    let b64 = general_purpose::STANDARD.encode(&data);
+    Ok(format!("data:image/png;base64,{b64}"))
+}
+
+#[tauri::command]
+pub fn list_track_hero_images(mod_path: String) -> Result<Vec<TrackLayoutHero>, String> {
+    let root = Path::new(&mod_path);
+
+    // Single-layout: preview.png in root or ui/
+    let flat = [
+        root.join(PREVIEW_FILENAME),
+        root.join("ui").join(PREVIEW_FILENAME),
+    ];
+    for path in &flat {
+        if path.exists() {
+            let url = read_png_as_data_url(path).ok();
+            return Ok(vec![TrackLayoutHero {
+                label: "Loading screen".to_string(),
+                filename: PREVIEW_FILENAME.to_string(),
+                url,
+            }]);
+        }
+    }
+
+    // Multi-layout: ui/<layout>/preview.png
+    let ui_path = root.join("ui");
+    if ui_path.is_dir() {
+        let mut layout_entries: Vec<_> = std::fs::read_dir(&ui_path)
+            .map_err(|e| e.to_string())?
+            .flatten()
+            .filter(|e| e.path().is_dir())
+            .collect();
+        layout_entries.sort_by_key(|e| e.file_name());
+
+        if !layout_entries.is_empty() {
+            let mut results = Vec::new();
+            for entry in layout_entries {
+                let sub = entry.path();
+                let layout = sub
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                let candidate = sub.join(PREVIEW_FILENAME);
+                let url = if candidate.exists() {
+                    read_png_as_data_url(&candidate).ok()
+                } else {
+                    None
+                };
+                results.push(TrackLayoutHero {
+                    label: format!("Loading screen ({layout})"),
+                    filename: format!("ui/{layout}/{PREVIEW_FILENAME}"),
+                    url,
+                });
+            }
+            return Ok(results);
+        }
+    }
+
+    // Fallback: no image found
+    Ok(vec![TrackLayoutHero {
+        label: "Loading screen".to_string(),
+        filename: PREVIEW_FILENAME.to_string(),
+        url: None,
+    }])
+}
 
 #[tauri::command]
 pub fn get_track_hero_image(mod_path: String, filename: String) -> Result<Option<String>, String> {
-    let path = Path::new(&mod_path).join(&filename);
-    if !path.exists() {
-        return Ok(None);
+    let root = Path::new(&mod_path);
+    let flat = [root.join(&filename), root.join("ui").join(&filename)];
+    if let Some(path) = flat.iter().find(|p| p.exists()) {
+        return Ok(Some(read_png_as_data_url(path)?));
     }
-    let data = std::fs::read(&path).map_err(|e| e.to_string())?;
-    let b64 = general_purpose::STANDARD.encode(&data);
-    Ok(Some(format!("data:image/png;base64,{b64}")))
+    let ui_path = root.join("ui");
+    if ui_path.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&ui_path) {
+            for entry in entries.flatten() {
+                let sub = entry.path();
+                if sub.is_dir() {
+                    let candidate = sub.join(&filename);
+                    if candidate.exists() {
+                        return Ok(Some(read_png_as_data_url(&candidate)?));
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 #[tauri::command]
@@ -53,6 +145,22 @@ mod tests {
         DynamicImage::ImageRgba8(img)
             .save(path)
             .unwrap();
+    }
+
+    #[test]
+    fn get_track_hero_image_returns_image_from_ui_layout_subdir() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let layout_dir = tmp_dir.path().join("ui").join("boot");
+        std::fs::create_dir_all(&layout_dir).unwrap();
+        let file_path = layout_dir.join("preview.png");
+        write_red_png(&file_path);
+
+        let result = get_track_hero_image(
+            tmp_dir.path().to_string_lossy().to_string(),
+            "preview.png".to_string(),
+        );
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_some());
     }
 
     #[test]

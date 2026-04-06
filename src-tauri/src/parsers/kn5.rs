@@ -32,9 +32,8 @@ impl Kn5File {
         }
 
         let version = read_u32_le(&mut cursor)?;
-        let _unknown = read_u32_le(&mut cursor)?;
         if version > 5 {
-            let _extra = read_u32_le(&mut cursor)?;
+            let _unknown = read_u32_le(&mut cursor)?;
         }
 
         let texture_count = read_u32_le(&mut cursor)?;
@@ -109,19 +108,14 @@ impl Kn5File {
             .map_err(crate::errors::AppError::Io)?;
         write_u32_le(&mut out, self.version)?;
 
-        let version_prefix_len = 6 + 4;
-        let unknown_val =
-            u32::from_le_bytes(self.raw[version_prefix_len..version_prefix_len + 4].try_into().unwrap_or([0; 4]));
-        write_u32_le(&mut out, unknown_val)?;
-
         if self.version > 5 {
-            let extra_offset = version_prefix_len + 4;
-            let extra_val = u32::from_le_bytes(
-                self.raw[extra_offset..extra_offset + 4]
+            let unknown_offset = 6 + 4;
+            let unknown_val = u32::from_le_bytes(
+                self.raw[unknown_offset..unknown_offset + 4]
                     .try_into()
                     .unwrap_or([0; 4]),
             );
-            write_u32_le(&mut out, extra_val)?;
+            write_u32_le(&mut out, unknown_val)?;
         }
 
         write_u32_le(&mut out, self.textures.len() as u32)?;
@@ -168,7 +162,9 @@ mod tests {
         let mut buf: Vec<u8> = Vec::new();
         buf.write_all(b"sc6969").unwrap();
         buf.write_all(&version.to_le_bytes()).unwrap();
-        buf.write_all(&0u32.to_le_bytes()).unwrap(); // unknown
+        if version > 5 {
+            buf.write_all(&0u32.to_le_bytes()).unwrap(); // unknown (only for version > 5)
+        }
 
         buf.write_all(&(textures.len() as u32).to_le_bytes())
             .unwrap();
@@ -206,8 +202,7 @@ mod tests {
         let mut buf: Vec<u8> = Vec::new();
         buf.write_all(b"sc6969").unwrap();
         buf.write_all(&6u32.to_le_bytes()).unwrap();
-        buf.write_all(&0u32.to_le_bytes()).unwrap(); // unknown
-        buf.write_all(&0u32.to_le_bytes()).unwrap(); // extra unknown (version > 5)
+        buf.write_all(&0u32.to_le_bytes()).unwrap(); // unknown (only for version > 5)
         buf.write_all(&1u32.to_le_bytes()).unwrap(); // texture count
         buf.write_all(&1u32.to_le_bytes()).unwrap(); // active
         buf.write_all(&(("tex.dds".len()) as u32).to_le_bytes())

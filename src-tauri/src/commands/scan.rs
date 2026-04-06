@@ -11,14 +11,39 @@ const TYRES_INI: &str = "data/tyres.ini";
 const SKINS_DIR: &str = "skins";
 
 pub fn detect_mod_type(path: &Path) -> Option<ModType> {
-    if path.join(UI_CAR_JSON).exists() {
+    if path.join(UI_CAR_JSON).exists() || path.join("ui").join(UI_CAR_JSON).exists() {
         return Some(ModType::Car);
     }
-    if path.join(UI_TRACK_JSON).exists() {
+    if path.join(UI_TRACK_JSON).exists() || path.join("ui").join(UI_TRACK_JSON).exists() {
         return Some(ModType::Track);
+    }
+    // Multi-layout tracks: ui_track.json is nested one level inside ui/ (e.g. ui/boot/)
+    if let Some(t) = detect_type_in_ui_subdirs(path) {
+        return Some(t);
     }
     if path.join(TYRES_INI).exists() {
         return Some(ModType::Car);
+    }
+    None
+}
+
+fn detect_type_in_ui_subdirs(path: &Path) -> Option<ModType> {
+    let ui_path = path.join("ui");
+    if !ui_path.is_dir() {
+        return None;
+    }
+    let entries = std::fs::read_dir(&ui_path).ok()?;
+    for entry in entries.flatten() {
+        let sub = entry.path();
+        if !sub.is_dir() {
+            continue;
+        }
+        if sub.join(UI_CAR_JSON).exists() {
+            return Some(ModType::Car);
+        }
+        if sub.join(UI_TRACK_JSON).exists() {
+            return Some(ModType::Track);
+        }
     }
     None
 }
@@ -37,6 +62,29 @@ fn read_ui_json(path: &Path) -> Value {
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or(Value::Null)
+}
+
+fn find_ui_json(mod_path: &Path, filename: &str) -> Value {
+    let flat = [mod_path.join(filename), mod_path.join("ui").join(filename)];
+    if let Some(p) = flat.iter().find(|p| p.exists()) {
+        return read_ui_json(p);
+    }
+    // Multi-layout: check ui/<layout>/<filename>
+    let ui_path = mod_path.join("ui");
+    if ui_path.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&ui_path) {
+            for entry in entries.flatten() {
+                let sub = entry.path();
+                if sub.is_dir() {
+                    let candidate = sub.join(filename);
+                    if candidate.exists() {
+                        return read_ui_json(&candidate);
+                    }
+                }
+            }
+        }
+    }
+    Value::Null
 }
 
 fn string_field(json: &Value, key: &str) -> String {
@@ -186,12 +234,12 @@ pub fn scan_mod_folder(path: String) -> Result<ModManifest, String> {
 
     let (ui_json, car_meta, track_meta) = match mod_type {
         ModType::Car => {
-            let json = read_ui_json(&mod_path.join(UI_CAR_JSON));
+            let json = find_ui_json(mod_path, UI_CAR_JSON);
             let car = parse_car_meta(&json);
             (json, Some(car), None)
         }
         ModType::Track => {
-            let json = read_ui_json(&mod_path.join(UI_TRACK_JSON));
+            let json = find_ui_json(mod_path, UI_TRACK_JSON);
             let track = parse_track_meta(&json);
             (json, None, Some(track))
         }
@@ -278,9 +326,53 @@ mod tests {
     }
 
     #[test]
+    fn detects_track_mod_by_ui_subfolder() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("ui")).unwrap();
+        fs::write(dir.path().join("ui").join(UI_TRACK_JSON), b"{}").unwrap();
+        assert_eq!(detect_mod_type(dir.path()), Some(ModType::Track));
+    }
+
+    #[test]
+    fn detects_car_mod_by_ui_subfolder() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("ui")).unwrap();
+        fs::write(dir.path().join("ui").join(UI_CAR_JSON), b"{}").unwrap();
+        assert_eq!(detect_mod_type(dir.path()), Some(ModType::Car));
+    }
+
+    #[test]
     fn returns_none_for_unknown_mod_type() {
         let dir = TempDir::new().unwrap();
         assert_eq!(detect_mod_type(dir.path()), None);
+    }
+
+    #[test]
+    fn detects_track_mod_in_ui_layout_subdir() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("ui").join("boot")).unwrap();
+        fs::write(dir.path().join("ui").join("boot").join(UI_TRACK_JSON), b"{}").unwrap();
+        assert_eq!(detect_mod_type(dir.path()), Some(ModType::Track));
+    }
+
+    #[test]
+    fn detects_car_mod_in_ui_layout_subdir() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("ui").join("v1")).unwrap();
+        fs::write(dir.path().join("ui").join("v1").join(UI_CAR_JSON), b"{}").unwrap();
+        assert_eq!(detect_mod_type(dir.path()), Some(ModType::Car));
+    }
+
+    #[test]
+    fn find_ui_json_searches_layout_subdirs() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("ui").join("boot")).unwrap();
+        let json = r#"{"name":"Layout Track","country":"USA"}"#;
+        fs::write(dir.path().join("ui").join("boot").join(UI_TRACK_JSON), json).unwrap();
+
+        let result = scan_mod_folder(dir.path().to_string_lossy().to_string()).unwrap();
+        assert_eq!(result.mod_type, ModType::Track);
+        assert_eq!(result.meta.name, "Layout Track");
     }
 
     #[test]
