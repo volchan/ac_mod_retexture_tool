@@ -5,12 +5,13 @@ import { useTheme } from '@/composables/useTheme'
 
 const theme = useTheme()
 
-// biome-ignore lint/correctness/noUnusedVariables: used in template
 const currentIcon = computed(() => {
   if (theme.mode.value === 'dark') return MoonIcon
   if (theme.mode.value === 'system') return MonitorIcon
   return SunIcon
 })
+
+defineExpose({ currentIcon })
 </script>
 
 <template>
