@@ -1,6 +1,6 @@
 use base64::engine::general_purpose;
 use base64::Engine;
-use image::DynamicImage;
+use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
 use image_dds::{dds_from_image, image_from_dds, ImageFormat, Mipmaps, Quality};
 use std::io::Cursor;
 
@@ -9,13 +9,66 @@ const DDS_FOURCC_OFFSET: usize = 84;
 const DDS_HEADER_MIN_LEN: usize = 128;
 const DDS_HEIGHT_OFFSET: usize = 12;
 const DDS_WIDTH_OFFSET: usize = 16;
+const DDS_PF_FLAGS_OFFSET: usize = 80;
+const DDS_PF_BITCOUNT_OFFSET: usize = 88;
+const DDS_DDPF_RGB: u32 = 0x40;
+const DDS_DDPF_ALPHAPIXELS: u32 = 0x01;
+
+/// Try to decode uncompressed RGB/RGBA DDS data that `image-dds` doesn't support.
+fn decode_uncompressed(data: &[u8]) -> Option<DynamicImage> {
+    if data.len() < DDS_HEADER_MIN_LEN {
+        return None;
+    }
+    let height = u32::from_le_bytes(data[12..16].try_into().ok()?) as usize;
+    let width = u32::from_le_bytes(data[16..20].try_into().ok()?) as usize;
+    let pf_flags = u32::from_le_bytes(data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4].try_into().ok()?);
+    let bit_count = u32::from_le_bytes(data[DDS_PF_BITCOUNT_OFFSET..DDS_PF_BITCOUNT_OFFSET + 4].try_into().ok()?);
+
+    if pf_flags & DDS_DDPF_RGB == 0 {
+        return None;
+    }
+
+    let pixel_data = &data[DDS_HEADER_MIN_LEN..];
+    let has_alpha = pf_flags & DDS_DDPF_ALPHAPIXELS != 0;
+
+    match (bit_count, has_alpha) {
+        (24, false) => {
+            let bytes_needed = width * height * 3;
+            if pixel_data.len() < bytes_needed {
+                return None;
+            }
+            let img = ImageBuffer::<Rgb<u8>, _>::from_raw(
+                width as u32,
+                height as u32,
+                pixel_data[..bytes_needed].to_vec(),
+            )?;
+            Some(DynamicImage::ImageRgb8(img))
+        }
+        (32, true) => {
+            let bytes_needed = width * height * 4;
+            if pixel_data.len() < bytes_needed {
+                return None;
+            }
+            let img = ImageBuffer::<Rgba<u8>, _>::from_raw(
+                width as u32,
+                height as u32,
+                pixel_data[..bytes_needed].to_vec(),
+            )?;
+            Some(DynamicImage::ImageRgba8(img))
+        }
+        _ => None,
+    }
+}
 
 pub fn decode_to_image(data: &[u8]) -> Result<DynamicImage, crate::errors::AppError> {
     let dds = image_dds::ddsfile::Dds::read(Cursor::new(data))
         .map_err(|e| crate::errors::AppError::ImageDecode(e.to_string()))?;
-    let rgba_image = image_from_dds(&dds, 0)
-        .map_err(|e| crate::errors::AppError::ImageDecode(e.to_string()))?;
-    Ok(DynamicImage::ImageRgba8(rgba_image))
+    match image_from_dds(&dds, 0) {
+        Ok(rgba_image) => Ok(DynamicImage::ImageRgba8(rgba_image)),
+        Err(_) => decode_uncompressed(data).ok_or_else(|| {
+            crate::errors::AppError::ImageDecode("unsupported DDS format".to_string())
+        }),
+    }
 }
 
 pub fn encode_from_image(

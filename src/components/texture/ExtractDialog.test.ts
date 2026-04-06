@@ -1,0 +1,229 @@
+import { clearInvokeHandlers, mockInvokeHandler } from '@tauri-apps/api'
+import { listen } from '@tauri-apps/api/event'
+import { open } from '@tauri-apps/plugin-dialog'
+import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
+import type { Texture } from '@/types/index'
+import ExtractDialog from './ExtractDialog.vue'
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: vi.fn(async () => null),
+}))
+
+const textures: Texture[] = [
+  {
+    id: 'a',
+    name: 'body.dds',
+    path: '/mods/car/car.kn5',
+    source: 'kn5',
+    kn5File: 'car.kn5',
+    category: 'body',
+    width: 1024,
+    height: 1024,
+    format: 'BC3',
+    previewUrl: '',
+    isDecoded: true,
+  },
+  {
+    id: 'b',
+    name: 'livery.dds',
+    path: '/mods/car/skins/default/livery.dds',
+    source: 'skin',
+    skinFolder: 'default',
+    category: 'livery',
+    width: 512,
+    height: 512,
+    format: 'BC1',
+    previewUrl: '',
+    isDecoded: true,
+  },
+]
+
+function bodyText() {
+  return document.body.textContent ?? ''
+}
+
+function bodyButtons() {
+  return Array.from(document.body.querySelectorAll('button'))
+}
+
+function findButton(text: string) {
+  return bodyButtons().find((b) => b.textContent?.trim() === text)
+}
+
+async function flush() {
+  await new Promise((r) => setTimeout(r, 0))
+  await nextTick()
+  await nextTick()
+}
+
+beforeEach(() => {
+  clearInvokeHandlers()
+  vi.mocked(listen).mockResolvedValue(() => {})
+  vi.clearAllMocks()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  document.body.innerHTML = ''
+})
+
+describe('ExtractDialog', () => {
+  it('does not render dialog content when closed', () => {
+    mount(ExtractDialog, {
+      props: { isOpen: false, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('renders title with texture count', async () => {
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+    expect(bodyText()).toContain('Extract 2 textures')
+  })
+
+  it('shows singular form for one texture', async () => {
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures: [textures[0]], modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+    expect(bodyText()).toContain('Extract 1 texture')
+  })
+
+  it('shows Browse button', async () => {
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+    const btn = bodyButtons().find((b) => b.textContent?.includes('Browse'))
+    expect(btn).toBeDefined()
+  })
+
+  it('Browse button calls open dialog', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/some/dir')
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    const btn = bodyButtons().find((b) => b.textContent?.includes('Browse'))
+    btn?.click()
+    await nextTick()
+
+    expect(open).toHaveBeenCalledWith({ directory: true, multiple: false })
+  })
+
+  it('shows output structure after folder selected', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    expect(bodyText()).toContain('Output structure')
+    expect(bodyText()).toContain('car/car.kn5/')
+    expect(bodyText()).toContain('body.png')
+  })
+
+  it('Extract button is disabled when no folder selected', async () => {
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    const extractBtn = findButton('Extract')
+    expect(extractBtn?.disabled).toBe(true)
+  })
+
+  it('calls extract_textures and shows success', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => [])
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    findButton('Extract')?.click()
+    await flush()
+
+    expect(bodyText()).toContain('Extracted successfully')
+  })
+
+  it('shows errors returned from extraction', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => ['body.dds: decode failed'])
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures: [textures[0]], modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    findButton('Extract')?.click()
+    await flush()
+
+    expect(bodyText()).toContain('body.dds: decode failed')
+  })
+
+  it('shows Close button after extraction done', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => [])
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+    findButton('Extract')?.click()
+    await flush()
+
+    expect(findButton('Close')).toBeDefined()
+  })
+
+  it('Cancel button emits update:isOpen false', async () => {
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    findButton('Cancel')?.click()
+    await nextTick()
+
+    expect(wrapper.emitted('update:isOpen')).toEqual([[false]])
+  })
+})

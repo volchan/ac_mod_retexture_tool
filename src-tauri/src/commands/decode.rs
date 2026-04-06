@@ -2,8 +2,10 @@ use crate::converters::dds;
 use crate::models::mod_info::ModType;
 use crate::models::texture::{TextureCategory, TextureEntry, TextureSource};
 use crate::parsers::kn5::Kn5File;
+use crate::DecodeCancel;
 use std::path::Path;
-use tauri::{AppHandle, Emitter};
+use std::sync::atomic::Ordering;
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 pub fn categorize(name: &str, mod_type: &ModType) -> TextureCategory {
@@ -53,11 +55,21 @@ pub fn categorize(name: &str, mod_type: &ModType) -> TextureCategory {
 }
 
 #[tauri::command]
+pub async fn cancel_decode(cancel: State<'_, DecodeCancel>) -> Result<(), String> {
+    cancel.0.store(true, Ordering::Relaxed);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn decode_mod_textures(
     app: AppHandle,
+    cancel: State<'_, DecodeCancel>,
     mod_path: String,
     mod_type: String,
 ) -> Result<(), String> {
+    // Reset cancellation flag for this run
+    cancel.0.store(false, Ordering::Relaxed);
+
     let path = Path::new(&mod_path);
     let mt = if mod_type == "car" {
         ModType::Car
@@ -74,6 +86,10 @@ pub async fn decode_mod_textures(
     let total = kn5_files.len();
 
     for (i, entry) in kn5_files.iter().enumerate() {
+        if cancel.0.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
         let kn5_path = entry.path();
         let kn5_name = kn5_path
             .file_name()
@@ -90,6 +106,10 @@ pub async fn decode_mod_textures(
         };
 
         for tex_name in kn5.texture_names() {
+            if cancel.0.load(Ordering::Relaxed) {
+                return Ok(());
+            }
+
             let data = match kn5.get_texture_data(tex_name) {
                 Some(d) => d,
                 None => continue,
@@ -128,10 +148,18 @@ pub async fn decode_mod_textures(
         );
     }
 
+    if cancel.0.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+
     let skins_path = path.join("skins");
     if skins_path.is_dir() {
         if let Ok(skin_dirs) = std::fs::read_dir(&skins_path) {
             for skin_entry in skin_dirs.flatten() {
+                if cancel.0.load(Ordering::Relaxed) {
+                    return Ok(());
+                }
+
                 let skin_path = skin_entry.path();
                 if !skin_path.is_dir() {
                     continue;
@@ -143,6 +171,9 @@ pub async fn decode_mod_textures(
                     .to_string();
                 if let Ok(files) = std::fs::read_dir(&skin_path) {
                     for file_entry in files.flatten() {
+                        if cancel.0.load(Ordering::Relaxed) {
+                            return Ok(());
+                        }
                         let fp = file_entry.path();
                         if fp.extension().and_then(|s| s.to_str()) != Some("dds") {
                             continue;

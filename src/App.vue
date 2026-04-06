@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { HexagonIcon, ImageIcon } from 'lucide-vue-next'
+import { computed } from 'vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import ModDropZone from '@/components/mod/ModDropZone.vue'
 import ModTree from '@/components/mod/ModTree.vue'
 import TexturePanel from '@/components/texture/TexturePanel.vue'
 import { useMod } from '@/composables/useMod'
+import { useTextures } from '@/composables/useTextures'
 
 const { mod, loadMod, closeMod } = useMod()
+const { textures, selected } = useTextures()
+
+const textureCount = computed(() => textures.value.length)
+const selectedCount = computed(() => selected.value.size)
 
 defineExpose({
   HexagonIcon,
@@ -18,11 +24,17 @@ defineExpose({
   mod,
   loadMod,
   closeMod,
+  textureCount,
+  selectedCount,
 })
 </script>
 
 <template>
-  <WorkspaceLayout :mod-name="mod?.meta.name">
+  <WorkspaceLayout
+    :mod-name="mod?.meta.name"
+    :texture-count="textureCount"
+    :selected-count="selectedCount"
+  >
     <template #left>
       <ModDropZone v-if="!mod" @drop="loadMod" />
       <ModTree v-else :mod="mod" @close="closeMod" />

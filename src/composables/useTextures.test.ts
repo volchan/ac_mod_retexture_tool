@@ -50,6 +50,7 @@ let capturedHandlers: Map<string, EventHandler>
 
 beforeEach(() => {
   clearInvokeHandlers()
+  mockInvokeHandler('cancel_decode', () => undefined)
   capturedHandlers = new Map()
   vi.mocked(listen).mockImplementation(async (eventName, handler) => {
     capturedHandlers.set(eventName, handler as EventHandler)
@@ -188,19 +189,47 @@ describe('useTextures', () => {
     unmount()
   })
 
-  it('cleanup calls unlisten', async () => {
+  it('cleanup cancels decode and resets state', async () => {
     const unlistenFn = vi.fn()
     vi.mocked(listen).mockImplementation(async (eventName, handler) => {
       capturedHandlers.set(eventName, handler as EventHandler)
       return unlistenFn
     })
-    mockInvokeHandler('decode_mod_textures', () => undefined)
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      return undefined
+    })
 
     const { result, unmount } = await withSetup(() => useTextures())
     await result.init(baseMod)
-    result.cleanup()
+    await result.cleanup()
 
     expect(unlistenFn).toHaveBeenCalled()
+    expect(result.textures.value).toHaveLength(0)
+    expect(result.isDecoding.value).toBe(false)
+    unmount()
+  })
+
+  it('cleanup calls cancel_decode when decoding is in progress', async () => {
+    let resolveDecoding!: () => void
+    const pending = new Promise<void>((r) => {
+      resolveDecoding = r
+    })
+    mockInvokeHandler('decode_mod_textures', () => pending)
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    result.init(baseMod) // intentionally not awaited — keep decoding
+
+    await nextTick()
+    await nextTick()
+
+    expect(result.isDecoding.value).toBe(true)
+    await result.cleanup()
+
+    expect(result.isDecoding.value).toBe(false)
+    expect(result.textures.value).toHaveLength(0)
+
+    resolveDecoding()
     unmount()
   })
 })

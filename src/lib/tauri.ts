@@ -10,12 +10,38 @@ export async function decodeModTextures(modPath: string, modType: string): Promi
   return invoke('decode_mod_textures', { modPath, modType })
 }
 
+export async function cancelDecode(): Promise<void> {
+  return invoke('cancel_decode')
+}
+
 export async function onDecodeTexture(cb: (tex: Texture) => void): Promise<() => void> {
   return listen('decode-texture', (e) => cb(e.payload as Texture))
 }
 
 export async function onDecodeProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
   return listen('decode-progress', (e) => cb(e.payload as ProgressInfo))
+}
+
+export async function extractTextures(
+  modPath: string,
+  textureNames: string[],
+  textureKn5s: string[],
+  textureSkinFolders: string[],
+  textureIds: string[],
+  outputDir: string,
+): Promise<string[]> {
+  return invoke('extract_textures', {
+    modPath,
+    textureIds,
+    textureNames,
+    textureKn5s,
+    textureSkinFolders,
+    outputDir,
+  })
+}
+
+export async function onExtractProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
+  return listen('extract-progress', (e) => cb(e.payload as ProgressInfo))
 }
 
 export async function listTrackHeroImages(modPath: string): Promise<TrackLayoutHero[]> {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import CategoryTabs from '@/components/texture/CategoryTabs.vue'
+import ExtractDialog from '@/components/texture/ExtractDialog.vue'
 import TextureCard from '@/components/texture/TextureCard.vue'
 import TrackHeroImages from '@/components/texture/TrackHeroImages.vue'
 import { Progress } from '@/components/ui/progress'
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 }>()
 
 const {
+  textures,
   selected,
   decodeProgress,
   isDecoding,
@@ -39,6 +41,7 @@ const {
 } = useTextures()
 
 const activeCategory = ref<TextureCategory>('all')
+const extractDialogOpen = ref(false)
 
 const categories = computed<TextureCategory[]>(() =>
   props.mod.modType === 'car' ? CAR_CATEGORIES : TRACK_CATEGORIES,
@@ -80,15 +83,20 @@ onMounted(() => {
   init(props.mod)
 })
 
-onUnmounted(() => {
-  cleanup()
+onUnmounted(async () => {
+  await cleanup()
 })
+
+const extractTargets = computed(() => textures.value.filter((t) => selected.value.has(t.id)))
 
 defineExpose({
   CategoryTabs,
+  ExtractDialog,
   TextureCard,
   TrackHeroImages,
   Progress,
+  extractDialogOpen,
+  extractTargets,
   showTrackHeroImages,
   categories,
   visibleTextures,
@@ -136,6 +144,14 @@ defineExpose({
         >
           Deselect all
         </button>
+        <button
+          v-if="extractTargets.length > 0"
+          class="text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          :disabled="isDecoding"
+          @click="extractDialogOpen = true"
+        >
+          Extract ({{ extractTargets.length }})
+        </button>
       </div>
     </div>
     <div class="flex-1 overflow-auto">
@@ -157,4 +173,11 @@ defineExpose({
       </div>
     </div>
   </div>
+
+  <ExtractDialog
+    v-model:is-open="extractDialogOpen"
+    :textures="extractTargets"
+    :mod-path="mod.path"
+    :mod-name="mod.meta.folderName"
+  />
 </template>
