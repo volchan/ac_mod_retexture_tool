@@ -232,4 +232,55 @@ describe('useTextures', () => {
     resolveDecoding()
     unmount()
   })
+
+  it('applyReplacements sets replacement on matched textures', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'tex1', width: 1024, height: 1024 }))
+      return undefined
+    })
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod)
+
+    const replacement = {
+      texture: result.textures.value[0],
+      sourcePath: '/import/body.png',
+      previewUrl: 'data:image/png;base64,new',
+      sourceWidth: 2048,
+      sourceHeight: 2048,
+      hasDimensionMismatch: true,
+    }
+    result.applyReplacements([replacement])
+
+    const updated = result.textures.value.find((t) => t.id === 'tex1')
+    expect(updated?.replacement?.sourcePath).toBe('/import/body.png')
+    expect(updated?.replacement?.width).toBe(2048)
+    unmount()
+  })
+
+  it('applyReplacements leaves unmatched textures unchanged', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'tex1' }))
+      emitDecodeTexture(makeTexture({ id: 'tex2' }))
+      return undefined
+    })
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod)
+
+    result.applyReplacements([
+      {
+        texture: result.textures.value.find((t) => t.id === 'tex1') as Texture,
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,x',
+        sourceWidth: 1024,
+        sourceHeight: 1024,
+        hasDimensionMismatch: false,
+      },
+    ])
+
+    expect(result.textures.value.find((t) => t.id === 'tex1')?.replacement).toBeDefined()
+    expect(result.textures.value.find((t) => t.id === 'tex2')?.replacement).toBeUndefined()
+    unmount()
+  })
 })

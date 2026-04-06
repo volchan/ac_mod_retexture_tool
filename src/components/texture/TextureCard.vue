@@ -29,7 +29,13 @@ defineExpose({ CheckIcon, Loader2Icon, props, handleClick })
   >
     <div class="checkerboard w-full aspect-square relative">
       <img
-        v-if="props.texture.isDecoded && props.texture.previewUrl"
+        v-if="props.texture.replacement"
+        :src="props.texture.replacement.previewUrl"
+        :alt="props.texture.name"
+        class="w-full h-full object-contain"
+      />
+      <img
+        v-else-if="props.texture.isDecoded && props.texture.previewUrl"
         :src="props.texture.previewUrl"
         :alt="props.texture.name"
         class="w-full h-full object-contain"
@@ -58,7 +64,11 @@ defineExpose({ CheckIcon, Loader2Icon, props, handleClick })
         {{ props.texture.name }}
       </p>
       <p class="text-[10px] text-muted-foreground">
-        {{ props.texture.width }}×{{ props.texture.height }} · {{ props.texture.format }}
+        <template v-if="props.texture.replacement">
+          {{ props.texture.replacement.width }}×{{ props.texture.replacement.height }}
+        </template>
+        <template v-else>{{ props.texture.width }}×{{ props.texture.height }}</template>
+        · {{ props.texture.format }}
       </p>
     </div>
   </div>

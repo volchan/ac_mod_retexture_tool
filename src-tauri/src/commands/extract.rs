@@ -6,10 +6,10 @@ use std::path::Path;
 use tauri::{AppHandle, Emitter};
 
 fn to_png_name(texture_name: &str) -> String {
-    let stem = texture_name
-        .strip_suffix(".dds")
-        .or_else(|| texture_name.strip_suffix(".DDS"))
-        .unwrap_or(texture_name);
+    let stem = Path::new(texture_name)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy();
     format!("{stem}.png")
 }
 
@@ -157,6 +157,13 @@ mod tests {
             path,
             Path::new("/output/ferrari/skins/skin_01/livery.png")
         );
+    }
+
+    #[test]
+    fn to_png_name_with_png_extension_does_not_double() {
+        let out_root = Path::new("/output");
+        let path = build_output_path(out_root, "watkins", "livery.png", "/mods/watkins/track.kn5", "");
+        assert_eq!(path, Path::new("/output/watkins/track.kn5/livery.png"));
     }
 
     #[test]

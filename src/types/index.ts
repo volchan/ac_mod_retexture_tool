@@ -116,3 +116,8 @@ export interface UnmatchedFile {
   name: string
   reason: string
 }
+
+export interface ImportScanResult {
+  matched: MatchedTexture[]
+  unmatched: UnmatchedFile[]
+}

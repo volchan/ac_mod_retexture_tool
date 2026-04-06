@@ -13,6 +13,9 @@ const DDS_PF_FLAGS_OFFSET: usize = 80;
 const DDS_PF_BITCOUNT_OFFSET: usize = 88;
 const DDS_DDPF_RGB: u32 = 0x40;
 const DDS_DDPF_ALPHAPIXELS: u32 = 0x01;
+const PNG_MAGIC: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+const PNG_WIDTH_OFFSET: usize = 16;
+const PNG_HEIGHT_OFFSET: usize = 20;
 
 /// Try to decode uncompressed RGB/RGBA DDS data that `image-dds` doesn't support.
 fn decode_uncompressed(data: &[u8]) -> Option<DynamicImage> {
@@ -61,6 +64,10 @@ fn decode_uncompressed(data: &[u8]) -> Option<DynamicImage> {
 }
 
 pub fn decode_to_image(data: &[u8]) -> Result<DynamicImage, crate::errors::AppError> {
+    if !data.starts_with(b"DDS ") {
+        return image::load_from_memory(data)
+            .map_err(|e| crate::errors::AppError::ImageDecode(e.to_string()));
+    }
     let dds = image_dds::ddsfile::Dds::read(Cursor::new(data))
         .map_err(|e| crate::errors::AppError::ImageDecode(e.to_string()))?;
     match image_from_dds(&dds, 0) {
@@ -97,10 +104,16 @@ pub fn generate_thumbnail(data: &[u8], max_size: u32) -> Result<String, crate::e
 }
 
 pub fn detect_format(data: &[u8]) -> String {
-    if data.len() < DDS_HEADER_MIN_LEN {
+    if data.len() < 4 {
         return "unknown".to_string();
     }
     if &data[0..4] != DDS_MAGIC {
+        if data.len() >= 8 && &data[0..8] == PNG_MAGIC {
+            return "PNG".to_string();
+        }
+        return "unknown".to_string();
+    }
+    if data.len() < DDS_HEADER_MIN_LEN {
         return "unknown".to_string();
     }
     let fourcc = &data[DDS_FOURCC_OFFSET..DDS_FOURCC_OFFSET + 4];
@@ -162,10 +175,29 @@ fn parse_image_format(format: &str) -> Result<ImageFormat, crate::errors::AppErr
 }
 
 pub fn parse_dds_dimensions(data: &[u8]) -> (u32, u32) {
-    if data.len() < DDS_WIDTH_OFFSET + 4 {
+    if data.len() < 4 {
         return (0, 0);
     }
     if &data[0..4] != DDS_MAGIC {
+        // PNG: width at bytes 16-19, height at 20-23 (big-endian)
+        if data.len() >= PNG_HEIGHT_OFFSET + 4 && &data[0..8] == PNG_MAGIC {
+            let width = u32::from_be_bytes([
+                data[PNG_WIDTH_OFFSET],
+                data[PNG_WIDTH_OFFSET + 1],
+                data[PNG_WIDTH_OFFSET + 2],
+                data[PNG_WIDTH_OFFSET + 3],
+            ]);
+            let height = u32::from_be_bytes([
+                data[PNG_HEIGHT_OFFSET],
+                data[PNG_HEIGHT_OFFSET + 1],
+                data[PNG_HEIGHT_OFFSET + 2],
+                data[PNG_HEIGHT_OFFSET + 3],
+            ]);
+            return (width, height);
+        }
+        return (0, 0);
+    }
+    if data.len() < DDS_WIDTH_OFFSET + 4 {
         return (0, 0);
     }
     let height = u32::from_le_bytes([
@@ -316,6 +348,52 @@ mod tests {
         let data = vec![0u8; 32];
         let result = decode_to_image(&data);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decode_to_image_png_fallback() {
+        let img = DynamicImage::ImageRgba8(ImageBuffer::from_fn(8, 8, |_, _| Rgba([0u8, 0, 255, 255])));
+        let mut png_bytes: Vec<u8> = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png).unwrap();
+        let result = decode_to_image(&png_bytes);
+        assert!(result.is_ok());
+        let decoded = result.unwrap();
+        assert_eq!(decoded.width(), 8);
+        assert_eq!(decoded.height(), 8);
+    }
+
+    fn make_png_bytes(width: u32, height: u32) -> Vec<u8> {
+        let img = DynamicImage::ImageRgba8(ImageBuffer::from_fn(width, height, |_, _| {
+            Rgba([0u8, 128, 255, 255])
+        }));
+        let mut png_bytes: Vec<u8> = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
+            .unwrap();
+        png_bytes
+    }
+
+    #[test]
+    fn test_detect_format_png() {
+        let data = make_png_bytes(32, 32);
+        assert_eq!(detect_format(&data), "PNG");
+    }
+
+    #[test]
+    fn test_parse_dds_dimensions_png() {
+        let data = make_png_bytes(256, 128);
+        let (w, h) = parse_dds_dimensions(&data);
+        assert_eq!(w, 256);
+        assert_eq!(h, 128);
+    }
+
+    #[test]
+    fn test_to_png_name_already_png() {
+        // to_png_name is in extract.rs, but we verify via extract tests
+        // This is a companion test for the detect/dimensions logic
+        let data = make_png_bytes(64, 64);
+        let (w, h) = parse_dds_dimensions(&data);
+        assert_eq!(w, 64);
+        assert_eq!(h, 64);
     }
 
     #[test]

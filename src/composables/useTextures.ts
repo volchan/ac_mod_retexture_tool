@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { cancelDecode, decodeModTextures, onDecodeProgress, onDecodeTexture } from '@/lib/tauri'
-import type { Mod, ProgressInfo, Texture, TextureCategory } from '@/types/index'
+import type { MatchedTexture, Mod, ProgressInfo, Texture, TextureCategory } from '@/types/index'
 
 const textures = ref<Texture[]>([])
 const selected = ref<Set<string>>(new Set())
@@ -72,6 +72,23 @@ export function useTextures() {
     return textures.value.filter((t) => t.category === category)
   }
 
+  function applyReplacements(matched: MatchedTexture[]) {
+    const byId = new Map(matched.map((m) => [m.texture.id, m]))
+    textures.value = textures.value.map((t) => {
+      const match = byId.get(t.id)
+      if (!match) return t
+      return {
+        ...t,
+        replacement: {
+          sourcePath: match.sourcePath,
+          previewUrl: match.previewUrl,
+          width: match.sourceWidth,
+          height: match.sourceHeight,
+        },
+      }
+    })
+  }
+
   async function cleanup() {
     if (isDecoding.value) {
       await cancelDecode()
@@ -89,6 +106,7 @@ export function useTextures() {
     selectAll,
     deselectAll,
     filteredTextures,
+    applyReplacements,
     cleanup,
   }
 }

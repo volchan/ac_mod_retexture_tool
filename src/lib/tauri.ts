@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { Mod, ProgressInfo, Texture, TrackLayoutHero } from '@/types/index'
+import type { ImportScanResult, Mod, ProgressInfo, Texture, TrackLayoutHero } from '@/types/index'
 
 export async function scanModFolder(path: string): Promise<Mod> {
   return invoke('scan_mod_folder', { path })
@@ -62,4 +62,20 @@ export async function extractTrackHeroImage(
 
 export async function previewReplacementImage(imagePath: string): Promise<string> {
   return invoke('preview_replacement_image', { imagePath })
+}
+
+export async function scanImportFolder(
+  importPath: string,
+  textureIds: string[],
+  textureNames: string[],
+  textureWidths: number[],
+  textureHeights: number[],
+): Promise<ImportScanResult> {
+  return invoke('scan_import_folder', {
+    importPath,
+    textureIds,
+    textureNames,
+    textureWidths,
+    textureHeights,
+  })
 }

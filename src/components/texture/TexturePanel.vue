@@ -2,11 +2,14 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import CategoryTabs from '@/components/texture/CategoryTabs.vue'
 import ExtractDialog from '@/components/texture/ExtractDialog.vue'
+import ImportConfirmDialog from '@/components/texture/ImportConfirmDialog.vue'
+import ImportDropZone from '@/components/texture/ImportDropZone.vue'
 import TextureCard from '@/components/texture/TextureCard.vue'
 import TrackHeroImages from '@/components/texture/TrackHeroImages.vue'
 import { Progress } from '@/components/ui/progress'
 import { useTextures } from '@/composables/useTextures'
-import type { Mod, TextureCategory } from '@/types/index'
+import { scanImportFolder } from '@/lib/tauri'
+import type { MatchedTexture, Mod, TextureCategory, UnmatchedFile } from '@/types/index'
 
 const CAR_CATEGORIES: TextureCategory[] = ['all', 'body', 'livery', 'interior', 'wheels', 'other']
 const TRACK_CATEGORIES: TextureCategory[] = [
@@ -37,11 +40,16 @@ const {
   selectAll,
   deselectAll,
   filteredTextures,
+  applyReplacements,
   cleanup,
 } = useTextures()
 
 const activeCategory = ref<TextureCategory>('all')
 const extractDialogOpen = ref(false)
+const importDialogOpen = ref(false)
+const importMatched = ref<MatchedTexture[]>([])
+const importUnmatched = ref<UnmatchedFile[]>([])
+const isScanning = ref(false)
 
 const categories = computed<TextureCategory[]>(() =>
   props.mod.modType === 'car' ? CAR_CATEGORIES : TRACK_CATEGORIES,
@@ -79,6 +87,39 @@ function handleDeselectAll() {
   emit('selection-change', selected.value)
 }
 
+async function handleImport(folderPath: string) {
+  if (textures.value.length === 0) return
+  isScanning.value = true
+  try {
+    const result = await scanImportFolder(
+      folderPath,
+      textures.value.map((t) => t.id),
+      textures.value.map((t) => t.name),
+      textures.value.map((t) => t.width),
+      textures.value.map((t) => t.height),
+    )
+    const textureById = new Map(textures.value.map((t) => [t.id, t]))
+    importMatched.value = result.matched
+      .filter((m) => textureById.has(m.textureId))
+      .map((m) => ({
+        texture: textureById.get(m.textureId) as import('@/types/index').Texture,
+        sourcePath: m.sourcePath,
+        previewUrl: m.previewUrl,
+        sourceWidth: m.sourceWidth,
+        sourceHeight: m.sourceHeight,
+        hasDimensionMismatch: m.hasDimensionMismatch,
+      }))
+    importUnmatched.value = result.unmatched
+    importDialogOpen.value = true
+  } finally {
+    isScanning.value = false
+  }
+}
+
+function handleApplyImport(matched: MatchedTexture[]) {
+  applyReplacements(matched)
+}
+
 onMounted(() => {
   init(props.mod)
 })
@@ -92,10 +133,16 @@ const extractTargets = computed(() => textures.value.filter((t) => selected.valu
 defineExpose({
   CategoryTabs,
   ExtractDialog,
+  ImportConfirmDialog,
+  ImportDropZone,
   TextureCard,
   TrackHeroImages,
   Progress,
   extractDialogOpen,
+  importDialogOpen,
+  importMatched,
+  importUnmatched,
+  isScanning,
   extractTargets,
   showTrackHeroImages,
   categories,
@@ -110,11 +157,13 @@ defineExpose({
   handleToggleSelect,
   handleSelectAll,
   handleDeselectAll,
+  handleImport,
+  handleApplyImport,
 })
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col h-full relative">
     <div v-if="isDecoding" class="px-3 py-1">
       <div class="flex items-center justify-between text-xs text-muted-foreground mb-1">
         <span>{{ decodeProgress.label || 'Decoding…' }}</span>
@@ -154,7 +203,7 @@ defineExpose({
         </button>
       </div>
     </div>
-    <div class="flex-1 overflow-auto">
+    <div class="flex-1 overflow-auto pb-20">
       <TrackHeroImages v-if="showTrackHeroImages" :mod="mod" />
       <div class="grid grid-cols-4 gap-2 p-3">
         <TextureCard
@@ -172,7 +221,22 @@ defineExpose({
         No textures in this category
       </div>
     </div>
+    <div class="absolute bottom-0 left-0 right-0 px-3 pb-3 pt-6 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none">
+      <div class="pointer-events-auto">
+        <div v-if="isScanning" class="text-xs text-muted-foreground text-center py-2 rounded-lg border border-dashed border-border bg-background">
+          Scanning…
+        </div>
+        <ImportDropZone v-else-if="!isDecoding" @import="handleImport" />
+      </div>
+    </div>
   </div>
+
+  <ImportConfirmDialog
+    v-model:is-open="importDialogOpen"
+    :matched="importMatched"
+    :unmatched="importUnmatched"
+    @apply="handleApplyImport"
+  />
 
   <ExtractDialog
     v-model:is-open="extractDialogOpen"

@@ -41,6 +41,8 @@ let capturedHandlers: Map<string, EventHandler>
 
 beforeEach(() => {
   clearInvokeHandlers()
+  mockInvokeHandler('cancel_decode', () => undefined)
+  mockInvokeHandler('list_track_hero_images', () => [])
   capturedHandlers = new Map()
   vi.mocked(listen).mockImplementation(async (eventName, handler) => {
     capturedHandlers.set(eventName, handler as EventHandler)
