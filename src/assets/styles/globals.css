@@ -120,3 +120,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+.checkerboard {
+  background-image: repeating-conic-gradient(#e5e5e5 0% 25%, white 0% 50%);
+  background-size: 16px 16px;
+}

@@ -3,6 +3,7 @@ import { HexagonIcon, ImageIcon } from 'lucide-vue-next'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import ModDropZone from '@/components/mod/ModDropZone.vue'
 import ModTree from '@/components/mod/ModTree.vue'
+import TexturePanel from '@/components/texture/TexturePanel.vue'
 import { useMod } from '@/composables/useMod'
 
 const { mod, loadMod, closeMod } = useMod()
@@ -13,6 +14,7 @@ defineExpose({
   WorkspaceLayout,
   ModDropZone,
   ModTree,
+  TexturePanel,
   mod,
   loadMod,
   closeMod,
@@ -26,7 +28,11 @@ defineExpose({
       <ModTree v-else :mod="mod" @close="closeMod" />
     </template>
     <template #center>
-      <div class="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+      <TexturePanel v-if="mod" :mod="mod" />
+      <div
+        v-else
+        class="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground"
+      >
         <ImageIcon :size="48" class="opacity-30" />
         <span class="text-sm">Drop a mod folder to preview textures</span>
       </div>
