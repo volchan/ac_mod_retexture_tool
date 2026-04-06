@@ -57,9 +57,7 @@
       "includes": ["*.vue"],
       "linter": {
         "rules": {
-          "style": {
-            "useImportType": "off"
-          }
+          "style": {}
         }
       }
     }

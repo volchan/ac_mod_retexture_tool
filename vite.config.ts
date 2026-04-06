@@ -3,11 +3,10 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vitest/config'
 
-export default defineConfig({
-  plugins: [vue(), tailwindcss()],
-  resolve: {
-    alias: [
-      { find: '@', replacement: resolve(__dirname, 'src') },
+const isTesting = !!process.env.VITEST
+
+const testAliases = isTesting
+  ? [
       {
         find: /^@tauri-apps\/api(\/.*)?$/,
         replacement: resolve(__dirname, 'src/__mocks__/tauri-api.ts'),
@@ -20,7 +19,18 @@ export default defineConfig({
         find: '@tauri-apps/plugin-store',
         replacement: resolve(__dirname, 'src/__mocks__/tauri-store.ts'),
       },
-    ],
+    ]
+  : []
+
+export default defineConfig({
+  plugins: [vue(), tailwindcss()],
+  server: {
+    port: 1420,
+    strictPort: true,
+    host: '127.0.0.1',
+  },
+  resolve: {
+    alias: [{ find: '@', replacement: resolve(__dirname, 'src') }, ...testAliases],
   },
   test: {
     environment: 'jsdom',
