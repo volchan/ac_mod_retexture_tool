@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import CategoryTabs from '@/components/texture/CategoryTabs.vue'
 import TextureCard from '@/components/texture/TextureCard.vue'
+import TrackHeroImages from '@/components/texture/TrackHeroImages.vue'
 import { Progress } from '@/components/ui/progress'
 import { useTextures } from '@/composables/useTextures'
 import type { Mod, TextureCategory } from '@/types/index'
@@ -52,6 +53,10 @@ const progressPercent = computed(() => {
 
 const selectedCount = computed(() => selected.value.size)
 
+const showTrackHeroImages = computed(
+  () => props.mod.type === 'track' && activeCategory.value === 'all',
+)
+
 function handleCategoryChange(cat: TextureCategory) {
   activeCategory.value = cat
 }
@@ -82,7 +87,9 @@ onUnmounted(() => {
 defineExpose({
   CategoryTabs,
   TextureCard,
+  TrackHeroImages,
   Progress,
+  showTrackHeroImages,
   categories,
   visibleTextures,
   progressPercent,
@@ -131,8 +138,9 @@ defineExpose({
         </button>
       </div>
     </div>
-    <div class="flex-1 overflow-auto p-3">
-      <div class="grid grid-cols-4 gap-2">
+    <div class="flex-1 overflow-auto">
+      <TrackHeroImages v-if="showTrackHeroImages" :mod="mod" />
+      <div class="grid grid-cols-4 gap-2 p-3">
         <TextureCard
           v-for="texture in visibleTextures"
           :key="texture.id"

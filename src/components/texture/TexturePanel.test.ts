@@ -102,6 +102,7 @@ describe('TexturePanel', () => {
 
   it('shows track categories for track mod', async () => {
     mockInvokeHandler('decode_mod_textures', () => Promise.resolve([]))
+    mockInvokeHandler('get_track_hero_image', () => null)
 
     const trackMod: Mod = { ...baseMod, type: 'track' }
     const wrapper = mount(TexturePanel, { props: { mod: trackMod } })
