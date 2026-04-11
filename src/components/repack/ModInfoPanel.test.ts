@@ -39,11 +39,17 @@ const trackMod: Mod = {
   skinFolders: [],
 }
 
-function makeTexture(id: string, replaced = false): Texture {
+function makeTexture(
+  id: string,
+  replaced = false,
+  kn5File = 'ferrari_488.kn5',
+  replacementSize?: { width: number; height: number },
+): Texture {
   return {
     id,
     name: `tex_${id}.dds`,
     path: '/mods/ferrari_488/ferrari_488.kn5',
+    kn5File,
     source: 'kn5',
     category: 'body',
     width: 1024,
@@ -52,7 +58,12 @@ function makeTexture(id: string, replaced = false): Texture {
     previewUrl: '',
     isDecoded: true,
     replacement: replaced
-      ? { sourcePath: '/import/tex.png', previewUrl: '', width: 1024, height: 1024 }
+      ? {
+          sourcePath: '/import/tex.png',
+          previewUrl: '',
+          width: replacementSize?.width ?? 1024,
+          height: replacementSize?.height ?? 1024,
+        }
       : undefined,
   }
 }
@@ -171,19 +182,40 @@ describe('ModInfoPanel', () => {
     expect(wrapper.text()).not.toContain('Renaming')
   })
 
-  it('shows replacement count when textures are replaced', async () => {
-    await seedTextures([makeTexture('a', true), makeTexture('b', true), makeTexture('c', false)])
+  it('shows replacement count and kn5 breakdown when textures are replaced', async () => {
+    await seedTextures([
+      makeTexture('a', true, 'car.kn5'),
+      makeTexture('b', true, 'car.kn5'),
+      makeTexture('c', true, 'car_lod.kn5'),
+      makeTexture('d', false),
+    ])
     const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
     await nextTick()
-    expect(wrapper.text()).toContain('2')
-    expect(wrapper.text()).toContain('recompiled')
+    expect(wrapper.text()).toContain('Queued for repack')
+    expect(wrapper.text()).toContain('3')
+    expect(wrapper.text()).toContain('car.kn5')
+    expect(wrapper.text()).toContain('car_lod.kn5')
+  })
+
+  it('shows mismatch warning when replacement dimensions differ', async () => {
+    await seedTextures([makeTexture('a', true, 'car.kn5', { width: 512, height: 512 })])
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    expect(wrapper.text()).toContain('different dimensions')
+  })
+
+  it('hides mismatch warning when dimensions match', async () => {
+    await seedTextures([makeTexture('a', true, 'car.kn5')])
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    expect(wrapper.text()).not.toContain('different dimensions')
   })
 
   it('hides replacement section when no replacements', async () => {
     await seedTextures([makeTexture('a', false)])
     const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
     await nextTick()
-    expect(wrapper.text()).not.toContain('recompiled')
+    expect(wrapper.text()).not.toContain('Queued for repack')
   })
 
   it('emits repack when Repack button is clicked', async () => {

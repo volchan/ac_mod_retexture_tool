@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { clearInvokeHandlers, mockInvokeHandler } from '../__mocks__/tauri-api'
-import type { Mod, TrackLayoutHero } from '../types/index'
-import { listTrackHeroImages, scanModFolder } from './tauri'
+import type { Mod } from '../types/index'
+import { scanModFolder } from './tauri'
 
 afterEach(() => {
   clearInvokeHandlers()
@@ -27,17 +27,5 @@ describe('scanModFolder', () => {
 
     const result = await scanModFolder('/mods/ferrari_488')
     expect(result).toEqual(mockMod)
-  })
-})
-
-describe('listTrackHeroImages', () => {
-  it('calls list_track_hero_images command with the given path', async () => {
-    const mockHeroes: TrackLayoutHero[] = [
-      { label: 'Loading screen', filename: 'preview.png', url: 'data:image/png;base64,abc' },
-    ]
-    mockInvokeHandler('list_track_hero_images', () => mockHeroes)
-
-    const result = await listTrackHeroImages('/mods/monza')
-    expect(result).toEqual(mockHeroes)
   })
 })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { CheckIcon, Loader2Icon } from 'lucide-vue-next'
+import { heroLabel } from '@/lib/utils'
 import type { Texture } from '@/types/index'
 
 const props = defineProps<{
@@ -15,19 +16,25 @@ function handleClick() {
   emit('toggle-select')
 }
 
-defineExpose({ CheckIcon, Loader2Icon, props, handleClick })
+const isHero = props.texture.category === 'loadingScreen'
+
+defineExpose({ CheckIcon, Loader2Icon, props, handleClick, heroLabel, isHero })
 </script>
 
 <template>
   <div
     class="relative cursor-pointer rounded-md overflow-hidden transition-all"
     :class="[
+      isHero ? 'col-span-2' : '',
       props.isSelected ? 'ring-2 ring-blue-500' : 'ring-1 ring-border',
       props.texture.replacement ? 'ring-2 ring-amber-500' : '',
     ]"
     @click="handleClick"
   >
-    <div class="checkerboard w-full aspect-square relative">
+    <div
+      class="checkerboard w-full relative"
+      :class="isHero ? 'aspect-video' : 'aspect-square'"
+    >
       <img
         v-if="props.texture.replacement"
         :src="props.texture.replacement.previewUrl"
@@ -53,6 +60,13 @@ defineExpose({ CheckIcon, Loader2Icon, props, handleClick })
         <CheckIcon :size="12" class="text-white" />
       </div>
       <div
+        v-if="isHero"
+        class="absolute top-1 left-1 bg-muted/80 text-muted-foreground text-[10px] font-medium px-1.5 py-0.5 rounded backdrop-blur-sm"
+        :class="props.isSelected ? 'left-7' : ''"
+      >
+        Loading screen
+      </div>
+      <div
         v-if="props.texture.replacement"
         class="absolute top-1 right-1 bg-amber-500 text-white text-[10px] font-medium px-1.5 py-0.5 rounded"
       >
@@ -61,7 +75,7 @@ defineExpose({ CheckIcon, Loader2Icon, props, handleClick })
     </div>
     <div class="px-1.5 py-1 bg-card">
       <p class="text-[11px] font-medium truncate" :title="props.texture.name">
-        {{ props.texture.name }}
+        {{ isHero ? heroLabel(props.texture.name) : props.texture.name }}
       </p>
       <p class="text-[10px] text-muted-foreground">
         <template v-if="props.texture.replacement">

@@ -42,7 +42,6 @@ let capturedHandlers: Map<string, EventHandler>
 beforeEach(() => {
   clearInvokeHandlers()
   mockInvokeHandler('cancel_decode', () => undefined)
-  mockInvokeHandler('list_track_hero_images', () => [])
   capturedHandlers = new Map()
   vi.mocked(listen).mockImplementation(async (eventName, handler) => {
     capturedHandlers.set(eventName, handler as EventHandler)
@@ -119,7 +118,6 @@ describe('TexturePanel', () => {
 
   it('shows track categories for track mod', async () => {
     mockInvokeHandler('decode_mod_textures', () => Promise.resolve(undefined))
-    mockInvokeHandler('get_track_hero_image', () => null)
 
     const trackMod: Mod = { ...baseMod, modType: 'track' }
     const wrapper = mount(TexturePanel, { props: { mod: trackMod } })

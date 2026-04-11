@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useTextures } from '@/composables/useTextures'
+import { heroLabel } from '@/lib/utils'
 import type { Mod } from '@/types/index'
 
 const props = defineProps<{
@@ -32,8 +33,27 @@ const country = ref(props.mod.trackMeta?.country ?? '')
 
 const folderNameChanged = computed(() => folderName.value.trim() !== props.mod.meta.folderName)
 
-const replacementCount = computed(
-  () => textures.value.filter((t) => t.replacement !== undefined).length,
+const replaced = computed(() => textures.value.filter((t) => t.replacement != null))
+
+const replacementCount = computed(() => replaced.value.length)
+
+const replacementByKn5 = computed(() => {
+  const map = new Map<string, number>()
+  for (const t of replaced.value) {
+    const key =
+      t.category === 'loadingScreen' ? heroLabel(t.name) : (t.kn5File ?? t.skinFolder ?? 'other')
+    map.set(key, (map.get(key) ?? 0) + 1)
+  }
+  return [...map.entries()].sort((a, b) => b[1] - a[1])
+})
+
+const mismatchCount = computed(
+  () =>
+    replaced.value.filter(
+      (t) =>
+        t.replacement != null &&
+        (t.replacement.width !== t.width || t.replacement.height !== t.height),
+    ).length,
 )
 
 watch(
@@ -83,7 +103,10 @@ defineExpose({
   weight,
   country,
   folderNameChanged,
+  replaced,
   replacementCount,
+  replacementByKn5,
+  mismatchCount,
   reset,
 })
 </script>
@@ -161,10 +184,23 @@ defineExpose({
       </div>
     </section>
 
-    <section v-if="replacementCount > 0" class="rounded-md border border-border bg-background px-3 py-2">
-      <p class="text-[11px] text-muted-foreground">
-        <span class="font-medium text-foreground">{{ replacementCount }}</span>
-        texture{{ replacementCount !== 1 ? 's' : '' }} will be recompiled on repack.
+    <section v-if="replacementCount > 0" class="rounded-md border border-border bg-background px-3 py-2.5 space-y-2">
+      <div class="flex items-center justify-between">
+        <p class="text-[11px] font-medium text-foreground">Queued for repack</p>
+        <span class="text-[11px] font-medium text-foreground">{{ replacementCount }}</span>
+      </div>
+      <div class="space-y-1">
+        <div
+          v-for="[file, count] in replacementByKn5"
+          :key="file"
+          class="flex items-center justify-between"
+        >
+          <span class="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]">{{ file }}</span>
+          <span class="text-[10px] text-muted-foreground shrink-0 ml-2">{{ count }}</span>
+        </div>
+      </div>
+      <p v-if="mismatchCount > 0" class="text-[10px] text-amber-600">
+        {{ mismatchCount }} texture{{ mismatchCount !== 1 ? 's have' : ' has' }} different dimensions — may cause visual issues in-game.
       </p>
     </section>
 

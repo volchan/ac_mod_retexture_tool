@@ -56,6 +56,7 @@ export type TextureCategory =
   | 'props'
   | 'sky'
   | 'other'
+  | 'loadingScreen'
 
 export type TextureSource = 'kn5' | 'skin'
 
@@ -86,12 +87,6 @@ export interface ProgressInfo {
   current: number
   total: number
   label: string
-}
-
-export interface TrackLayoutHero {
-  label: string
-  filename: string
-  url: string | null
 }
 
 export interface RepackOptions {

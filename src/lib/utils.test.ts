@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cn } from './utils'
+import { cn, heroLabel } from './utils'
 
 describe('cn', () => {
   it('merges class names', () => {
@@ -20,5 +20,23 @@ describe('cn', () => {
 
   it('handles undefined and null values', () => {
     expect(cn('foo', undefined, null, 'bar')).toBe('foo bar')
+  })
+})
+
+describe('heroLabel', () => {
+  it('returns "Loading screen" for preview.png', () => {
+    expect(heroLabel('preview.png')).toBe('Loading screen')
+  })
+
+  it('returns layout label for preview_boot.png', () => {
+    expect(heroLabel('preview_boot.png')).toBe('Loading screen (boot)')
+  })
+
+  it('converts underscores to spaces in layout name', () => {
+    expect(heroLabel('preview_boot_classic.png')).toBe('Loading screen (boot classic)')
+  })
+
+  it('returns name as-is for unrecognised pattern', () => {
+    expect(heroLabel('other.png')).toBe('other.png')
   })
 })

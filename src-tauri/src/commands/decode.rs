@@ -3,6 +3,9 @@ use crate::models::mod_info::ModType;
 use crate::models::texture::{TextureCategory, TextureEntry, TextureSource};
 use crate::parsers::kn5::Kn5File;
 use crate::DecodeCancel;
+use base64::engine::general_purpose;
+use base64::Engine;
+use std::io::Cursor;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, State};
@@ -52,6 +55,49 @@ pub fn categorize(name: &str, mod_type: &ModType) -> TextureCategory {
             }
         }
     }
+}
+
+/// Returns `(display_name, abs_path, rel_path_from_mod_root)` triples for all loading screen PNGs.
+/// `rel_path_from_mod_root` uses forward slashes and is what gets stored in `TextureEntry.path`.
+/// For single-layout: display_name = "preview.png", rel = "preview.png" or "ui/preview.png".
+/// For multi-layout:  display_name = "preview_{layout}.png", rel = "ui/{layout}/preview.png".
+fn collect_hero_png_entries(mod_path: &Path) -> Vec<(String, std::path::PathBuf, String)> {
+    let flat = [
+        (mod_path.join("preview.png"), "preview.png".to_string()),
+        (mod_path.join("ui").join("preview.png"), "ui/preview.png".to_string()),
+    ];
+    for (path, rel) in &flat {
+        if path.exists() {
+            return vec![("preview.png".to_string(), path.clone(), rel.clone())];
+        }
+    }
+
+    let ui_path = mod_path.join("ui");
+    if !ui_path.is_dir() {
+        return vec![];
+    }
+
+    let mut layout_dirs: Vec<_> = std::fs::read_dir(&ui_path)
+        .map(|d| d.flatten().filter(|e| e.path().is_dir()).collect())
+        .unwrap_or_default();
+    layout_dirs.sort_by_key(|e| e.file_name());
+
+    let mut results = Vec::new();
+    for entry in &layout_dirs {
+        let sub = entry.path();
+        let layout = sub.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let candidate = sub.join("preview.png");
+        if candidate.exists() {
+            let display_name = if layout_dirs.len() == 1 {
+                "preview.png".to_string()
+            } else {
+                format!("preview_{layout}.png")
+            };
+            let rel = format!("ui/{layout}/preview.png");
+            results.push((display_name, candidate, rel));
+        }
+    }
+    results
 }
 
 #[tauri::command]
@@ -211,6 +257,40 @@ pub async fn decode_mod_textures(
         }
     }
 
+    if mt == ModType::Track {
+        for (name, abs_path, rel_path) in collect_hero_png_entries(path) {
+            if cancel.0.load(Ordering::Relaxed) {
+                return Ok(());
+            }
+            if let Ok(img) = image::open(&abs_path) {
+                let width = img.width();
+                let height = img.height();
+                let thumb = img.thumbnail(256, 256);
+                let mut png_bytes: Vec<u8> = Vec::new();
+                let _ = thumb.write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png);
+                let b64 = general_purpose::STANDARD.encode(&png_bytes);
+                let preview_url = format!("data:image/png;base64,{b64}");
+                let tex = TextureEntry {
+                    id: Uuid::new_v4().to_string(),
+                    name,
+                    // Relative path from mod root — used as kn5_path in extract/import
+                    path: rel_path,
+                    source: TextureSource::Skin,
+                    kn5_file: None,
+                    skin_folder: None,
+                    category: TextureCategory::LoadingScreen,
+                    width,
+                    height,
+                    format: "PNG".to_string(),
+                    preview_url,
+                    is_decoded: true,
+                    replacement: None,
+                };
+                let _ = app.emit("decode-texture", &tex);
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -317,5 +397,78 @@ mod tests {
         let (w, h) = dds::parse_dds_dimensions(&data);
         assert_eq!(w, 1024);
         assert_eq!(h, 512);
+    }
+
+    fn write_tiny_png(path: &std::path::Path) {
+        let img = image::DynamicImage::ImageRgba8(image::ImageBuffer::from_fn(
+            64, 64, |_, _| image::Rgba([0, 0, 0, 255]),
+        ));
+        img.save(path).unwrap();
+    }
+
+    #[test]
+    fn test_collect_hero_png_entries_single_layout_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_tiny_png(&tmp.path().join("preview.png"));
+
+        let entries = collect_hero_png_entries(tmp.path());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "preview.png");
+        assert_eq!(entries[0].2, "preview.png");
+    }
+
+    #[test]
+    fn test_collect_hero_png_entries_single_layout_ui_subdir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ui = tmp.path().join("ui");
+        std::fs::create_dir(&ui).unwrap();
+        write_tiny_png(&ui.join("preview.png"));
+
+        let entries = collect_hero_png_entries(tmp.path());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "preview.png");
+        assert_eq!(entries[0].2, "ui/preview.png");
+    }
+
+    #[test]
+    fn test_collect_hero_png_entries_multi_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ui = tmp.path().join("ui");
+        std::fs::create_dir(&ui).unwrap();
+        for layout in ["boot", "national"] {
+            let dir = ui.join(layout);
+            std::fs::create_dir(&dir).unwrap();
+            write_tiny_png(&dir.join("preview.png"));
+        }
+
+        let entries = collect_hero_png_entries(tmp.path());
+        assert_eq!(entries.len(), 2);
+        let names: Vec<&str> = entries.iter().map(|(n, _, _)| n.as_str()).collect();
+        let rels: Vec<&str> = entries.iter().map(|(_, _, r)| r.as_str()).collect();
+        assert!(names.contains(&"preview_boot.png"));
+        assert!(names.contains(&"preview_national.png"));
+        assert!(rels.contains(&"ui/boot/preview.png"));
+        assert!(rels.contains(&"ui/national/preview.png"));
+    }
+
+    #[test]
+    fn test_collect_hero_png_entries_no_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let entries = collect_hero_png_entries(tmp.path());
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn test_collect_hero_png_entries_single_layout_subdir_uses_preview_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("ui").join("boot");
+        std::fs::create_dir_all(&dir).unwrap();
+        write_tiny_png(&dir.join("preview.png"));
+
+        // Single layout subdir → display name "preview.png", rel "ui/boot/preview.png"
+        let entries = collect_hero_png_entries(tmp.path());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "preview.png");
+        assert_eq!(entries[0].2, "ui/boot/preview.png");
     }
 }

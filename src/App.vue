@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import ModDropZone from '@/components/mod/ModDropZone.vue'
 import ModTree from '@/components/mod/ModTree.vue'
+import ModInfoPanel from '@/components/repack/ModInfoPanel.vue'
 import TexturePanel from '@/components/texture/TexturePanel.vue'
 import { useMod } from '@/composables/useMod'
 import { useTextures } from '@/composables/useTextures'
@@ -20,6 +21,7 @@ defineExpose({
   WorkspaceLayout,
   ModDropZone,
   ModTree,
+  ModInfoPanel,
   TexturePanel,
   mod,
   loadMod,
@@ -50,7 +52,11 @@ defineExpose({
       </div>
     </template>
     <template #right>
-      <div class="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full">
+      <ModInfoPanel v-if="mod" :mod="mod" @repack="() => {}" />
+      <div
+        v-else
+        class="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full"
+      >
         <HexagonIcon :size="48" class="opacity-30" />
         <span class="text-sm">Load a mod to edit its info</span>
       </div>

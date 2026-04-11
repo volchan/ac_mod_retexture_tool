@@ -27,13 +27,16 @@ pub fn build_output_path(
             .join("skins")
             .join(skin_folder)
             .join(png_name)
-    } else {
+    } else if kn5_path.ends_with(".kn5") {
         let kn5_name = Path::new(kn5_path)
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
         out_root.join(mod_name).join(&kn5_name).join(png_name)
+    } else {
+        // kn5_path is a relative path from mod root (e.g. "ui/boot/preview.png")
+        out_root.join(mod_name).join(kn5_path)
     }
 }
 
@@ -59,7 +62,9 @@ pub async fn extract_textures(
 
     let mut kn5_cache: HashMap<String, Kn5File> = HashMap::new();
     let mut errors: Vec<String> = Vec::new();
+    let mut hashes: HashMap<String, u64> = HashMap::new();
     let total = texture_names.len();
+    let mod_out = out.join(&mod_name);
 
     for (i, name) in texture_names.iter().enumerate() {
         let kn5_path = &texture_kn5s[i];
@@ -69,6 +74,24 @@ pub async fn extract_textures(
             let out_file = build_output_path(&out, &mod_name, name, kn5_path, skin_folder);
             if let Some(parent) = out_file.parent() {
                 std::fs::create_dir_all(parent)?;
+            }
+
+            // Loading screen PNG: copy verbatim to preserve full quality.
+            // kn5_path is the relative path from mod root (e.g. "ui/boot/preview.png").
+            if !kn5_path.is_empty() && skin_folder.is_empty() && !kn5_path.ends_with(".kn5") {
+                let src = mod_root.join(kn5_path);
+                std::fs::copy(&src, &out_file)?;
+                let img = image::open(src)
+                    .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+                let hash = dds::pixel_hash(&img);
+                if let Ok(rel) = out_file.strip_prefix(&mod_out) {
+                    let key = rel.components()
+                        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                        .join("/");
+                    hashes.insert(key, hash);
+                }
+                return Ok(());
             }
 
             let dds_data: Vec<u8> = if kn5_path.is_empty() || !skin_folder.is_empty() {
@@ -87,8 +110,17 @@ pub async fn extract_textures(
             };
 
             let img = dds::decode_to_image(&dds_data)?;
+            let hash = dds::pixel_hash(&img);
             img.save(&out_file)
                 .map_err(|e| AppError::ImageEncode(e.to_string()))?;
+
+            if let Ok(rel) = out_file.strip_prefix(&mod_out) {
+                let key = rel.components()
+                    .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                hashes.insert(key, hash);
+            }
 
             Ok(())
         })();
@@ -105,6 +137,12 @@ pub async fn extract_textures(
                 "label": name,
             }),
         );
+    }
+
+    if !hashes.is_empty() {
+        if let Ok(json) = serde_json::to_string(&hashes) {
+            let _ = std::fs::write(mod_out.join(".retexture_hashes.json"), json);
+        }
     }
 
     Ok(errors)
@@ -164,6 +202,21 @@ mod tests {
         let out_root = Path::new("/output");
         let path = build_output_path(out_root, "watkins", "livery.png", "/mods/watkins/track.kn5", "");
         assert_eq!(path, Path::new("/output/watkins/track.kn5/livery.png"));
+    }
+
+    #[test]
+    fn build_output_path_for_loading_screen_root() {
+        let out_root = Path::new("/output");
+        let path = build_output_path(out_root, "monza", "preview.png", "ui/preview.png", "");
+        assert_eq!(path, Path::new("/output/monza/ui/preview.png"));
+    }
+
+    #[test]
+    fn build_output_path_for_loading_screen_multilayout() {
+        let out_root = Path::new("/output");
+        let path =
+            build_output_path(out_root, "monza", "preview_boot.png", "ui/boot/preview.png", "");
+        assert_eq!(path, Path::new("/output/monza/ui/boot/preview.png"));
     }
 
     #[test]

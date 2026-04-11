@@ -5,7 +5,6 @@ import ExtractDialog from '@/components/texture/ExtractDialog.vue'
 import ImportConfirmDialog from '@/components/texture/ImportConfirmDialog.vue'
 import ImportDropZone from '@/components/texture/ImportDropZone.vue'
 import TextureCard from '@/components/texture/TextureCard.vue'
-import TrackHeroImages from '@/components/texture/TrackHeroImages.vue'
 import { Progress } from '@/components/ui/progress'
 import { useTextures } from '@/composables/useTextures'
 import { scanImportFolder } from '@/lib/tauri'
@@ -55,7 +54,14 @@ const categories = computed<TextureCategory[]>(() =>
   props.mod.modType === 'car' ? CAR_CATEGORIES : TRACK_CATEGORIES,
 )
 
-const visibleTextures = computed(() => filteredTextures(activeCategory.value))
+const visibleTextures = computed(() => {
+  const list = filteredTextures(activeCategory.value)
+  return [...list].sort((a, b) => {
+    if (a.category === 'loadingScreen' && b.category !== 'loadingScreen') return -1
+    if (b.category === 'loadingScreen' && a.category !== 'loadingScreen') return 1
+    return 0
+  })
+})
 
 const progressPercent = computed(() => {
   if (decodeProgress.value.total === 0) return 0
@@ -63,10 +69,6 @@ const progressPercent = computed(() => {
 })
 
 const selectedCount = computed(() => selected.value.size)
-
-const showTrackHeroImages = computed(
-  () => props.mod.modType === 'track' && activeCategory.value === 'all',
-)
 
 function handleCategoryChange(cat: TextureCategory) {
   activeCategory.value = cat
@@ -93,10 +95,13 @@ async function handleImport(folderPath: string) {
   try {
     const result = await scanImportFolder(
       folderPath,
+      props.mod.path,
       textures.value.map((t) => t.id),
       textures.value.map((t) => t.name),
       textures.value.map((t) => t.width),
       textures.value.map((t) => t.height),
+      textures.value.map((t) => (t.source === 'kn5' ? t.path : t.skinFolder ? '' : t.path)),
+      textures.value.map((t) => t.skinFolder ?? ''),
     )
     const textureById = new Map(textures.value.map((t) => [t.id, t]))
     importMatched.value = result.matched
@@ -136,7 +141,6 @@ defineExpose({
   ImportConfirmDialog,
   ImportDropZone,
   TextureCard,
-  TrackHeroImages,
   Progress,
   extractDialogOpen,
   importDialogOpen,
@@ -144,7 +148,6 @@ defineExpose({
   importUnmatched,
   isScanning,
   extractTargets,
-  showTrackHeroImages,
   categories,
   visibleTextures,
   progressPercent,
@@ -204,7 +207,6 @@ defineExpose({
       </div>
     </div>
     <div class="flex-1 overflow-auto pb-20">
-      <TrackHeroImages v-if="showTrackHeroImages" :mod="mod" />
       <div class="grid grid-cols-4 gap-2 p-3">
         <TextureCard
           v-for="texture in visibleTextures"

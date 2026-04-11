@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -21,6 +22,11 @@ const emit = defineEmits<{
   apply: [matched: MatchedTexture[]]
 }>()
 
+const open = computed({
+  get: () => props.isOpen,
+  set: (val) => emit('update:isOpen', val),
+})
+
 const hasMismatch = computed(() => props.matched.some((m) => m.hasDimensionMismatch))
 const mismatchCount = computed(() => props.matched.filter((m) => m.hasDimensionMismatch).length)
 
@@ -32,20 +38,22 @@ function sourceLabel(m: MatchedTexture): string {
 
 function handleApply() {
   emit('apply', props.matched)
-  emit('update:isOpen', false)
+  open.value = false
 }
 
 function handleClose() {
-  emit('update:isOpen', false)
+  open.value = false
 }
 
 defineExpose({
   AlertTriangleIcon,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  open,
   hasMismatch,
   mismatchCount,
   sourceLabel,
@@ -55,10 +63,11 @@ defineExpose({
 </script>
 
 <template>
-  <Dialog :open="isOpen" @update:open="handleClose">
+  <Dialog v-model:open="open">
     <DialogContent class="max-w-lg">
       <DialogHeader>
         <DialogTitle>Replace {{ matched.length }} texture{{ matched.length !== 1 ? 's' : '' }}?</DialogTitle>
+        <DialogDescription class="sr-only">Review matched and skipped textures before applying replacements.</DialogDescription>
       </DialogHeader>
 
       <div class="space-y-3 py-1">

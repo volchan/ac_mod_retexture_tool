@@ -215,6 +215,17 @@ pub fn parse_dds_dimensions(data: &[u8]) -> (u32, u32) {
     (width, height)
 }
 
+/// FNV-1a hash of the image's raw RGBA pixel bytes.
+/// Used to detect whether a texture has been modified since extraction.
+pub fn pixel_hash(img: &DynamicImage) -> u64 {
+    img.to_rgba8()
+        .as_raw()
+        .iter()
+        .fold(14695981039346656037u64, |h, &b| {
+            h.wrapping_mul(1099511628211) ^ b as u64
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

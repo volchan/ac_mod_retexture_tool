@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -36,6 +37,11 @@ const progress = ref<ProgressInfo>({ current: 0, total: 0, label: '' })
 const errors = ref<string[]>([])
 const done = ref(false)
 
+const dialogOpen = computed({
+  get: () => props.isOpen,
+  set: (val) => emit('update:isOpen', val),
+})
+
 const progressPercent = computed(() =>
   progress.value.total > 0 ? (progress.value.current / progress.value.total) * 100 : 0,
 )
@@ -43,11 +49,21 @@ const progressPercent = computed(() =>
 const outputTree = computed<TreeFolder[]>(() => {
   const folderMap = new Map<string, string[]>()
   for (const t of props.textures) {
-    const kn5 = t.kn5File ?? ''
-    const skin = t.skinFolder ?? ''
-    const folderKey = kn5 && !skin ? `${kn5}` : `skins/${skin}`
+    let folderKey: string
+    let fileName: string
+    if (t.category === 'loadingScreen') {
+      // t.path is the rel path from mod root, e.g. "ui/boot/preview.png"
+      const lastSlash = t.path.lastIndexOf('/')
+      folderKey = lastSlash >= 0 ? t.path.slice(0, lastSlash) : ''
+      fileName = lastSlash >= 0 ? t.path.slice(lastSlash + 1) : t.path
+    } else {
+      const kn5 = t.kn5File ?? ''
+      const skin = t.skinFolder ?? ''
+      folderKey = kn5 && !skin ? kn5 : `skins/${skin}`
+      fileName = t.name.replace(/\.dds$/i, '.png')
+    }
     if (!folderMap.has(folderKey)) folderMap.set(folderKey, [])
-    folderMap.get(folderKey)?.push(t.name.replace(/\.dds$/i, '.png'))
+    folderMap.get(folderKey)?.push(fileName)
   }
   return Array.from(folderMap.entries()).map(([name, files]) => ({ name, files }))
 })
@@ -71,7 +87,7 @@ async function handleExtract() {
     const errs = await extractTextures(
       props.modPath,
       props.textures.map((t) => t.name),
-      props.textures.map((t) => (t.source === 'kn5' ? t.path : '')),
+      props.textures.map((t) => (t.source === 'kn5' ? t.path : t.skinFolder ? '' : t.path)),
       props.textures.map((t) => t.skinFolder ?? ''),
       props.textures.map((t) => t.id),
       outputDir.value,
@@ -90,7 +106,7 @@ function handleClose() {
   done.value = false
   errors.value = []
   progress.value = { current: 0, total: 0, label: '' }
-  emit('update:isOpen', false)
+  dialogOpen.value = false
   if (wasDone) emit('done')
 }
 
@@ -100,10 +116,12 @@ defineExpose({
   FolderOpenIcon,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   Progress,
+  dialogOpen,
   outputDir,
   isExtracting,
   progress,
@@ -118,10 +136,11 @@ defineExpose({
 </script>
 
 <template>
-  <Dialog :open="isOpen" @update:open="handleClose">
+  <Dialog v-model:open="dialogOpen">
     <DialogContent class="max-w-lg">
       <DialogHeader>
         <DialogTitle>Extract {{ textures.length }} texture{{ textures.length !== 1 ? 's' : '' }}</DialogTitle>
+        <DialogDescription class="sr-only">Choose an output folder and extract selected textures as PNG files.</DialogDescription>
       </DialogHeader>
 
       <div class="space-y-4 py-2">
@@ -151,7 +170,7 @@ defineExpose({
             <div v-for="folder in outputTree" :key="folder.name">
               <div class="flex items-center gap-1.5 text-[11px] font-medium py-0.5">
                 <FolderIcon :size="13" class="text-amber-500 shrink-0" />
-                <span class="font-mono">{{ modName }}/{{ folder.name }}/</span>
+                <span class="font-mono">{{ folder.name ? `${modName}/${folder.name}/` : `${modName}/` }}</span>
               </div>
               <div
                 v-for="file in folder.files"

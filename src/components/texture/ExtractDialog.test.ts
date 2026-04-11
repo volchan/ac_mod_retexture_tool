@@ -214,6 +214,39 @@ describe('ExtractDialog', () => {
     expect(findButton('Close')).toBeDefined()
   })
 
+  it('shows correct path for loading screen textures in output tree', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    const heroTextures: Texture[] = [
+      {
+        id: 'h1',
+        name: 'preview_boot.png',
+        path: 'ui/boot/preview.png',
+        source: 'skin',
+        category: 'loadingScreen',
+        width: 1920,
+        height: 1080,
+        format: 'PNG',
+        previewUrl: '',
+        isDecoded: true,
+      },
+    ]
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures: heroTextures, modPath: '/mods/track', modName: 'track' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    expect(bodyText()).toContain('track/ui/boot/')
+    expect(bodyText()).toContain('preview.png')
+  })
+
   it('Cancel button emits update:isOpen false', async () => {
     const wrapper = mount(ExtractDialog, {
       props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },

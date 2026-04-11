@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { ImportScanResult, Mod, ProgressInfo, Texture, TrackLayoutHero } from '@/types/index'
+import type { ImportScanResult, Mod, ProgressInfo, Texture } from '@/types/index'
 
 export async function scanModFolder(path: string): Promise<Mod> {
   return invoke('scan_mod_folder', { path })
@@ -44,38 +44,24 @@ export async function onExtractProgress(cb: (info: ProgressInfo) => void): Promi
   return listen('extract-progress', (e) => cb(e.payload as ProgressInfo))
 }
 
-export async function listTrackHeroImages(modPath: string): Promise<TrackLayoutHero[]> {
-  return invoke('list_track_hero_images', { modPath })
-}
-
-export async function getTrackHeroImage(modPath: string, filename: string): Promise<string | null> {
-  return invoke('get_track_hero_image', { modPath, filename })
-}
-
-export async function extractTrackHeroImage(
-  modPath: string,
-  filename: string,
-  outputPath: string,
-): Promise<void> {
-  return invoke('extract_track_hero_image', { modPath, filename, outputPath })
-}
-
-export async function previewReplacementImage(imagePath: string): Promise<string> {
-  return invoke('preview_replacement_image', { imagePath })
-}
-
 export async function scanImportFolder(
   importPath: string,
+  modPath: string,
   textureIds: string[],
   textureNames: string[],
   textureWidths: number[],
   textureHeights: number[],
+  textureKn5s: string[],
+  textureSkinFolders: string[],
 ): Promise<ImportScanResult> {
   return invoke('scan_import_folder', {
     importPath,
+    modPath,
     textureIds,
     textureNames,
     textureWidths,
     textureHeights,
+    textureKn5s,
+    textureSkinFolders,
   })
 }

@@ -122,4 +122,65 @@ describe('TextureCard', () => {
     expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe('data:image/png;base64,test')
   })
+
+  it('loading-screen card spans 2 columns', () => {
+    const wrapper = mount(TextureCard, {
+      props: {
+        texture: makeTexture({
+          category: 'loadingScreen',
+          name: 'preview.png',
+          source: 'skin',
+          path: '/mods/monza/preview.png',
+        }),
+        isSelected: false,
+      },
+    })
+    expect(wrapper.classes()).toContain('col-span-2')
+  })
+
+  it('loading-screen card shows "Loading screen" label', () => {
+    const wrapper = mount(TextureCard, {
+      props: {
+        texture: makeTexture({
+          category: 'loadingScreen',
+          name: 'preview.png',
+          source: 'skin',
+          path: '/mods/monza/preview.png',
+        }),
+        isSelected: false,
+      },
+    })
+    expect(wrapper.text()).toContain('Loading screen')
+  })
+
+  it('loading-screen card with layout shows layout in label', () => {
+    const wrapper = mount(TextureCard, {
+      props: {
+        texture: makeTexture({
+          category: 'loadingScreen',
+          name: 'preview_boot.png',
+          source: 'skin',
+          path: '/mods/monza/ui/boot/preview.png',
+        }),
+        isSelected: false,
+      },
+    })
+    expect(wrapper.text()).toContain('Loading screen (boot)')
+  })
+
+  it('loading-screen card uses aspect-video image area', () => {
+    const wrapper = mount(TextureCard, {
+      props: {
+        texture: makeTexture({
+          category: 'loadingScreen',
+          name: 'preview.png',
+          source: 'skin',
+          path: '/mods/monza/preview.png',
+        }),
+        isSelected: false,
+      },
+    })
+    expect(wrapper.find('.aspect-video').exists()).toBe(true)
+    expect(wrapper.find('.aspect-square').exists()).toBe(false)
+  })
 })
