@@ -4,16 +4,15 @@ import type { Mod } from '@/types/index'
 
 const mod = ref<Mod | null>(null)
 const isLoading = ref(false)
-const error = ref<string | null>(null)
 
 export function useMod() {
-  async function loadMod(path: string) {
+  async function loadMod(path: string): Promise<{ error: string } | null> {
     isLoading.value = true
-    error.value = null
     try {
       mod.value = await scanModFolder(path)
+      return null
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
+      return { error: e instanceof Error ? e.message : String(e) }
     } finally {
       isLoading.value = false
     }
@@ -21,8 +20,7 @@ export function useMod() {
 
   function closeMod() {
     mod.value = null
-    error.value = null
   }
 
-  return { mod, isLoading, error, loadMod, closeMod }
+  return { mod, isLoading, loadMod, closeMod }
 }

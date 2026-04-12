@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, nextTick } from 'vue'
+import { defineComponent } from 'vue'
 import type { Mod } from '../types/index'
 import { useMod } from './useMod'
 
@@ -11,17 +11,18 @@ vi.mock('@/lib/tauri', () => ({
 import { scanModFolder } from '@/lib/tauri'
 
 const mockMod: Mod = {
-  type: 'car',
-  path: '/mods/ferrari_488',
+  modType: 'track',
+  path: '/mods/spa',
   meta: {
-    name: 'Ferrari 488',
-    folderName: 'ferrari_488',
+    name: 'Spa',
+    folderName: 'spa',
     author: 'Test',
     version: '1.0',
     description: '',
   },
+  trackMeta: { country: 'Belgium', length: 7004, pitboxes: 30 },
   files: [],
-  kn5Files: ['ferrari_488.kn5'],
+  kn5Files: ['track.kn5'],
   skinFolders: [],
 }
 
@@ -50,71 +51,55 @@ afterEach(() => {
 })
 
 describe('useMod', () => {
-  it('starts with null mod and no error', () => {
-    const [{ mod, isLoading, error }, unmount] = withSetup(() => useMod())
+  it('starts with null mod and not loading', () => {
+    const [{ mod, isLoading }, unmount] = withSetup(() => useMod())
     expect(mod.value).toBeNull()
     expect(isLoading.value).toBe(false)
-    expect(error.value).toBeNull()
     unmount()
   })
 
-  it('loads a mod successfully', async () => {
+  it('loads a mod successfully and returns null', async () => {
     vi.mocked(scanModFolder).mockResolvedValueOnce(mockMod)
-    const [{ mod, isLoading, error, loadMod }, unmount] = withSetup(() => useMod())
+    const [{ mod, isLoading, loadMod }, unmount] = withSetup(() => useMod())
 
-    const promise = loadMod('/mods/ferrari_488')
+    const promise = loadMod('/mods/spa')
     expect(isLoading.value).toBe(true)
 
-    await promise
+    const result = await promise
     expect(isLoading.value).toBe(false)
     expect(mod.value).toEqual(mockMod)
-    expect(error.value).toBeNull()
+    expect(result).toBeNull()
     unmount()
   })
 
-  it('sets error when scan fails with Error', async () => {
+  it('returns error object when scan fails with Error', async () => {
     vi.mocked(scanModFolder).mockRejectedValueOnce(new Error('scan failed'))
-    const [{ mod, error, loadMod }, unmount] = withSetup(() => useMod())
+    const [{ mod, loadMod }, unmount] = withSetup(() => useMod())
 
-    await loadMod('/bad/path')
+    const result = await loadMod('/bad/path')
     expect(mod.value).toBeNull()
-    expect(error.value).toBe('scan failed')
+    expect(result).toEqual({ error: 'scan failed' })
     unmount()
   })
 
-  it('sets error when scan fails with non-Error', async () => {
+  it('returns error object when scan fails with non-Error', async () => {
     vi.mocked(scanModFolder).mockRejectedValueOnce('unknown error')
-    const [{ error, loadMod }, unmount] = withSetup(() => useMod())
+    const [{ loadMod }, unmount] = withSetup(() => useMod())
 
-    await loadMod('/bad/path')
-    expect(error.value).toBe('unknown error')
+    const result = await loadMod('/bad/path')
+    expect(result).toEqual({ error: 'unknown error' })
     unmount()
   })
 
-  it('closeMod clears mod and error', async () => {
+  it('closeMod clears mod', async () => {
     vi.mocked(scanModFolder).mockResolvedValueOnce(mockMod)
-    const [{ mod, error, loadMod, closeMod }, unmount] = withSetup(() => useMod())
+    const [{ mod, loadMod, closeMod }, unmount] = withSetup(() => useMod())
 
-    await loadMod('/mods/ferrari_488')
+    await loadMod('/mods/spa')
     expect(mod.value).not.toBeNull()
 
     closeMod()
-    await nextTick()
     expect(mod.value).toBeNull()
-    expect(error.value).toBeNull()
-    unmount()
-  })
-
-  it('clears previous error on new loadMod call', async () => {
-    vi.mocked(scanModFolder).mockRejectedValueOnce(new Error('first error'))
-    const [{ error, loadMod }, unmount] = withSetup(() => useMod())
-
-    await loadMod('/bad/path')
-    expect(error.value).toBe('first error')
-
-    vi.mocked(scanModFolder).mockResolvedValueOnce(mockMod)
-    await loadMod('/mods/ferrari_488')
-    expect(error.value).toBeNull()
     unmount()
   })
 })

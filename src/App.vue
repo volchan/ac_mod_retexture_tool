@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { HexagonIcon, ImageIcon } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
+import { toast } from 'vue-sonner'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import ModDropZone from '@/components/mod/ModDropZone.vue'
 import ModTree from '@/components/mod/ModTree.vue'
 import ModInfoPanel from '@/components/repack/ModInfoPanel.vue'
 import RepackDialog from '@/components/repack/RepackDialog.vue'
 import TexturePanel from '@/components/texture/TexturePanel.vue'
+import Toaster from '@/components/ui/sonner/Toaster.vue'
 import { useMod } from '@/composables/useMod'
 import { useTextures } from '@/composables/useTextures'
 import { showSaveDialog } from '@/lib/tauri'
@@ -21,6 +23,18 @@ const selectedCount = computed(() => selected.value.size)
 const repackOpen = ref(false)
 const repackOutputPath = ref('')
 const repackReplacements = ref<TextureReplacementOpt[]>([])
+
+async function handleDrop(path: string) {
+  const result = await loadMod(path)
+  if (result?.error) {
+    toast.error(result.error)
+    return
+  }
+  if (mod.value?.modType !== 'track') {
+    closeMod()
+    toast.error('Only track mods are supported for now.')
+  }
+}
 
 async function handleRepack() {
   if (!mod.value) return
@@ -53,6 +67,7 @@ defineExpose({
   RepackDialog,
   ModInfoPanel,
   TexturePanel,
+  Toaster,
   mod,
   loadMod,
   closeMod,
@@ -61,6 +76,7 @@ defineExpose({
   repackOpen,
   repackOutputPath,
   repackReplacements,
+  handleDrop,
   handleRepack,
 })
 </script>
@@ -72,7 +88,7 @@ defineExpose({
     :selected-count="selectedCount"
   >
     <template #left>
-      <ModDropZone v-if="!mod" @drop="loadMod" />
+      <ModDropZone v-if="!mod" @drop="handleDrop" />
       <ModTree v-else :mod="mod" @close="closeMod" />
     </template>
     <template #center>
@@ -106,4 +122,6 @@ defineExpose({
     @update:open="repackOpen = $event"
     @done="repackOpen = false"
   />
+
+  <Toaster />
 </template>
