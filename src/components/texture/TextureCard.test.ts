@@ -124,7 +124,7 @@ describe('TextureCard', () => {
   })
 
   // preview category (Content Manager preview.png thumbnails)
-  it('preview card spans 2 columns', () => {
+  it('preview card does not span 2 columns', () => {
     const wrapper = mount(TextureCard, {
       props: {
         texture: makeTexture({
@@ -136,10 +136,10 @@ describe('TextureCard', () => {
         isSelected: false,
       },
     })
-    expect(wrapper.classes()).toContain('col-span-2')
+    expect(wrapper.classes()).not.toContain('col-span-2')
   })
 
-  it('preview card shows "Preview image" label', () => {
+  it('preview card shows "Preview image" label in name row', () => {
     const wrapper = mount(TextureCard, {
       props: {
         texture: makeTexture({
@@ -154,7 +154,7 @@ describe('TextureCard', () => {
     expect(wrapper.text()).toContain('Preview image')
   })
 
-  it('preview card with layout shows layout in label', () => {
+  it('preview card with layout shows layout in name row', () => {
     const wrapper = mount(TextureCard, {
       props: {
         texture: makeTexture({
@@ -169,7 +169,7 @@ describe('TextureCard', () => {
     expect(wrapper.text()).toContain('Preview image (boot)')
   })
 
-  it('preview card uses aspect-video image area', () => {
+  it('preview card uses aspect-square image area', () => {
     const wrapper = mount(TextureCard, {
       props: {
         texture: makeTexture({
@@ -181,7 +181,7 @@ describe('TextureCard', () => {
         isSelected: false,
       },
     })
-    expect(wrapper.find('.aspect-video').exists()).toBe(true)
-    expect(wrapper.find('.aspect-square').exists()).toBe(false)
+    expect(wrapper.find('.aspect-square').exists()).toBe(true)
+    expect(wrapper.find('.aspect-video').exists()).toBe(false)
   })
 })
