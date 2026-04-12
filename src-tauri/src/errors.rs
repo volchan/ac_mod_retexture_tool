@@ -30,7 +30,10 @@ mod tests {
 
     #[test]
     fn io_error_converts_to_string() {
-        let err = AppError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "file missing"));
+        let err = AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "file missing",
+        ));
         let s: String = err.into();
         assert!(s.contains("IO error"));
     }

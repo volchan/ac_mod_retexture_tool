@@ -79,7 +79,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   document.body.innerHTML = ''
-  // Reset shared texture state
   const { cleanup } = useTextures()
   cleanup()
 })
@@ -112,74 +111,41 @@ async function seedTextures(textures: Texture[]) {
 }
 
 describe('ModInfoPanel', () => {
-  it('pre-fills general fields from mod meta', () => {
+  it('displays general fields from mod meta', () => {
     const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
-    const vm = wrapper.vm as InstanceType<typeof ModInfoPanel>
-    expect(vm.name).toBe('Ferrari 488')
-    expect(vm.author).toBe('Kunos')
-    expect(vm.version).toBe('1.0')
+    expect(wrapper.text()).toContain('Ferrari 488')
+    expect(wrapper.text()).toContain('ferrari_488')
+    expect(wrapper.text()).toContain('Kunos')
+    expect(wrapper.text()).toContain('1.0')
   })
 
   it('shows car-specific fields for car mod', () => {
     const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
     expect(wrapper.text()).toContain('Car details')
-    expect(wrapper.text()).toContain('Brand')
-    expect(wrapper.text()).toContain('BHP')
+    expect(wrapper.text()).toContain('Ferrari')
+    expect(wrapper.text()).toContain('GT3')
+    expect(wrapper.text()).toContain('670')
     expect(wrapper.text()).not.toContain('Track details')
   })
 
   it('shows track-specific fields for track mod', () => {
     const wrapper = mount(ModInfoPanel, { props: { mod: trackMod } })
     expect(wrapper.text()).toContain('Track details')
-    expect(wrapper.text()).toContain('Country')
+    expect(wrapper.text()).toContain('USA')
+    expect(wrapper.text()).toContain('5430')
+    expect(wrapper.text()).toContain('32')
     expect(wrapper.text()).not.toContain('Car details')
   })
 
-  it('pre-fills car-specific fields', () => {
+  it('has no editable inputs', () => {
     const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
-    const vm = wrapper.vm as InstanceType<typeof ModInfoPanel>
-    expect(vm.brand).toBe('Ferrari')
-    expect(vm.carClass).toBe('GT3')
-    expect(vm.bhp).toBe(670)
-    expect(vm.weight).toBe(1340)
+    expect(wrapper.findAll('input')).toHaveLength(0)
+    expect(wrapper.findAll('textarea')).toHaveLength(0)
   })
 
-  it('pre-fills track-specific fields', () => {
-    const wrapper = mount(ModInfoPanel, { props: { mod: trackMod } })
-    const vm = wrapper.vm as InstanceType<typeof ModInfoPanel>
-    expect(vm.country).toBe('USA')
-  })
-
-  it('does not show length or pitboxes fields', () => {
-    const wrapper = mount(ModInfoPanel, { props: { mod: trackMod } })
-    expect(wrapper.text()).not.toContain('Pit boxes')
-    expect(wrapper.text()).not.toContain('Length')
-  })
-
-  it('reset restores original values', async () => {
+  it('shows repack as .zip button', () => {
     const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
-    const vm = wrapper.vm as InstanceType<typeof ModInfoPanel>
-    vm.name = 'Modified Name'
-    vm.author = 'Someone'
-    await nextTick()
-    vm.reset()
-    await nextTick()
-    expect(vm.name).toBe('Ferrari 488')
-    expect(vm.author).toBe('Kunos')
-  })
-
-  it('shows folder name warning when folder name is changed', async () => {
-    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
-    const vm = wrapper.vm as InstanceType<typeof ModInfoPanel>
-    expect(wrapper.text()).not.toContain('Renaming')
-    vm.folderName = 'ferrari_488_gt3'
-    await nextTick()
-    expect(wrapper.text()).toContain('Renaming')
-  })
-
-  it('does not show folder warning when unchanged', () => {
-    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
-    expect(wrapper.text()).not.toContain('Renaming')
+    expect(wrapper.text()).toContain('.zip')
   })
 
   it('shows replacement count and kn5 breakdown when textures are replaced', async () => {
@@ -218,20 +184,26 @@ describe('ModInfoPanel', () => {
     expect(wrapper.text()).not.toContain('Queued for repack')
   })
 
-  it('emits repack when Repack button is clicked', async () => {
+  it('repack button is disabled when no replacements', () => {
     const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    const btn = wrapper.findAll('button').find((b) => b.text().includes('Repack'))
+    expect(btn?.attributes('disabled')).toBeDefined()
+  })
+
+  it('repack button is enabled when there are replacements', async () => {
+    await seedTextures([makeTexture('a', true, 'car.kn5')])
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    const btn = wrapper.findAll('button').find((b) => b.text().includes('Repack'))
+    expect(btn?.attributes('disabled')).toBeUndefined()
+  })
+
+  it('emits repack when Repack button is clicked', async () => {
+    await seedTextures([makeTexture('a', true, 'car.kn5')])
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
     const btn = wrapper.findAll('button').find((b) => b.text().includes('Repack'))
     await btn?.trigger('click')
     expect(wrapper.emitted('repack')).toBeTruthy()
-  })
-
-  it('Reset button resets fields without emitting repack', async () => {
-    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
-    const vm = wrapper.vm as InstanceType<typeof ModInfoPanel>
-    vm.name = 'Changed'
-    const btn = wrapper.findAll('button').find((b) => b.text().includes('Reset'))
-    await btn?.trigger('click')
-    expect(vm.name).toBe('Ferrari 488')
-    expect(wrapper.emitted('repack')).toBeFalsy()
   })
 })

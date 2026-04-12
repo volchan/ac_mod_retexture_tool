@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use super::mod_info::{CarMeta, ModMeta, TrackMeta};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -10,6 +10,9 @@ pub struct TextureReplacementOpt {
     pub texture_name: String,
     pub skin_folder: Option<String>,
     pub original_format: String,
+    /// Relative path from mod root for hero images (e.g. "ui/preview.png").
+    /// When set, the source PNG is copied verbatim to this path in the output.
+    pub hero_image_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +39,7 @@ mod tests {
             texture_name: "body_main.dds".to_string(),
             skin_folder: None,
             original_format: "BC3".to_string(),
+            hero_image_path: None,
         };
         let json = serde_json::to_string(&opt).unwrap();
         let back: TextureReplacementOpt = serde_json::from_str(&json).unwrap();
@@ -56,6 +60,7 @@ mod tests {
             texture_name: "livery.dds".to_string(),
             skin_folder: Some("skin_01".to_string()),
             original_format: "BC1".to_string(),
+            hero_image_path: None,
         };
         let json = serde_json::to_string(&opt).unwrap();
         let back: TextureReplacementOpt = serde_json::from_str(&json).unwrap();
@@ -84,6 +89,7 @@ mod tests {
                 texture_name: "body_main.dds".to_string(),
                 skin_folder: None,
                 original_format: "BC3".to_string(),
+                hero_image_path: None,
             }],
         };
         let json = serde_json::to_string(&opts).unwrap();

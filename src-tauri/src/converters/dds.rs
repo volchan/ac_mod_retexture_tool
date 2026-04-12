@@ -24,8 +24,16 @@ fn decode_uncompressed(data: &[u8]) -> Option<DynamicImage> {
     }
     let height = u32::from_le_bytes(data[12..16].try_into().ok()?) as usize;
     let width = u32::from_le_bytes(data[16..20].try_into().ok()?) as usize;
-    let pf_flags = u32::from_le_bytes(data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4].try_into().ok()?);
-    let bit_count = u32::from_le_bytes(data[DDS_PF_BITCOUNT_OFFSET..DDS_PF_BITCOUNT_OFFSET + 4].try_into().ok()?);
+    let pf_flags = u32::from_le_bytes(
+        data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4]
+            .try_into()
+            .ok()?,
+    );
+    let bit_count = u32::from_le_bytes(
+        data[DDS_PF_BITCOUNT_OFFSET..DDS_PF_BITCOUNT_OFFSET + 4]
+            .try_into()
+            .ok()?,
+    );
 
     if pf_flags & DDS_DDPF_RGB == 0 {
         return None;
@@ -84,8 +92,13 @@ pub fn encode_from_image(
 ) -> Result<Vec<u8>, crate::errors::AppError> {
     let image_format = parse_image_format(format)?;
     let rgba = img.to_rgba8();
-    let dds = dds_from_image(&rgba, image_format, Quality::Normal, Mipmaps::GeneratedAutomatic)
-        .map_err(|e| crate::errors::AppError::ImageEncode(e.to_string()))?;
+    let dds = dds_from_image(
+        &rgba,
+        image_format,
+        Quality::Normal,
+        Mipmaps::GeneratedAutomatic,
+    )
+    .map_err(|e| crate::errors::AppError::ImageEncode(e.to_string()))?;
     let mut out = Vec::new();
     dds.write(&mut out)
         .map_err(|e| crate::errors::AppError::ImageEncode(e.to_string()))?;
@@ -238,9 +251,13 @@ mod tests {
         let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
             ImageBuffer::from_fn(width, height, |_, _| Rgba([255, 0, 0, 255]));
         let rgba = DynamicImage::ImageRgba8(img).to_rgba8();
-        let dds =
-            dds_from_image(&rgba, ImageFormat::BC1RgbaUnorm, Quality::Fast, Mipmaps::Disabled)
-                .unwrap();
+        let dds = dds_from_image(
+            &rgba,
+            ImageFormat::BC1RgbaUnorm,
+            Quality::Fast,
+            Mipmaps::Disabled,
+        )
+        .unwrap();
         let mut out = Vec::new();
         dds.write(&mut out).unwrap();
         out
@@ -363,9 +380,14 @@ mod tests {
 
     #[test]
     fn test_decode_to_image_png_fallback() {
-        let img = DynamicImage::ImageRgba8(ImageBuffer::from_fn(8, 8, |_, _| Rgba([0u8, 0, 255, 255])));
+        let img =
+            DynamicImage::ImageRgba8(ImageBuffer::from_fn(8, 8, |_, _| Rgba([0u8, 0, 255, 255])));
         let mut png_bytes: Vec<u8> = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png).unwrap();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut png_bytes),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
         let result = decode_to_image(&png_bytes);
         assert!(result.is_ok());
         let decoded = result.unwrap();
@@ -378,8 +400,11 @@ mod tests {
             Rgba([0u8, 128, 255, 255])
         }));
         let mut png_bytes: Vec<u8> = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
-            .unwrap();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut png_bytes),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
         png_bytes
     }
 

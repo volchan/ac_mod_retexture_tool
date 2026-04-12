@@ -64,7 +64,10 @@ pub fn categorize(name: &str, mod_type: &ModType) -> TextureCategory {
 fn collect_hero_png_entries(mod_path: &Path) -> Vec<(String, std::path::PathBuf, String)> {
     let flat = [
         (mod_path.join("preview.png"), "preview.png".to_string()),
-        (mod_path.join("ui").join("preview.png"), "ui/preview.png".to_string()),
+        (
+            mod_path.join("ui").join("preview.png"),
+            "ui/preview.png".to_string(),
+        ),
     ];
     for (path, rel) in &flat {
         if path.exists() {
@@ -85,7 +88,11 @@ fn collect_hero_png_entries(mod_path: &Path) -> Vec<(String, std::path::PathBuf,
     let mut results = Vec::new();
     for entry in &layout_dirs {
         let sub = entry.path();
-        let layout = sub.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let layout = sub
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         let candidate = sub.join("preview.png");
         if candidate.exists() {
             let display_name = if layout_dirs.len() == 1 {
@@ -362,8 +369,14 @@ mod tests {
             categorize("building_main.dds", &mt),
             TextureCategory::Buildings
         );
-        assert_eq!(categorize("wall_stone.dds", &mt), TextureCategory::Buildings);
-        assert_eq!(categorize("house_roof.dds", &mt), TextureCategory::Buildings);
+        assert_eq!(
+            categorize("wall_stone.dds", &mt),
+            TextureCategory::Buildings
+        );
+        assert_eq!(
+            categorize("house_roof.dds", &mt),
+            TextureCategory::Buildings
+        );
     }
 
     #[test]
@@ -400,9 +413,9 @@ mod tests {
     }
 
     fn write_tiny_png(path: &std::path::Path) {
-        let img = image::DynamicImage::ImageRgba8(image::ImageBuffer::from_fn(
-            64, 64, |_, _| image::Rgba([0, 0, 0, 255]),
-        ));
+        let img = image::DynamicImage::ImageRgba8(image::ImageBuffer::from_fn(64, 64, |_, _| {
+            image::Rgba([0, 0, 0, 255])
+        }));
         img.save(path).unwrap();
     }
 

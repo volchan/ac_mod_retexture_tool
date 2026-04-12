@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { save } from '@tauri-apps/plugin-dialog'
 import type { ImportScanResult, Mod, ProgressInfo, RepackOptions, Texture } from '@/types/index'
 
 export async function scanModFolder(path: string): Promise<Mod> {
@@ -42,6 +43,13 @@ export async function extractTextures(
 
 export async function onExtractProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
   return listen('extract-progress', (e) => cb(e.payload as ProgressInfo))
+}
+
+export async function showSaveDialog(defaultName: string): Promise<string | null> {
+  return save({
+    defaultPath: defaultName,
+    filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+  })
 }
 
 export async function repackMod(opts: RepackOptions): Promise<void> {

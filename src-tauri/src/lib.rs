@@ -4,7 +4,7 @@ pub mod errors;
 pub mod models;
 pub mod parsers;
 
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::{atomic::AtomicBool, Arc};
 
 pub struct DecodeCancel(pub Arc<AtomicBool>);
 

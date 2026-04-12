@@ -96,6 +96,7 @@ export interface TextureReplacementOpt {
   textureName: string
   skinFolder?: string
   originalFormat: string
+  heroImagePath?: string
 }
 
 export interface RepackOptions {

@@ -246,8 +246,14 @@ mod tests {
         kn5.save(tmp_out.path()).unwrap();
 
         let reloaded = Kn5File::open(tmp_out.path()).unwrap();
-        assert_eq!(reloaded.get_texture_data("tex1.dds"), Some(new_data.as_slice()));
-        assert_eq!(reloaded.get_texture_data("tex2.dds"), Some(b"other".as_ref()));
+        assert_eq!(
+            reloaded.get_texture_data("tex1.dds"),
+            Some(new_data.as_slice())
+        );
+        assert_eq!(
+            reloaded.get_texture_data("tex2.dds"),
+            Some(b"other".as_ref())
+        );
     }
 
     #[test]

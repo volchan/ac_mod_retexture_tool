@@ -99,9 +99,7 @@ fn f32_field(json: &Value, key: &str) -> f32 {
 }
 
 fn u32_field(json: &Value, key: &str) -> u32 {
-    json.get(key)
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as u32
+    json.get(key).and_then(|v| v.as_u64()).unwrap_or(0) as u32
 }
 
 fn parse_car_meta(json: &Value) -> CarMeta {
@@ -150,11 +148,7 @@ fn scan_skins(mod_path: &Path) -> Vec<SkinFolder> {
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
             .map(|e| {
-                let name = e
-                    .file_name()
-                    .to_str()
-                    .unwrap_or_default()
-                    .to_string();
+                let name = e.file_name().to_str().unwrap_or_default().to_string();
                 let path = e.path().to_string_lossy().to_string();
                 let file_type = file_type_str(e.path()).to_string();
                 ModFileEntry {
@@ -248,7 +242,11 @@ pub fn scan_mod_folder(path: String) -> Result<ModManifest, String> {
     let meta = ModMeta {
         name: {
             let n = string_field(&ui_json, "name");
-            if n.is_empty() { folder_name.clone() } else { n }
+            if n.is_empty() {
+                folder_name.clone()
+            } else {
+                n
+            }
         },
         folder_name: folder_name.clone(),
         author: string_field(&ui_json, "author"),
@@ -351,7 +349,11 @@ mod tests {
     fn detects_track_mod_in_ui_layout_subdir() {
         let dir = TempDir::new().unwrap();
         fs::create_dir_all(dir.path().join("ui").join("boot")).unwrap();
-        fs::write(dir.path().join("ui").join("boot").join(UI_TRACK_JSON), b"{}").unwrap();
+        fs::write(
+            dir.path().join("ui").join("boot").join(UI_TRACK_JSON),
+            b"{}",
+        )
+        .unwrap();
         assert_eq!(detect_mod_type(dir.path()), Some(ModType::Track));
     }
 
@@ -459,7 +461,13 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join(UI_CAR_JSON), b"{}").unwrap();
         let result = scan_mod_folder(dir.path().to_string_lossy().to_string()).unwrap();
-        let folder = dir.path().file_name().unwrap().to_str().unwrap().to_string();
+        let folder = dir
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
         assert_eq!(result.meta.name, folder);
     }
 

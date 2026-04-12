@@ -81,11 +81,11 @@ pub async fn extract_textures(
             if !kn5_path.is_empty() && skin_folder.is_empty() && !kn5_path.ends_with(".kn5") {
                 let src = mod_root.join(kn5_path);
                 std::fs::copy(&src, &out_file)?;
-                let img = image::open(src)
-                    .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+                let img = image::open(src).map_err(|e| AppError::ImageDecode(e.to_string()))?;
                 let hash = dds::pixel_hash(&img);
                 if let Ok(rel) = out_file.strip_prefix(&mod_out) {
-                    let key = rel.components()
+                    let key = rel
+                        .components()
                         .map(|c| c.as_os_str().to_string_lossy().into_owned())
                         .collect::<Vec<_>>()
                         .join("/");
@@ -115,7 +115,8 @@ pub async fn extract_textures(
                 .map_err(|e| AppError::ImageEncode(e.to_string()))?;
 
             if let Ok(rel) = out_file.strip_prefix(&mod_out) {
-                let key = rel.components()
+                let key = rel
+                    .components()
                     .map(|c| c.as_os_str().to_string_lossy().into_owned())
                     .collect::<Vec<_>>()
                     .join("/");
@@ -152,7 +153,7 @@ pub async fn extract_textures(
 mod tests {
     use super::*;
     use image::{DynamicImage, ImageBuffer, Rgba};
-    use image_dds::{ImageFormat, Mipmaps, Quality, dds_from_image};
+    use image_dds::{dds_from_image, ImageFormat, Mipmaps, Quality};
 
     fn build_minimal_kn5_with_dds(texture_name: &str, dds_data: &[u8]) -> Vec<u8> {
         use std::io::Write;
@@ -161,9 +162,11 @@ mod tests {
         buf.write_all(&5u32.to_le_bytes()).unwrap(); // version 5 — no unknown field
         buf.write_all(&1u32.to_le_bytes()).unwrap(); // texture count
         buf.write_all(&1u32.to_le_bytes()).unwrap(); // active flag
-        buf.write_all(&(texture_name.len() as u32).to_le_bytes()).unwrap();
+        buf.write_all(&(texture_name.len() as u32).to_le_bytes())
+            .unwrap();
         buf.write_all(texture_name.as_bytes()).unwrap();
-        buf.write_all(&(dds_data.len() as u32).to_le_bytes()).unwrap();
+        buf.write_all(&(dds_data.len() as u32).to_le_bytes())
+            .unwrap();
         buf.write_all(dds_data).unwrap();
         buf
     }
@@ -172,9 +175,13 @@ mod tests {
         let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
             ImageBuffer::from_fn(4, 4, |_, _| Rgba([255, 0, 0, 255]));
         let rgba = DynamicImage::ImageRgba8(img).to_rgba8();
-        let dds =
-            dds_from_image(&rgba, ImageFormat::BC1RgbaUnorm, Quality::Fast, Mipmaps::Disabled)
-                .unwrap();
+        let dds = dds_from_image(
+            &rgba,
+            ImageFormat::BC1RgbaUnorm,
+            Quality::Fast,
+            Mipmaps::Disabled,
+        )
+        .unwrap();
         let mut out = Vec::new();
         dds.write(&mut out).unwrap();
         out
@@ -191,16 +198,19 @@ mod tests {
     fn build_output_path_for_skin_texture() {
         let out_root = Path::new("/output");
         let path = build_output_path(out_root, "ferrari", "livery.dds", "", "skin_01");
-        assert_eq!(
-            path,
-            Path::new("/output/ferrari/skins/skin_01/livery.png")
-        );
+        assert_eq!(path, Path::new("/output/ferrari/skins/skin_01/livery.png"));
     }
 
     #[test]
     fn to_png_name_with_png_extension_does_not_double() {
         let out_root = Path::new("/output");
-        let path = build_output_path(out_root, "watkins", "livery.png", "/mods/watkins/track.kn5", "");
+        let path = build_output_path(
+            out_root,
+            "watkins",
+            "livery.png",
+            "/mods/watkins/track.kn5",
+            "",
+        );
         assert_eq!(path, Path::new("/output/watkins/track.kn5/livery.png"));
     }
 
@@ -214,20 +224,27 @@ mod tests {
     #[test]
     fn build_output_path_for_loading_screen_multilayout() {
         let out_root = Path::new("/output");
-        let path =
-            build_output_path(out_root, "monza", "preview_boot.png", "ui/boot/preview.png", "");
+        let path = build_output_path(
+            out_root,
+            "monza",
+            "preview_boot.png",
+            "ui/boot/preview.png",
+            "",
+        );
         assert_eq!(path, Path::new("/output/monza/ui/boot/preview.png"));
     }
 
     #[test]
     fn build_output_path_for_skin_texture_strips_dds_extension() {
         let out_root = Path::new("/output");
-        let path =
-            build_output_path(out_root, "ferrari", "decal.dds", "/mods/ferrari/car.kn5", "skin_01");
-        assert_eq!(
-            path,
-            Path::new("/output/ferrari/skins/skin_01/decal.png")
+        let path = build_output_path(
+            out_root,
+            "ferrari",
+            "decal.dds",
+            "/mods/ferrari/car.kn5",
+            "skin_01",
         );
+        assert_eq!(path, Path::new("/output/ferrari/skins/skin_01/decal.png"));
     }
 
     #[test]
@@ -246,8 +263,7 @@ mod tests {
         let texture_name = "body.dds";
         let kn5_str = kn5_path.to_string_lossy().to_string();
 
-        let out_file =
-            build_output_path(out_root, mod_name, texture_name, &kn5_str, "");
+        let out_file = build_output_path(out_root, mod_name, texture_name, &kn5_str, "");
         if let Some(parent) = out_file.parent() {
             std::fs::create_dir_all(parent).unwrap();
         }

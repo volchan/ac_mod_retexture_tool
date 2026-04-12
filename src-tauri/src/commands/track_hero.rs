@@ -142,9 +142,7 @@ mod tests {
     fn write_red_png(path: &std::path::Path) {
         let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
             ImageBuffer::from_fn(64, 64, |_, _| Rgba([255, 0, 0, 255]));
-        DynamicImage::ImageRgba8(img)
-            .save(path)
-            .unwrap();
+        DynamicImage::ImageRgba8(img).save(path).unwrap();
     }
 
     #[test]
@@ -165,7 +163,8 @@ mod tests {
 
     #[test]
     fn get_track_hero_image_returns_none_when_file_missing() {
-        let result = get_track_hero_image("/nonexistent/path".to_string(), "preview.png".to_string());
+        let result =
+            get_track_hero_image("/nonexistent/path".to_string(), "preview.png".to_string());
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
     }

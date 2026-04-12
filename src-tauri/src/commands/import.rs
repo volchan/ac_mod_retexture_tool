@@ -55,7 +55,10 @@ fn compute_original_hash(
         let kn5 = if let Some(k) = kn5_cache.get(kn5_path) {
             k
         } else {
-            kn5_cache.insert(kn5_path.to_string(), Kn5File::open(Path::new(kn5_path)).ok()?);
+            kn5_cache.insert(
+                kn5_path.to_string(),
+                Kn5File::open(Path::new(kn5_path)).ok()?,
+            );
             kn5_cache.get(kn5_path)?
         };
         kn5.get_texture_data(texture_name)?.to_vec()
@@ -129,7 +132,11 @@ pub async fn scan_import_folder(
             continue;
         }
 
-        let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let file_name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         let stem = path
             .file_stem()
             .unwrap_or_default()
@@ -143,7 +150,9 @@ pub async fn scan_import_folder(
                 .join("/")
         });
 
-        let idx_opt = rel_key.as_deref().and_then(|k| rel_path_index.get(k).copied())
+        let idx_opt = rel_key
+            .as_deref()
+            .and_then(|k| rel_path_index.get(k).copied())
             .or_else(|| name_index.get(&stem).copied());
 
         if let Some(idx) = idx_opt {
@@ -181,8 +190,8 @@ pub async fn scan_import_folder(
 
                     let source_width = img.width();
                     let source_height = img.height();
-                    let has_dimension_mismatch =
-                        source_width != texture_widths[idx] || source_height != texture_heights[idx];
+                    let has_dimension_mismatch = source_width != texture_widths[idx]
+                        || source_height != texture_heights[idx];
 
                     matched.push(MatchedImportTexture {
                         texture_id: texture_ids[idx].clone(),
@@ -221,7 +230,7 @@ pub async fn scan_import_folder(
 mod tests {
     use super::*;
     use image::{DynamicImage, ImageBuffer, Rgba};
-    use image_dds::{ImageFormat, Mipmaps, Quality, dds_from_image};
+    use image_dds::{dds_from_image, ImageFormat, Mipmaps, Quality};
     use std::io::Write;
     use tempfile::TempDir;
 
@@ -230,9 +239,7 @@ mod tests {
     }
 
     fn write_png_color(dir: &Path, name: &str, width: u32, height: u32, color: [u8; 4]) {
-        let img = DynamicImage::ImageRgba8(ImageBuffer::from_fn(width, height, |_, _| {
-            Rgba(color)
-        }));
+        let img = DynamicImage::ImageRgba8(ImageBuffer::from_fn(width, height, |_, _| Rgba(color)));
         let path = dir.join(name);
         img.save(&path).unwrap();
     }
@@ -244,12 +251,15 @@ mod tests {
     }
 
     fn make_tiny_dds(color: [u8; 4]) -> Vec<u8> {
-        let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-            ImageBuffer::from_fn(4, 4, |_, _| Rgba(color));
+        let img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_fn(4, 4, |_, _| Rgba(color));
         let rgba = DynamicImage::ImageRgba8(img).to_rgba8();
-        let dds =
-            dds_from_image(&rgba, ImageFormat::BC1RgbaUnorm, Quality::Fast, Mipmaps::Disabled)
-                .unwrap();
+        let dds = dds_from_image(
+            &rgba,
+            ImageFormat::BC1RgbaUnorm,
+            Quality::Fast,
+            Mipmaps::Disabled,
+        )
+        .unwrap();
         let mut out = Vec::new();
         dds.write(&mut out).unwrap();
         out
@@ -261,9 +271,11 @@ mod tests {
         buf.write_all(&5u32.to_le_bytes()).unwrap();
         buf.write_all(&1u32.to_le_bytes()).unwrap();
         buf.write_all(&1u32.to_le_bytes()).unwrap();
-        buf.write_all(&(texture_name.len() as u32).to_le_bytes()).unwrap();
+        buf.write_all(&(texture_name.len() as u32).to_le_bytes())
+            .unwrap();
         buf.write_all(texture_name.as_bytes()).unwrap();
-        buf.write_all(&(dds_data.len() as u32).to_le_bytes()).unwrap();
+        buf.write_all(&(dds_data.len() as u32).to_le_bytes())
+            .unwrap();
         buf.write_all(dds_data).unwrap();
         buf
     }
@@ -384,7 +396,13 @@ mod tests {
         std::fs::write(&kn5_path, &kn5_bytes).unwrap();
 
         // Write a PNG with DIFFERENT colors (blue vs red original) — simulates user modification
-        write_png_color(import_dir.path(), "body_diffuse.png", 4, 4, [0, 0, 255, 255]);
+        write_png_color(
+            import_dir.path(),
+            "body_diffuse.png",
+            4,
+            4,
+            [0, 0, 255, 255],
+        );
 
         let kn5_str = kn5_path.to_string_lossy().to_string();
         let result = scan(
@@ -412,7 +430,13 @@ mod tests {
         let kn5_path = mod_dir.path().join("car.kn5");
         std::fs::write(&kn5_path, &kn5_bytes).unwrap();
 
-        write_png_color(import_dir.path(), "body_diffuse.png", 4, 4, [0, 0, 255, 255]);
+        write_png_color(
+            import_dir.path(),
+            "body_diffuse.png",
+            4,
+            4,
+            [0, 0, 255, 255],
+        );
 
         let kn5_str = kn5_path.to_string_lossy().to_string();
         scan(
@@ -428,7 +452,10 @@ mod tests {
         .await;
 
         let sidecar = import_dir.path().join(".retexture_hashes.json");
-        assert!(sidecar.exists(), "sidecar must be written after live comparison");
+        assert!(
+            sidecar.exists(),
+            "sidecar must be written after live comparison"
+        );
     }
 
     #[tokio::test]

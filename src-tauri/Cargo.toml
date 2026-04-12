@@ -19,7 +19,7 @@ image = "0.25"
 image_dds = "0.6"
 base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
-sevenz-rust = { version = "0.6", features = ["compress"] }
+zip = { version = "2", features = ["deflate"] }
 tempfile = "3"
 
 [dev-dependencies]

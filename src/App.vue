@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { HexagonIcon, ImageIcon } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import ModDropZone from '@/components/mod/ModDropZone.vue'
 import ModTree from '@/components/mod/ModTree.vue'
 import ModInfoPanel from '@/components/repack/ModInfoPanel.vue'
+import RepackDialog from '@/components/repack/RepackDialog.vue'
 import TexturePanel from '@/components/texture/TexturePanel.vue'
 import { useMod } from '@/composables/useMod'
 import { useTextures } from '@/composables/useTextures'
+import { showSaveDialog } from '@/lib/tauri'
+import type { TextureReplacementOpt } from '@/types/index'
 
 const { mod, loadMod, closeMod } = useMod()
 const { textures, selected } = useTextures()
@@ -15,12 +18,39 @@ const { textures, selected } = useTextures()
 const textureCount = computed(() => textures.value.length)
 const selectedCount = computed(() => selected.value.size)
 
+const repackOpen = ref(false)
+const repackOutputPath = ref('')
+const repackReplacements = ref<TextureReplacementOpt[]>([])
+
+async function handleRepack() {
+  if (!mod.value) return
+
+  const defaultName = `${mod.value.meta.folderName}.zip`
+  const outputPath = await showSaveDialog(defaultName)
+  if (!outputPath) return
+
+  repackOutputPath.value = outputPath
+  repackReplacements.value = textures.value
+    .filter((t) => t.replacement != null)
+    .map((t) => ({
+      textureId: t.id,
+      sourcePath: t.replacement?.sourcePath ?? '',
+      kn5File: t.kn5File,
+      textureName: t.name,
+      skinFolder: t.skinFolder,
+      originalFormat: t.format,
+      heroImagePath: t.category === 'loadingScreen' ? t.path : undefined,
+    }))
+  repackOpen.value = true
+}
+
 defineExpose({
   HexagonIcon,
   ImageIcon,
   WorkspaceLayout,
   ModDropZone,
   ModTree,
+  RepackDialog,
   ModInfoPanel,
   TexturePanel,
   mod,
@@ -28,6 +58,10 @@ defineExpose({
   closeMod,
   textureCount,
   selectedCount,
+  repackOpen,
+  repackOutputPath,
+  repackReplacements,
+  handleRepack,
 })
 </script>
 
@@ -52,7 +86,7 @@ defineExpose({
       </div>
     </template>
     <template #right>
-      <ModInfoPanel v-if="mod" :mod="mod" @repack="() => {}" />
+      <ModInfoPanel v-if="mod" :mod="mod" @repack="handleRepack" />
       <div
         v-else
         class="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full"
@@ -62,4 +96,14 @@ defineExpose({
       </div>
     </template>
   </WorkspaceLayout>
+
+  <RepackDialog
+    v-if="mod && repackOpen"
+    :open="repackOpen"
+    :mod="mod"
+    :output-path="repackOutputPath"
+    :replacements="repackReplacements"
+    @update:open="repackOpen = $event"
+    @done="repackOpen = false"
+  />
 </template>
