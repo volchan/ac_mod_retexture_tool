@@ -8,7 +8,14 @@ import TextureCard from '@/components/texture/TextureCard.vue'
 import { Progress } from '@/components/ui/progress'
 import { useTextures } from '@/composables/useTextures'
 import { scanImportFolder } from '@/lib/tauri'
-import type { MatchedTexture, MatchedTextureRaw, Mod, Texture, TextureCategory, UnmatchedFile } from '@/types/index'
+import type {
+  MatchedTexture,
+  MatchedTextureRaw,
+  Mod,
+  Texture,
+  TextureCategory,
+  UnmatchedFile,
+} from '@/types/index'
 
 interface TextureGroup {
   key: string
