@@ -137,19 +137,6 @@ task check        # format + lint + test
 
 ---
 
-## CI / Release
-
-CI runs on every PR and push to `main`: type-check, lint, and tests for both frontend and backend.
-
-Releases are triggered by pushing a `v*` tag. GitHub Actions builds binaries for macOS ARM, macOS x86, Linux, and Windows, then creates a draft GitHub Release with all installers attached.
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
-
----
-
 ## License
 
 MIT
