@@ -8,7 +8,13 @@ import TextureCard from '@/components/texture/TextureCard.vue'
 import { Progress } from '@/components/ui/progress'
 import { useTextures } from '@/composables/useTextures'
 import { scanImportFolder } from '@/lib/tauri'
-import type { MatchedTexture, Mod, TextureCategory, UnmatchedFile } from '@/types/index'
+import type { MatchedTexture, Mod, Texture, TextureCategory, UnmatchedFile } from '@/types/index'
+
+interface TextureGroup {
+  key: string
+  label: string
+  textures: Texture[]
+}
 
 const CAR_CATEGORIES: TextureCategory[] = ['all', 'body', 'livery', 'interior', 'wheels', 'other']
 const TRACK_CATEGORIES: TextureCategory[] = [
@@ -19,6 +25,7 @@ const TRACK_CATEGORIES: TextureCategory[] = [
   'props',
   'sky',
   'other',
+  'preview',
 ]
 
 const props = defineProps<{
@@ -54,14 +61,43 @@ const categories = computed<TextureCategory[]>(() =>
   props.mod.modType === 'car' ? CAR_CATEGORIES : TRACK_CATEGORIES,
 )
 
-const visibleTextures = computed(() => {
+const groupedTextures = computed<TextureGroup[]>(() => {
   const list = filteredTextures(activeCategory.value)
-  return [...list].sort((a, b) => {
-    if (a.category === 'loadingScreen' && b.category !== 'loadingScreen') return -1
-    if (b.category === 'loadingScreen' && a.category !== 'loadingScreen') return 1
-    return 0
-  })
+
+  const heroTextures = list.filter((t) => t.category === 'preview')
+  const normalTextures = list.filter((t) => t.category !== 'preview')
+
+  const originMap = new Map<string, Texture[]>()
+  for (const t of normalTextures) {
+    const key = t.kn5File ?? t.skinFolder ?? '__other__'
+    if (!originMap.has(key)) originMap.set(key, [])
+    const bucket = originMap.get(key)
+    if (bucket) bucket.push(t)
+  }
+
+  const sortedOriginKeys = [...originMap.keys()].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  )
+
+  const groups: TextureGroup[] = []
+
+  if (heroTextures.length > 0) {
+    const sorted = [...heroTextures].sort((a, b) => a.name.localeCompare(b.name))
+    groups.push({ key: '__hero__', label: 'Preview images', textures: sorted })
+  }
+
+  for (const k of sortedOriginKeys) {
+    const bucket = originMap.get(k) ?? []
+    const sorted = [...bucket].sort((a, b) => a.name.localeCompare(b.name))
+    groups.push({ key: k, label: k === '__other__' ? 'Other' : k, textures: sorted })
+  }
+
+  return groups
 })
+
+const visibleTextureCount = computed(() =>
+  groupedTextures.value.reduce((sum, g) => sum + g.textures.length, 0),
+)
 
 const progressPercent = computed(() => {
   if (decodeProgress.value.total === 0) return 0
@@ -149,7 +185,8 @@ defineExpose({
   isScanning,
   extractTargets,
   categories,
-  visibleTextures,
+  groupedTextures,
+  visibleTextureCount,
   progressPercent,
   selectedCount,
   activeCategory,
@@ -207,17 +244,25 @@ defineExpose({
       </div>
     </div>
     <div class="flex-1 overflow-auto pb-20">
-      <div class="grid grid-cols-4 gap-2 p-3">
-        <TextureCard
-          v-for="texture in visibleTextures"
-          :key="texture.id"
-          :texture="texture"
-          :is-selected="selected.has(texture.id)"
-          @toggle-select="handleToggleSelect(texture.id)"
-        />
-      </div>
+      <template v-for="group in groupedTextures" :key="group.key">
+        <div
+          class="sticky top-0 z-10 px-3 py-1.5 bg-background/95 backdrop-blur-sm border-b border-border/50 flex items-center gap-2"
+        >
+          <span class="text-xs font-medium text-muted-foreground truncate">{{ group.label }}</span>
+          <span class="text-[10px] text-muted-foreground/60 shrink-0">{{ group.textures.length }}</span>
+        </div>
+        <div class="grid grid-cols-4 gap-2 p-3">
+          <TextureCard
+            v-for="texture in group.textures"
+            :key="texture.id"
+            :texture="texture"
+            :is-selected="selected.has(texture.id)"
+            @toggle-select="handleToggleSelect(texture.id)"
+          />
+        </div>
+      </template>
       <div
-        v-if="!isDecoding && visibleTextures.length === 0"
+        v-if="!isDecoding && visibleTextureCount === 0"
         class="flex items-center justify-center h-32 text-muted-foreground text-sm"
       >
         No textures in this category

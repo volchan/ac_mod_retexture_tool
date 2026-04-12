@@ -51,7 +51,7 @@ const outputTree = computed<TreeFolder[]>(() => {
   for (const t of props.textures) {
     let folderKey: string
     let fileName: string
-    if (t.category === 'loadingScreen') {
+    if (t.category === 'preview') {
       // t.path is the rel path from mod root, e.g. "ui/boot/preview.png"
       const lastSlash = t.path.lastIndexOf('/')
       folderKey = lastSlash >= 0 ? t.path.slice(0, lastSlash) : ''

@@ -223,7 +223,7 @@ describe('ExtractDialog', () => {
         name: 'preview_boot.png',
         path: 'ui/boot/preview.png',
         source: 'skin',
-        category: 'loadingScreen',
+        category: 'preview',
         width: 1920,
         height: 1080,
         format: 'PNG',

@@ -15,6 +15,7 @@ const CATEGORY_LABELS: Record<TextureCategory, string> = {
   props: 'Props',
   sky: 'Sky',
   other: 'Other',
+  preview: 'Preview image',
 }
 
 const props = defineProps<{

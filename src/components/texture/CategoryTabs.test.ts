@@ -49,4 +49,11 @@ describe('CategoryTabs', () => {
     wrapper.vm.handleTabChange('body')
     expect(wrapper.emitted('change')?.[0]).toEqual(['body'])
   })
+
+  it('renders correct label for preview category', () => {
+    const wrapper = mount(CategoryTabs, {
+      props: { categories: ['all', 'preview'] as TextureCategory[], active: 'all' },
+    })
+    expect(wrapper.text()).toContain('Preview image')
+  })
 })

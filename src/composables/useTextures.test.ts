@@ -258,6 +258,22 @@ describe('useTextures', () => {
     unmount()
   })
 
+  it('filteredTextures filters by preview category', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', category: 'preview' }))
+      emitDecodeTexture(makeTexture({ id: 'b', category: 'body' }))
+      return undefined
+    })
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod)
+
+    const filtered = result.filteredTextures('preview')
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0].category).toBe('preview')
+    unmount()
+  })
+
   it('applyReplacements leaves unmatched textures unchanged', async () => {
     mockInvokeHandler('decode_mod_textures', () => {
       emitDecodeTexture(makeTexture({ id: 'tex1' }))

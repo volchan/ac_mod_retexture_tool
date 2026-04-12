@@ -21,7 +21,7 @@ pub enum TextureCategory {
     Props,
     Sky,
     Other,
-    LoadingScreen,
+    Preview,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,7 +85,7 @@ mod tests {
             (TextureCategory::Props, "\"props\""),
             (TextureCategory::Sky, "\"sky\""),
             (TextureCategory::Other, "\"other\""),
-            (TextureCategory::LoadingScreen, "\"loadingScreen\""),
+            (TextureCategory::Preview, "\"preview\""),
         ];
         for (variant, expected) in cases {
             let json = serde_json::to_string(&variant).unwrap();

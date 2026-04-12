@@ -15,12 +15,15 @@ const baseMod: Mod = {
   skinFolders: [],
 }
 
+const trackMod: Mod = { ...baseMod, modType: 'track' }
+
 function makeTexture(overrides: Partial<Texture> = {}): Texture {
   return {
     id: 'tex1',
     name: 'body.dds',
     path: '/mods/ferrari/car.kn5',
     source: 'kn5',
+    kn5File: 'car.kn5',
     category: 'body',
     width: 512,
     height: 512,
@@ -119,13 +122,13 @@ describe('TexturePanel', () => {
   it('shows track categories for track mod', async () => {
     mockInvokeHandler('decode_mod_textures', () => Promise.resolve(undefined))
 
-    const trackMod: Mod = { ...baseMod, modType: 'track' }
     const wrapper = mount(TexturePanel, { props: { mod: trackMod } })
     await nextTick()
 
     expect(wrapper.text()).toContain('Road')
     expect(wrapper.text()).toContain('Terrain')
     expect(wrapper.text()).toContain('Sky')
+    expect(wrapper.text()).toContain('Preview image')
     wrapper.unmount()
   })
 
@@ -198,7 +201,6 @@ describe('TexturePanel', () => {
     mockInvokeHandler('decode_mod_textures', () => pending)
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
-    // Wait for all listeners in init() to register (two await listen() calls)
     await nextTick()
     await nextTick()
     await nextTick()
@@ -246,6 +248,73 @@ describe('TexturePanel', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('0 selected')
+    wrapper.unmount()
+  })
+
+  it('groups textures by kn5File origin', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', name: 'tex_a.dds', kn5File: 'car.kn5' }))
+      emitDecodeTexture(makeTexture({ id: 'b', name: 'tex_b.dds', kn5File: 'interior.kn5' }))
+      emitDecodeTexture(makeTexture({ id: 'c', name: 'tex_c.dds', kn5File: 'car.kn5' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    const groups = wrapper.vm.groupedTextures
+    expect(groups.length).toBe(2)
+    const carGroup = groups.find((g: { key: string }) => g.key === 'car.kn5')
+    const intGroup = groups.find((g: { key: string }) => g.key === 'interior.kn5')
+    expect(carGroup?.textures.length).toBe(2)
+    expect(intGroup?.textures.length).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('preview textures appear in hero group at top', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(
+        makeTexture({ id: 'a', name: 'body.dds', kn5File: 'car.kn5', category: 'body' }),
+      )
+      emitDecodeTexture(
+        makeTexture({
+          id: 'b',
+          name: 'preview.png',
+          kn5File: undefined,
+          skinFolder: undefined,
+          source: 'skin',
+          category: 'preview',
+        }),
+      )
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    const groups = wrapper.vm.groupedTextures
+    expect(groups[0].key).toBe('__hero__')
+    expect(groups[0].textures[0].category).toBe('preview')
+    wrapper.unmount()
+  })
+
+  it('origin groups sorted alphabetically', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(
+        makeTexture({ id: 'a', name: 'tex.dds', kn5File: 'zzz.kn5', category: 'road' }),
+      )
+      emitDecodeTexture(
+        makeTexture({ id: 'b', name: 'tex.dds', kn5File: 'aaa.kn5', category: 'road' }),
+      )
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: trackMod } })
+    await waitForDecoding()
+
+    const groups = wrapper.vm.groupedTextures
+    expect(groups[0].key).toBe('aaa.kn5')
+    expect(groups[1].key).toBe('zzz.kn5')
     wrapper.unmount()
   })
 })

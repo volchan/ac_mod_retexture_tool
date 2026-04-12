@@ -56,7 +56,7 @@ export type TextureCategory =
   | 'props'
   | 'sky'
   | 'other'
-  | 'loadingScreen'
+  | 'preview'
 
 export type TextureSource = 'kn5' | 'skin'
 

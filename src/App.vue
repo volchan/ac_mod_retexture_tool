@@ -53,7 +53,7 @@ async function handleRepack() {
       textureName: t.name,
       skinFolder: t.skinFolder,
       originalFormat: t.format,
-      heroImagePath: t.category === 'loadingScreen' ? t.path : undefined,
+      heroImagePath: t.category === 'preview' ? t.path : undefined,
     }))
   repackOpen.value = true
 }

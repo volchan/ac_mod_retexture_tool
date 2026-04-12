@@ -123,14 +123,15 @@ describe('TextureCard', () => {
     expect(img.attributes('src')).toBe('data:image/png;base64,test')
   })
 
-  it('loading-screen card spans 2 columns', () => {
+  // preview category (Content Manager preview.png thumbnails)
+  it('preview card spans 2 columns', () => {
     const wrapper = mount(TextureCard, {
       props: {
         texture: makeTexture({
-          category: 'loadingScreen',
+          category: 'preview',
           name: 'preview.png',
           source: 'skin',
-          path: '/mods/monza/preview.png',
+          path: 'ui/preview.png',
         }),
         isSelected: false,
       },
@@ -138,44 +139,44 @@ describe('TextureCard', () => {
     expect(wrapper.classes()).toContain('col-span-2')
   })
 
-  it('loading-screen card shows "Loading screen" label', () => {
+  it('preview card shows "Preview image" label', () => {
     const wrapper = mount(TextureCard, {
       props: {
         texture: makeTexture({
-          category: 'loadingScreen',
+          category: 'preview',
           name: 'preview.png',
           source: 'skin',
-          path: '/mods/monza/preview.png',
+          path: 'ui/preview.png',
         }),
         isSelected: false,
       },
     })
-    expect(wrapper.text()).toContain('Loading screen')
+    expect(wrapper.text()).toContain('Preview image')
   })
 
-  it('loading-screen card with layout shows layout in label', () => {
+  it('preview card with layout shows layout in label', () => {
     const wrapper = mount(TextureCard, {
       props: {
         texture: makeTexture({
-          category: 'loadingScreen',
+          category: 'preview',
           name: 'preview_boot.png',
           source: 'skin',
-          path: '/mods/monza/ui/boot/preview.png',
+          path: 'ui/boot/preview.png',
         }),
         isSelected: false,
       },
     })
-    expect(wrapper.text()).toContain('Loading screen (boot)')
+    expect(wrapper.text()).toContain('Preview image (boot)')
   })
 
-  it('loading-screen card uses aspect-video image area', () => {
+  it('preview card uses aspect-video image area', () => {
     const wrapper = mount(TextureCard, {
       props: {
         texture: makeTexture({
-          category: 'loadingScreen',
+          category: 'preview',
           name: 'preview.png',
           source: 'skin',
-          path: '/mods/monza/preview.png',
+          path: 'ui/preview.png',
         }),
         isSelected: false,
       },

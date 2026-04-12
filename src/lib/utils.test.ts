@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cn, heroLabel } from './utils'
+import { cn, previewLabel } from './utils'
 
 describe('cn', () => {
   it('merges class names', () => {
@@ -23,20 +23,20 @@ describe('cn', () => {
   })
 })
 
-describe('heroLabel', () => {
-  it('returns "Loading screen" for preview.png', () => {
-    expect(heroLabel('preview.png')).toBe('Loading screen')
+describe('previewLabel', () => {
+  it('returns "Preview image" for preview.png', () => {
+    expect(previewLabel('preview.png')).toBe('Preview image')
   })
 
   it('returns layout label for preview_boot.png', () => {
-    expect(heroLabel('preview_boot.png')).toBe('Loading screen (boot)')
+    expect(previewLabel('preview_boot.png')).toBe('Preview image (boot)')
   })
 
   it('converts underscores to spaces in layout name', () => {
-    expect(heroLabel('preview_boot_classic.png')).toBe('Loading screen (boot classic)')
+    expect(previewLabel('preview_boot_classic.png')).toBe('Preview image (boot classic)')
   })
 
   it('returns name as-is for unrecognised pattern', () => {
-    expect(heroLabel('other.png')).toBe('other.png')
+    expect(previewLabel('other.png')).toBe('other.png')
   })
 })

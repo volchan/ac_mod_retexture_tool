@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CheckIcon, Loader2Icon } from 'lucide-vue-next'
-import { heroLabel } from '@/lib/utils'
+import { previewLabel } from '@/lib/utils'
 import type { Texture } from '@/types/index'
 
 const props = defineProps<{
@@ -16,9 +16,9 @@ function handleClick() {
   emit('toggle-select')
 }
 
-const isHero = props.texture.category === 'loadingScreen'
+const isHero = props.texture.category === 'preview'
 
-defineExpose({ CheckIcon, Loader2Icon, props, handleClick, heroLabel, isHero })
+defineExpose({ CheckIcon, Loader2Icon, props, handleClick, previewLabel, isHero })
 </script>
 
 <template>
@@ -61,10 +61,10 @@ defineExpose({ CheckIcon, Loader2Icon, props, handleClick, heroLabel, isHero })
       </div>
       <div
         v-if="isHero"
-        class="absolute top-1 left-1 bg-muted/80 text-muted-foreground text-[10px] font-medium px-1.5 py-0.5 rounded backdrop-blur-sm"
-        :class="props.isSelected ? 'left-7' : ''"
+        class="absolute top-1 bg-muted/80 text-muted-foreground text-[10px] font-medium px-1.5 py-0.5 rounded backdrop-blur-sm"
+        :class="props.isSelected ? 'left-7' : 'left-1'"
       >
-        Loading screen
+        {{ previewLabel(props.texture.name) }}
       </div>
       <div
         v-if="props.texture.replacement"
@@ -75,7 +75,7 @@ defineExpose({ CheckIcon, Loader2Icon, props, handleClick, heroLabel, isHero })
     </div>
     <div class="px-1.5 py-1 bg-card">
       <p class="text-[11px] font-medium truncate" :title="props.texture.name">
-        {{ isHero ? heroLabel(props.texture.name) : props.texture.name }}
+        {{ props.texture.category === 'preview' ? previewLabel(props.texture.name) : props.texture.name }}
       </p>
       <p class="text-[10px] text-muted-foreground">
         <template v-if="props.texture.replacement">

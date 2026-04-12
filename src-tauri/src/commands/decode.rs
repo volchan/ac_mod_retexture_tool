@@ -285,7 +285,7 @@ pub async fn decode_mod_textures(
                     source: TextureSource::Skin,
                     kn5_file: None,
                     skin_folder: None,
-                    category: TextureCategory::LoadingScreen,
+                    category: TextureCategory::Preview,
                     width,
                     height,
                     format: "PNG".to_string(),

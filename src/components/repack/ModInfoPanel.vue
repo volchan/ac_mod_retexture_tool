@@ -2,7 +2,7 @@
 import { ArchiveIcon } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useTextures } from '@/composables/useTextures'
-import { heroLabel } from '@/lib/utils'
+import { previewLabel } from '@/lib/utils'
 import type { Mod } from '@/types/index'
 
 defineProps<{
@@ -22,7 +22,7 @@ const replacementByKn5 = computed(() => {
   const map = new Map<string, number>()
   for (const t of replaced.value) {
     const key =
-      t.category === 'loadingScreen' ? heroLabel(t.name) : (t.kn5File ?? t.skinFolder ?? 'other')
+      t.category === 'preview' ? previewLabel(t.name) : (t.kn5File ?? t.skinFolder ?? 'other')
     map.set(key, (map.get(key) ?? 0) + 1)
   }
   return [...map.entries()].sort((a, b) => b[1] - a[1])
@@ -40,6 +40,7 @@ const mismatchCount = computed(
 defineExpose({
   ArchiveIcon,
   emit,
+  previewLabel,
   replacementCount,
   replacementByKn5,
   mismatchCount,
