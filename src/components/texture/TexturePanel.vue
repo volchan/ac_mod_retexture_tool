@@ -8,7 +8,7 @@ import TextureCard from '@/components/texture/TextureCard.vue'
 import { Progress } from '@/components/ui/progress'
 import { useTextures } from '@/composables/useTextures'
 import { scanImportFolder } from '@/lib/tauri'
-import type { MatchedTexture, Mod, Texture, TextureCategory, UnmatchedFile } from '@/types/index'
+import type { MatchedTexture, MatchedTextureRaw, Mod, Texture, TextureCategory, UnmatchedFile } from '@/types/index'
 
 interface TextureGroup {
   key: string
@@ -141,9 +141,9 @@ async function handleImport(folderPath: string) {
     )
     const textureById = new Map(textures.value.map((t) => [t.id, t]))
     importMatched.value = result.matched
-      .filter((m) => textureById.has(m.textureId))
-      .map((m) => ({
-        texture: textureById.get(m.textureId) as import('@/types/index').Texture,
+      .filter((m: MatchedTextureRaw) => textureById.has(m.textureId))
+      .map((m: MatchedTextureRaw) => ({
+        texture: textureById.get(m.textureId) as Texture,
         sourcePath: m.sourcePath,
         previewUrl: m.previewUrl,
         sourceWidth: m.sourceWidth,

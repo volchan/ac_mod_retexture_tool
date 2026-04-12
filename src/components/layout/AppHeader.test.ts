@@ -16,7 +16,7 @@ beforeEach(() => {
 describe('AppHeader', () => {
   it('renders the app title', () => {
     const wrapper = mount(AppHeader)
-    expect(wrapper.text()).toContain('AC Mod Toolkit')
+    expect(wrapper.text()).toContain('AC Mod Retexture Tool')
   })
 
   it('renders the version string', () => {

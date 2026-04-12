@@ -1,7 +1,7 @@
 {
-  "productName": "AC Mod Toolkit",
+  "productName": "AC Mod Retexture Tool",
   "version": "0.1.0",
-  "identifier": "com.volchan.ac-mod-toolkit",
+  "identifier": "com.volchan.ac-mod-retexture-tool",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:1420",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "AC Mod Toolkit",
+        "title": "AC Mod Retexture Tool",
         "width": 1440,
         "height": 900,
         "minWidth": 1280,

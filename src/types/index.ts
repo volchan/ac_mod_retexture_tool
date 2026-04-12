@@ -108,6 +108,17 @@ export interface RepackOptions {
   replacements: TextureReplacementOpt[]
 }
 
+/** Raw IPC response from scan_import_folder — textureId is resolved to Texture after the call. */
+export interface MatchedTextureRaw {
+  textureId: string
+  sourcePath: string
+  previewUrl: string
+  sourceWidth: number
+  sourceHeight: number
+  hasDimensionMismatch: boolean
+}
+
+/** Hydrated match with the full Texture object, used in UI components. */
 export interface MatchedTexture {
   texture: Texture
   sourcePath: string
@@ -123,6 +134,6 @@ export interface UnmatchedFile {
 }
 
 export interface ImportScanResult {
-  matched: MatchedTexture[]
+  matched: MatchedTextureRaw[]
   unmatched: UnmatchedFile[]
 }
