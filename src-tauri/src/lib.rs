@@ -24,6 +24,7 @@ pub fn run() {
             commands::track_hero::extract_track_hero_image,
             commands::track_hero::preview_replacement_image,
             commands::import::scan_import_folder,
+            commands::repack::repack_mod,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

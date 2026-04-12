@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { ImportScanResult, Mod, ProgressInfo, Texture } from '@/types/index'
+import type { ImportScanResult, Mod, ProgressInfo, RepackOptions, Texture } from '@/types/index'
 
 export async function scanModFolder(path: string): Promise<Mod> {
   return invoke('scan_mod_folder', { path })
@@ -42,6 +42,14 @@ export async function extractTextures(
 
 export async function onExtractProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
   return listen('extract-progress', (e) => cb(e.payload as ProgressInfo))
+}
+
+export async function repackMod(opts: RepackOptions): Promise<void> {
+  return invoke('repack_mod', { opts })
+}
+
+export async function onRepackProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
+  return listen('repack-progress', (e) => cb(e.payload as ProgressInfo))
 }
 
 export async function scanImportFolder(

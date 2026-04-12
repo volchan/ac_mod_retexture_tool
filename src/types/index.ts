@@ -89,13 +89,22 @@ export interface ProgressInfo {
   label: string
 }
 
+export interface TextureReplacementOpt {
+  textureId: string
+  sourcePath: string
+  kn5File?: string
+  textureName: string
+  skinFolder?: string
+  originalFormat: string
+}
+
 export interface RepackOptions {
   modPath: string
   outputPath: string
   meta: ModMeta
   carMeta?: CarMeta
   trackMeta?: TrackMeta
-  replacements: TextureReplacement[]
+  replacements: TextureReplacementOpt[]
 }
 
 export interface MatchedTexture {
