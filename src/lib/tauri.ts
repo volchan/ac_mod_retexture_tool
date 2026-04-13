@@ -1,7 +1,17 @@
+import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { save } from '@tauri-apps/plugin-dialog'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ImportScanResult, Mod, ProgressInfo, RepackOptions, Texture } from '@/types/index'
+
+export async function getAppVersion(): Promise<string> {
+  return getVersion()
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  return openUrl(url)
+}
 
 export async function scanModFolder(path: string): Promise<Mod> {
   return invoke('scan_mod_folder', { path })

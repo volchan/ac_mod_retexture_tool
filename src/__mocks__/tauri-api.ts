@@ -37,6 +37,13 @@ export const event = {
 
 export const { listen, emit } = event
 
+/** Mocked Tauri app module. */
+export const app = {
+  getVersion: vi.fn(async () => '0.1.0'),
+}
+
+export const { getVersion } = app
+
 /** Mocked Tauri webview window. */
 export const webviewWindow = {
   getCurrentWebviewWindow: vi.fn(() => ({
