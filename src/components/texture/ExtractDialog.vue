@@ -146,7 +146,12 @@ defineExpose({
 
 <template>
   <Dialog v-model:open="dialogOpen">
-    <DialogContent class="max-w-lg" :show-close-button="false" @interact-outside.prevent>
+    <DialogContent
+      class="max-w-lg"
+      :show-close-button="false"
+      @interact-outside.prevent
+      @escape-key-down.prevent="done ? handleClose() : (!isExtracting && cancelConfirm.request())"
+    >
       <DialogHeader>
         <DialogTitle>Extract {{ textures.length }} texture{{ textures.length !== 1 ? 's' : '' }}</DialogTitle>
         <DialogDescription class="sr-only">Choose an output folder and extract selected textures as PNG files.</DialogDescription>

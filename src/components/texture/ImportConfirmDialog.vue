@@ -74,7 +74,12 @@ defineExpose({
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent class="max-w-lg" :show-close-button="false" @interact-outside.prevent>
+    <DialogContent
+      class="max-w-lg"
+      :show-close-button="false"
+      @interact-outside.prevent
+      @escape-key-down.prevent="cancelConfirm.request()"
+    >
       <DialogHeader>
         <DialogTitle>Replace {{ matched.length }} texture{{ matched.length !== 1 ? 's' : '' }}?</DialogTitle>
         <DialogDescription class="sr-only">Review matched and skipped textures before applying replacements.</DialogDescription>

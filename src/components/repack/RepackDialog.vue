@@ -129,7 +129,12 @@ defineExpose({
 
 <template>
   <Dialog :open="open" @update:open="close">
-    <DialogContent class="max-w-lg" :show-close-button="false" @interact-outside.prevent>
+    <DialogContent
+      class="max-w-lg"
+      :show-close-button="false"
+      @interact-outside.prevent
+      @escape-key-down.prevent="repackDone ? close() : (!isRepacking && cancelConfirm.request())"
+    >
       <DialogHeader>
         <DialogTitle>Repack mod</DialogTitle>
         <DialogDescription>
