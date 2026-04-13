@@ -15,6 +15,7 @@ export function useCancelConfirm(onConfirm: () => void) {
       confirming.value = true
       timer = setTimeout(() => {
         confirming.value = false
+        clearTimer()
       }, AUTO_RESET_MS)
     }
   }

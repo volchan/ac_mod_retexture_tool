@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { open } from '@tauri-apps/plugin-dialog'
 import { FileImageIcon, FolderIcon, FolderOpenIcon } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -113,6 +113,10 @@ function handleClose() {
 
 const cancelConfirm = useCancelConfirm(handleClose)
 
+watch(dialogOpen, (val) => {
+  if (!val) cancelConfirm.reset()
+})
+
 defineExpose({
   FileImageIcon,
   FolderIcon,
@@ -216,18 +220,21 @@ defineExpose({
           :variant="cancelConfirm.confirming.value ? 'destructive' : 'outline'"
           size="sm"
           :disabled="isExtracting"
+          :aria-label="cancelConfirm.confirming.value ? 'Really cancel?' : 'Cancel'"
           class="relative overflow-hidden min-w-[8rem]"
           @click="cancelConfirm.request"
         >
           <span
+            aria-hidden="true"
             class="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
             :class="cancelConfirm.confirming.value ? 'opacity-0' : 'opacity-100'"
           >Cancel</span>
           <span
+            aria-hidden="true"
             class="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
             :class="cancelConfirm.confirming.value ? 'opacity-100' : 'opacity-0'"
           >Really cancel?</span>
-          <span class="invisible">Really cancel?</span>
+          <span aria-hidden="true" class="invisible">Really cancel?</span>
         </Button>
         <Button
           v-if="!done"

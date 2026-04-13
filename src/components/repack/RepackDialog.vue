@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CheckIcon, CircleIcon, FolderOpenIcon } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -89,6 +89,13 @@ function close() {
 }
 
 const cancelConfirm = useCancelConfirm(close)
+
+watch(
+  () => props.open,
+  (val) => {
+    if (!val) cancelConfirm.reset()
+  },
+)
 
 defineExpose({
   CheckIcon,
@@ -199,18 +206,21 @@ defineExpose({
           :variant="cancelConfirm.confirming.value ? 'destructive' : 'outline'"
           size="sm"
           :disabled="isRepacking"
+          :aria-label="cancelConfirm.confirming.value ? 'Really cancel?' : 'Cancel'"
           class="relative overflow-hidden transition-colors duration-200 min-w-[8rem]"
           @click="cancelConfirm.request"
         >
           <span
+            aria-hidden="true"
             class="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
             :class="cancelConfirm.confirming.value ? 'opacity-0' : 'opacity-100'"
           >Cancel</span>
           <span
+            aria-hidden="true"
             class="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
             :class="cancelConfirm.confirming.value ? 'opacity-100' : 'opacity-0'"
           >Really cancel?</span>
-          <span class="invisible">Really cancel?</span>
+          <span aria-hidden="true" class="invisible">Really cancel?</span>
         </Button>
         <Button v-if="!repackDone" size="sm" :disabled="isRepacking" @click="confirm">
           {{ isRepacking ? 'Repacking…' : 'Confirm & repack' }}

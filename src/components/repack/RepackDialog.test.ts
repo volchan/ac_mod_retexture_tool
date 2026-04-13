@@ -206,13 +206,14 @@ describe('RepackDialog', () => {
     })
     await flush()
 
-    const cancelBtn = document.body.querySelector<HTMLButtonElement>('[data-testid="cancel-btn"]')
-    cancelBtn?.click()
+    const cancelBtn = document.body.querySelector('[data-testid="cancel-btn"]') as HTMLButtonElement
+    expect(cancelBtn).not.toBeNull()
+    cancelBtn.click()
     await flush()
 
     expect(wrapper.emitted('update:open')).toBeFalsy()
 
-    cancelBtn?.click()
+    cancelBtn.click()
     await flush()
 
     expect(wrapper.emitted('update:open')).toBeTruthy()

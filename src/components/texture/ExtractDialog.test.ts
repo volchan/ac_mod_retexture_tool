@@ -254,13 +254,14 @@ describe('ExtractDialog', () => {
     })
     await nextTick()
 
-    const cancelBtn = document.body.querySelector<HTMLButtonElement>('[data-testid="cancel-btn"]')
-    cancelBtn?.click()
+    const cancelBtn = document.body.querySelector('[data-testid="cancel-btn"]') as HTMLButtonElement
+    expect(cancelBtn).not.toBeNull()
+    cancelBtn.click()
     await nextTick()
 
     expect(wrapper.emitted('update:isOpen')).toBeFalsy()
 
-    cancelBtn?.click()
+    cancelBtn.click()
     await nextTick()
 
     expect(wrapper.emitted('update:isOpen')).toEqual([[false]])
