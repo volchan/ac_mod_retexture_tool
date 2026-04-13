@@ -83,9 +83,10 @@ async function confirm() {
 
 function close() {
   if (isRepacking.value) return
+  const wasDone = repackDone.value
   reset()
   emit('update:open', false)
-  if (repackDone.value) emit('done')
+  if (wasDone) emit('done')
 }
 
 const cancelConfirm = useCancelConfirm(close)
