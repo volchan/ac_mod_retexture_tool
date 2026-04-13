@@ -18,10 +18,12 @@ function isNewer(latest: string, current: string): boolean {
 export function useUpdateCheck() {
   const updateAvailable = ref(false)
   const latestVersion = ref('')
+  const currentVersion = ref('')
 
   onMounted(async () => {
     try {
       const [current, response] = await Promise.all([getAppVersion(), fetch(RELEASES_URL)])
+      currentVersion.value = current
       if (!response.ok) return
       const data = await response.json()
       const latest = (data.tag_name as string).replace(/^v/, '')
@@ -34,5 +36,5 @@ export function useUpdateCheck() {
     }
   })
 
-  return { updateAvailable, latestVersion }
+  return { updateAvailable, latestVersion, currentVersion }
 }

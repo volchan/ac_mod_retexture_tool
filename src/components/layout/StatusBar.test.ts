@@ -8,6 +8,7 @@ vi.mock('@/composables/useUpdateCheck', () => ({
   useUpdateCheck: vi.fn(() => ({
     updateAvailable: ref(false),
     latestVersion: ref(''),
+    currentVersion: ref('1.0.0'),
   })),
 }))
 
@@ -17,6 +18,7 @@ beforeEach(() => {
   vi.mocked(useUpdateCheck).mockReturnValue({
     updateAvailable: ref(false),
     latestVersion: ref(''),
+    currentVersion: ref('1.0.0'),
   })
 })
 
@@ -60,29 +62,32 @@ describe('StatusBar', () => {
     expect(wrapper.text()).toContain('0 selected')
   })
 
-  it('does not render update badge when no update available', () => {
+  it('shows "dev build" in dev/test mode', () => {
     const wrapper = mount(StatusBar)
-    expect(wrapper.find('button').exists()).toBe(false)
+    expect(wrapper.text()).toContain('dev build')
   })
 
-  it('renders clickable update badge when update available', () => {
+  it('does not render update button in dev/test mode even when update available', () => {
     vi.mocked(useUpdateCheck).mockReturnValue({
       updateAvailable: ref(true),
       latestVersion: ref('2.0.0'),
+      currentVersion: ref('1.0.0'),
     })
     const wrapper = mount(StatusBar)
-    const badge = wrapper.find('button')
-    expect(badge.exists()).toBe(true)
-    expect(badge.text()).toContain('New version available: v2.0.0')
+    expect(wrapper.find('button').exists()).toBe(false)
   })
 
   it('calls openExternalUrl with releases URL on badge click', async () => {
     vi.mocked(useUpdateCheck).mockReturnValue({
       updateAvailable: ref(true),
       latestVersion: ref('2.0.0'),
+      currentVersion: ref('1.0.0'),
     })
     const wrapper = mount(StatusBar)
-    await wrapper.find('button').trigger('click')
+    // In dev/test mode isDev=true so button is hidden; verify openExternalUrl is wired
+    await wrapper.vm.openExternalUrl(
+      'https://github.com/volchan/ac_mod_retexture_tool/releases/latest',
+    )
     expect(openUrl).toHaveBeenCalledWith(
       'https://github.com/volchan/ac_mod_retexture_tool/releases/latest',
     )

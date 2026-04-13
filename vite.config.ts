@@ -28,6 +28,14 @@ const testAliases = isTesting
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (warning.code === 'INVALID_ANNOTATION') return
+        warn(warning)
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

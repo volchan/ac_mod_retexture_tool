@@ -67,6 +67,10 @@ tasks:
       - bunx vitest run --coverage
       - cd {{.TAURI_DIR}} && cargo tarpaulin --out html
 
+  set-version:
+    desc: Set app version from tag (e.g. task set-version -- v0.2.0)
+    cmd: bun scripts/set-version.ts {{.CLI_ARGS}}
+
   # --- Utilities ---
 
   ui:add:
