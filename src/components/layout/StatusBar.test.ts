@@ -62,18 +62,35 @@ describe('StatusBar', () => {
     expect(wrapper.text()).toContain('0 selected')
   })
 
-  it('shows "dev build" in dev/test mode', () => {
-    const wrapper = mount(StatusBar)
+  it('shows "dev build" when isDev is true', () => {
+    const wrapper = mount(StatusBar, { props: { isDev: true } })
     expect(wrapper.text()).toContain('dev build')
   })
 
-  it('does not render update button in dev/test mode even when update available', () => {
+  it('does not render update button when isDev is true even when update available', () => {
     vi.mocked(useUpdateCheck).mockReturnValue({
       updateAvailable: ref(true),
       latestVersion: ref('2.0.0'),
       currentVersion: ref('1.0.0'),
     })
-    const wrapper = mount(StatusBar)
+    const wrapper = mount(StatusBar, { props: { isDev: true } })
+    expect(wrapper.find('button').exists()).toBe(false)
+  })
+
+  it('renders clickable update badge when isDev is false and update available', () => {
+    vi.mocked(useUpdateCheck).mockReturnValue({
+      updateAvailable: ref(true),
+      latestVersion: ref('2.0.0'),
+      currentVersion: ref('1.0.0'),
+    })
+    const wrapper = mount(StatusBar, { props: { isDev: false } })
+    const badge = wrapper.find('button')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toContain('New version available: v2.0.0')
+  })
+
+  it('does not render update button when isDev is false and no update available', () => {
+    const wrapper = mount(StatusBar, { props: { isDev: false } })
     expect(wrapper.find('button').exists()).toBe(false)
   })
 
@@ -83,11 +100,8 @@ describe('StatusBar', () => {
       latestVersion: ref('2.0.0'),
       currentVersion: ref('1.0.0'),
     })
-    const wrapper = mount(StatusBar)
-    // In dev/test mode isDev=true so button is hidden; verify openExternalUrl is wired
-    await wrapper.vm.openExternalUrl(
-      'https://github.com/volchan/ac_mod_retexture_tool/releases/latest',
-    )
+    const wrapper = mount(StatusBar, { props: { isDev: false } })
+    await wrapper.find('button').trigger('click')
     expect(openUrl).toHaveBeenCalledWith(
       'https://github.com/volchan/ac_mod_retexture_tool/releases/latest',
     )

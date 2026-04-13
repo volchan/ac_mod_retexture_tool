@@ -8,6 +8,11 @@ if (!tag) {
 
 const version = tag.replace(/^v/, '')
 
+if (!/^\d+\.\d+\.\d+$/.test(version)) {
+  console.error(`Invalid version "${version}" derived from tag "${tag}". Expected semver X.Y.Z.`)
+  process.exit(1)
+}
+
 const conf = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf-8'))
 conf.version = version
 writeFileSync('src-tauri/tauri.conf.json', `${JSON.stringify(conf, null, 2)}\n`)

@@ -2,16 +2,19 @@
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import { openExternalUrl } from '@/lib/tauri'
 
-defineProps<{
-  modName?: string
-  textureCount?: number
-  selectedCount?: number
-}>()
+withDefaults(
+  defineProps<{
+    modName?: string
+    textureCount?: number
+    selectedCount?: number
+    isDev?: boolean
+  }>(),
+  { isDev: import.meta.env.DEV },
+)
 
-const isDev = import.meta.env.DEV
 const { updateAvailable, latestVersion } = useUpdateCheck()
 
-defineExpose({ isDev, updateAvailable, latestVersion, openExternalUrl })
+defineExpose({ updateAvailable, latestVersion, openExternalUrl })
 </script>
 
 <template>

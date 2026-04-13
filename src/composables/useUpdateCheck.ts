@@ -21,9 +21,11 @@ export function useUpdateCheck() {
   const currentVersion = ref('')
 
   onMounted(async () => {
+    const current = await getAppVersion()
+    currentVersion.value = current
+
     try {
-      const [current, response] = await Promise.all([getAppVersion(), fetch(RELEASES_URL)])
-      currentVersion.value = current
+      const response = await fetch(RELEASES_URL)
       if (!response.ok) return
       const data = await response.json()
       const latest = (data.tag_name as string).replace(/^v/, '')
