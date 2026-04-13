@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { open } from '@tauri-apps/plugin-dialog'
 import { FileImageIcon, FolderIcon, FolderOpenIcon } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
+import { useCancelConfirm } from '@/composables/useCancelConfirm'
 import { extractTextures, onExtractProgress } from '@/lib/tauri'
 import type { ProgressInfo, Texture } from '@/types/index'
 
@@ -52,7 +54,6 @@ const outputTree = computed<TreeFolder[]>(() => {
     let folderKey: string
     let fileName: string
     if (t.category === 'preview') {
-      // t.path is the rel path from mod root, e.g. "ui/boot/preview.png"
       const lastSlash = t.path.lastIndexOf('/')
       folderKey = lastSlash >= 0 ? t.path.slice(0, lastSlash) : ''
       fileName = lastSlash >= 0 ? t.path.slice(lastSlash + 1) : t.path
@@ -110,10 +111,17 @@ function handleClose() {
   if (wasDone) emit('done')
 }
 
+const cancelConfirm = useCancelConfirm(handleClose)
+
+watch(dialogOpen, (val) => {
+  if (!val) cancelConfirm.reset()
+})
+
 defineExpose({
   FileImageIcon,
   FolderIcon,
   FolderOpenIcon,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -132,12 +140,18 @@ defineExpose({
   browsOutputDir,
   handleExtract,
   handleClose,
+  cancelConfirm,
 })
 </script>
 
 <template>
   <Dialog v-model:open="dialogOpen">
-    <DialogContent class="max-w-lg">
+    <DialogContent
+      class="max-w-lg"
+      :show-close-button="false"
+      @interact-outside.prevent
+      @escape-key-down.prevent="done ? handleClose() : (!isExtracting && cancelConfirm.request())"
+    >
       <DialogHeader>
         <DialogTitle>Extract {{ textures.length }} texture{{ textures.length !== 1 ? 's' : '' }}</DialogTitle>
         <DialogDescription class="sr-only">Choose an output folder and extract selected textures as PNG files.</DialogDescription>
@@ -202,22 +216,41 @@ defineExpose({
       </div>
 
       <DialogFooter>
-        <button
-          class="text-xs px-4 py-2 rounded border hover:bg-accent transition-colors"
+        <Button v-if="done" variant="outline" size="sm" @click="handleClose">
+          Close
+        </Button>
+        <Button
+          v-else
+          data-testid="cancel-btn"
+          :variant="cancelConfirm.confirming.value ? 'destructive' : 'outline'"
+          size="sm"
           :disabled="isExtracting"
-          @click="handleClose"
+          :aria-label="cancelConfirm.confirming.value ? 'Really cancel?' : 'Cancel'"
+          class="relative overflow-hidden min-w-[8rem]"
+          @click="cancelConfirm.request"
         >
-          {{ done ? 'Close' : 'Cancel' }}
-        </button>
-        <button
+          <span
+            aria-hidden="true"
+            class="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
+            :class="cancelConfirm.confirming.value ? 'opacity-0' : 'opacity-100'"
+          >Cancel</span>
+          <span
+            aria-hidden="true"
+            class="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
+            :class="cancelConfirm.confirming.value ? 'opacity-100' : 'opacity-0'"
+          >Really cancel?</span>
+          <span aria-hidden="true" class="invisible">Really cancel?</span>
+        </Button>
+        <Button
           v-if="!done"
-          class="text-xs px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          size="sm"
           :disabled="!outputDir || isExtracting"
           @click="handleExtract"
         >
           Extract
-        </button>
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>
+
