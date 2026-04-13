@@ -1,5 +1,6 @@
+import { getVersion } from '@tauri-apps/api/app'
 import { clearMockStore } from '@tauri-apps/plugin-store'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppHeader from './AppHeader.vue'
 
@@ -19,9 +20,11 @@ describe('AppHeader', () => {
     expect(wrapper.text()).toContain('AC Mod Retexture Tool')
   })
 
-  it('renders the version string', () => {
+  it('renders the version from getVersion', async () => {
+    vi.mocked(getVersion).mockResolvedValue('1.2.3')
     const wrapper = mount(AppHeader)
-    expect(wrapper.text()).toContain('v0.1.0')
+    await flushPromises()
+    expect(wrapper.text()).toContain('v1.2.3')
   })
 
   it('renders the theme toggle button', () => {
