@@ -32,6 +32,7 @@ jobs:
         run: bun install
 
       - name: Set version from tag
+        if: github.ref_type == 'tag'
         run: bun scripts/set-version.ts ${{ github.ref_name }}
 
       - name: Build and release

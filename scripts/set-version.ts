@@ -13,6 +13,11 @@ conf.version = version
 writeFileSync('src-tauri/tauri.conf.json', `${JSON.stringify(conf, null, 2)}\n`)
 
 const cargo = readFileSync('src-tauri/Cargo.toml', 'utf-8')
-writeFileSync('src-tauri/Cargo.toml', cargo.replace(/^version = ".*"/m, `version = "${version}"`))
+const cargoVersionPattern = /^version = ".*"/m
+if (!cargoVersionPattern.test(cargo)) {
+  console.error('Failed to update src-tauri/Cargo.toml: could not find a matching version line')
+  process.exit(1)
+}
+writeFileSync('src-tauri/Cargo.toml', cargo.replace(cargoVersionPattern, `version = "${version}"`))
 
 console.log(`Version set to ${version}`)
