@@ -41,6 +41,7 @@ export const { listen, emit } = event
 export const webviewWindow = {
   getCurrentWebviewWindow: vi.fn(() => ({
     onDragDropEvent: vi.fn(async () => () => {}),
+    show: vi.fn(async () => {}),
   })),
 }
 
