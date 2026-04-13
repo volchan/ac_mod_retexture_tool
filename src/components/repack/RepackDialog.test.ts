@@ -200,13 +200,19 @@ describe('RepackDialog', () => {
     expect(vm.labelToStep('')).toBe(-1)
   })
 
-  it('emits update:open false when Cancel clicked', async () => {
+  it('Cancel button requires two clicks to close', async () => {
     const wrapper = mount(RepackDialog, {
       props: { open: true, mod, outputPath: '/out/car.zip', replacements },
     })
     await flush()
 
-    findButton('Cancel')?.click()
+    const cancelBtn = document.body.querySelector<HTMLButtonElement>('[data-testid="cancel-btn"]')
+    cancelBtn?.click()
+    await flush()
+
+    expect(wrapper.emitted('update:open')).toBeFalsy()
+
+    cancelBtn?.click()
     await flush()
 
     expect(wrapper.emitted('update:open')).toBeTruthy()

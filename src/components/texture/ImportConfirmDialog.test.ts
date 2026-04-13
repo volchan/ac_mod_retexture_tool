@@ -148,13 +148,19 @@ describe('ImportConfirmDialog', () => {
     expect(wrapper.emitted('update:isOpen')).toEqual([[false]])
   })
 
-  it('Cancel button emits update:isOpen false', async () => {
+  it('Cancel button requires two clicks to close', async () => {
     const wrapper = mount(ImportConfirmDialog, {
       props: { isOpen: true, matched: [makeMatched()], unmatched: [] },
       attachTo: document.body,
     })
     await nextTick()
-    findButton('Cancel')?.click()
+
+    const cancelBtn = document.body.querySelector<HTMLButtonElement>('[data-testid="cancel-btn"]')
+    cancelBtn?.click()
+    await nextTick()
+    expect(wrapper.emitted('update:isOpen')).toBeFalsy()
+
+    cancelBtn?.click()
     await nextTick()
     expect(wrapper.emitted('update:isOpen')).toEqual([[false]])
   })

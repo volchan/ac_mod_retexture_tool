@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { AlertTriangleIcon } from 'lucide-vue-next'
 import { computed } from 'vue'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useCancelConfirm } from '@/composables/useCancelConfirm'
 import type { MatchedTexture, UnmatchedFile } from '@/types/index'
 
 const props = defineProps<{
@@ -45,8 +47,11 @@ function handleClose() {
   open.value = false
 }
 
+const cancelConfirm = useCancelConfirm(handleClose)
+
 defineExpose({
   AlertTriangleIcon,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -59,12 +64,13 @@ defineExpose({
   sourceLabel,
   handleApply,
   handleClose,
+  cancelConfirm,
 })
 </script>
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent class="max-w-lg">
+    <DialogContent class="max-w-lg" :show-close-button="false" @interact-outside.prevent>
       <DialogHeader>
         <DialogTitle>Replace {{ matched.length }} texture{{ matched.length !== 1 ? 's' : '' }}?</DialogTitle>
         <DialogDescription class="sr-only">Review matched and skipped textures before applying replacements.</DialogDescription>
@@ -138,20 +144,32 @@ defineExpose({
       </div>
 
       <DialogFooter>
-        <button
-          class="text-xs px-4 py-2 rounded border hover:bg-accent transition-colors"
-          @click="handleClose"
+        <Button
+          data-testid="cancel-btn"
+          :variant="cancelConfirm.confirming.value ? 'destructive' : 'outline'"
+          size="sm"
+          class="relative overflow-hidden min-w-[8rem]"
+          @click="cancelConfirm.request"
         >
-          Cancel
-        </button>
-        <button
-          class="text-xs px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          <span
+            class="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
+            :class="cancelConfirm.confirming.value ? 'opacity-0' : 'opacity-100'"
+          >Cancel</span>
+          <span
+            class="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
+            :class="cancelConfirm.confirming.value ? 'opacity-100' : 'opacity-0'"
+          >Really cancel?</span>
+          <span class="invisible">Really cancel?</span>
+        </Button>
+        <Button
+          size="sm"
           :disabled="matched.length === 0"
           @click="handleApply"
         >
           Apply {{ matched.length }} replacement{{ matched.length !== 1 ? 's' : '' }}
-        </button>
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>
+
