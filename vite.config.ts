@@ -28,6 +28,20 @@ const testAliases = isTesting
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (
+          warning.code === 'INVALID_ANNOTATION' &&
+          [warning.id, warning.loc?.file, warning.message]
+            .filter(Boolean)
+            .some((s) => s?.includes('node_modules/reka-ui'))
+        )
+          return
+        warn(warning)
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

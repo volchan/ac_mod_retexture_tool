@@ -43,6 +43,7 @@ describe('useUpdateCheck', () => {
     const { result, unmount } = await withSetup(() => useUpdateCheck())
     expect(result.updateAvailable.value).toBe(true)
     expect(result.latestVersion.value).toBe('1.1.0')
+    expect(result.currentVersion.value).toBe('1.0.0')
     unmount()
   })
 
@@ -88,6 +89,13 @@ describe('useUpdateCheck', () => {
     mockFetch('v1.1')
     const { result, unmount } = await withSetup(() => useUpdateCheck())
     expect(result.updateAvailable.value).toBe(false)
+    unmount()
+  })
+
+  it('exposes currentVersion from getAppVersion', async () => {
+    mockFetch('v1.0.0')
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.currentVersion.value).toBe('1.0.0')
     unmount()
   })
 
