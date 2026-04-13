@@ -40,6 +40,7 @@ beforeEach(() => {
   clearMockStore()
   vi.restoreAllMocks()
   document.documentElement.classList.remove('dark')
+  localStorage.clear()
 })
 
 describe('useTheme', () => {
@@ -102,6 +103,23 @@ describe('useTheme', () => {
     await result.setMode('dark')
     expect(mockStore.set).toHaveBeenCalledWith('theme-mode', 'dark')
     expect(mockStore.save).toHaveBeenCalled()
+    unmount()
+  })
+
+  it('mirrors mode to localStorage on setMode', async () => {
+    mockMatchMedia(false)
+    const { result, unmount } = await withSetup(() => useTheme())
+    await result.setMode('dark')
+    expect(localStorage.getItem('theme-mode')).toBe('dark')
+    unmount()
+  })
+
+  it('mirrors mode to localStorage on mount', async () => {
+    mockMatchMedia(false)
+    const store = await load('settings.json')
+    await store.set('theme-mode', 'light' as ThemeMode)
+    const { unmount } = await withSetup(() => useTheme())
+    expect(localStorage.getItem('theme-mode')).toBe('light')
     unmount()
   })
 

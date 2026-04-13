@@ -5,6 +5,7 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 
 const STORE_KEY = 'theme-mode'
 const DARK_CLASS = 'dark'
+const LS_KEY = 'theme-mode'
 
 function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
   if (mode === 'system') {
@@ -53,6 +54,7 @@ export function useTheme() {
   async function setMode(newMode: ThemeMode) {
     mode.value = newMode
     updateTheme(newMode)
+    localStorage.setItem(LS_KEY, newMode)
     const store = await load('settings.json')
     await store.set(STORE_KEY, newMode)
     await store.save()
@@ -70,6 +72,7 @@ export function useTheme() {
     const initialMode: ThemeMode = persisted ?? 'system'
     mode.value = initialMode
     updateTheme(initialMode)
+    localStorage.setItem(LS_KEY, initialMode)
   })
 
   watch(mode, (newMode) => {

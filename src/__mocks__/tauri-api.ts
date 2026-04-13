@@ -48,6 +48,7 @@ export const { getVersion } = app
 export const webviewWindow = {
   getCurrentWebviewWindow: vi.fn(() => ({
     onDragDropEvent: vi.fn(async () => () => {}),
+    show: vi.fn(async () => {}),
   })),
 }
 
