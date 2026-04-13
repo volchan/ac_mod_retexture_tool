@@ -1,6 +1,28 @@
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import StatusBar from './StatusBar.vue'
+
+vi.mock('@/composables/useUpdateCheck', () => ({
+  useUpdateCheck: vi.fn(() => ({
+    updateAvailable: ref(false),
+    latestVersion: ref(''),
+  })),
+}))
+
+import { useUpdateCheck } from '@/composables/useUpdateCheck'
+
+beforeEach(() => {
+  vi.mocked(useUpdateCheck).mockReturnValue({
+    updateAvailable: ref(false),
+    latestVersion: ref(''),
+  })
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('StatusBar', () => {
   it('shows "No mod loaded" when no modName is provided', () => {
@@ -29,16 +51,40 @@ describe('StatusBar', () => {
   })
 
   it('shows 0 for texture count when not provided', () => {
-    const wrapper = mount(StatusBar, {
-      props: { modName: 'TestMod' },
-    })
+    const wrapper = mount(StatusBar, { props: { modName: 'TestMod' } })
     expect(wrapper.text()).toContain('0 textures')
   })
 
   it('shows 0 for selected count when not provided', () => {
-    const wrapper = mount(StatusBar, {
-      props: { modName: 'TestMod' },
-    })
+    const wrapper = mount(StatusBar, { props: { modName: 'TestMod' } })
     expect(wrapper.text()).toContain('0 selected')
+  })
+
+  it('does not render update badge when no update available', () => {
+    const wrapper = mount(StatusBar)
+    expect(wrapper.find('button').exists()).toBe(false)
+  })
+
+  it('renders clickable update badge when update available', () => {
+    vi.mocked(useUpdateCheck).mockReturnValue({
+      updateAvailable: ref(true),
+      latestVersion: ref('2.0.0'),
+    })
+    const wrapper = mount(StatusBar)
+    const badge = wrapper.find('button')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toContain('New version available: v2.0.0')
+  })
+
+  it('calls openExternalUrl with releases URL on badge click', async () => {
+    vi.mocked(useUpdateCheck).mockReturnValue({
+      updateAvailable: ref(true),
+      latestVersion: ref('2.0.0'),
+    })
+    const wrapper = mount(StatusBar)
+    await wrapper.find('button').trigger('click')
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://github.com/volchan/ac_mod_retexture_tool/releases/latest',
+    )
   })
 })

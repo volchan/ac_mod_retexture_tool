@@ -19,6 +19,10 @@ const testAliases = isTesting
         find: '@tauri-apps/plugin-store',
         replacement: resolve(__dirname, 'src/__mocks__/tauri-store.ts'),
       },
+      {
+        find: '@tauri-apps/plugin-opener',
+        replacement: resolve(__dirname, 'src/__mocks__/tauri-opener.ts'),
+      },
     ]
   : []
 
