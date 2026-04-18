@@ -246,6 +246,8 @@ mod tests {
     use image::{DynamicImage, ImageBuffer, Rgba};
     use image_dds::dds_from_image;
 
+    const DDS_DDPF_FOURCC: u32 = 0x04;
+
     fn solid_red_dds() -> Vec<u8> {
         let width = 64u32;
         let height = 64u32;
@@ -437,7 +439,8 @@ mod tests {
         let mut data = vec![0u8; DDS_HEADER_MIN_LEN + 4];
         data[0..4].copy_from_slice(DDS_MAGIC);
         data[DDS_FOURCC_OFFSET..DDS_FOURCC_OFFSET + 4].copy_from_slice(b"DX10");
-        data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4].copy_from_slice(&0u32.to_le_bytes()); // DDPF_FOURCC
+        data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4]
+            .copy_from_slice(&DDS_DDPF_FOURCC.to_le_bytes());
         data[DDS_HEADER_MIN_LEN..DDS_HEADER_MIN_LEN + 4]
             .copy_from_slice(&dxgi_format.to_le_bytes());
         data
