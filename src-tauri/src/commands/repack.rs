@@ -145,11 +145,7 @@ fn create_zip_archive(
         let data = std::fs::read(entry.path())?;
         zip.write_all(&data)?;
 
-        let pct = if total > 0 {
-            ((i as u32 + 1) * 100) / total
-        } else {
-            100
-        };
+        let pct = ((i as u32 + 1) * 100).checked_div(total).unwrap_or(100);
         if pct != last_pct || i == files.len() - 1 {
             last_pct = pct;
             progress_cb("Archiving mod", i as u32 + 1, total);

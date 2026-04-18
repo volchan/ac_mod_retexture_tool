@@ -432,16 +432,6 @@ mod tests {
         assert_eq!(h, 64);
     }
 
-    #[test]
-    fn test_detect_format_dxgi_bc7() {
-        let mut data = vec![0u8; 132];
-        data[0..4].copy_from_slice(b"DDS ");
-        data[84..88].copy_from_slice(b"DX10");
-        data[80..84].copy_from_slice(&0u32.to_le_bytes());
-        data[128..132].copy_from_slice(&98u32.to_le_bytes()); // DXGI format 98 = BC7_UNORM
-        assert_eq!(detect_format(&data), "BC7");
-    }
-
     fn build_dx10_header(dxgi_format: u32) -> Vec<u8> {
         let mut data = vec![0u8; 132];
         data[0..4].copy_from_slice(b"DDS ");
@@ -449,6 +439,12 @@ mod tests {
         data[80..84].copy_from_slice(&0u32.to_le_bytes());
         data[128..132].copy_from_slice(&dxgi_format.to_le_bytes());
         data
+    }
+
+    #[test]
+    fn test_detect_format_dxgi_bc7() {
+        // DXGI 98 = BC7_UNORM
+        assert_eq!(detect_format(&build_dx10_header(98)), "BC7");
     }
 
     #[test]
