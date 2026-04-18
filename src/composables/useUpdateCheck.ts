@@ -17,8 +17,11 @@ function getPlatformExtensions(): string[] {
 }
 
 function hasPlatformAsset(assets: { name: string }[]): boolean {
-  const exts = getPlatformExtensions()
-  return assets.some((a) => exts.some((ext) => a.name.endsWith(ext)))
+  const exts = getPlatformExtensions().map((ext) => ext.toLowerCase())
+  return assets.some((a) => {
+    const name = a.name.toLowerCase()
+    return exts.some((ext) => name.endsWith(ext))
+  })
 }
 
 function isNewer(latest: string, current: string): boolean {
