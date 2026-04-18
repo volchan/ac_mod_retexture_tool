@@ -134,7 +134,7 @@ fn create_zip_archive(
         .filter(|e| e.file_type().is_file())
         .collect();
 
-    let total = files.len() as u32;
+    let total = files.len() as u64;
     let mut last_pct: u32 = 0;
 
     for (i, entry) in files.iter().enumerate() {
@@ -145,10 +145,10 @@ fn create_zip_archive(
         let data = std::fs::read(entry.path())?;
         zip.write_all(&data)?;
 
-        let pct = ((i as u32 + 1) * 100).checked_div(total).unwrap_or(100);
+        let pct = (((i as u64 + 1) * 100).checked_div(total).unwrap_or(100)) as u32;
         if pct != last_pct || i == files.len() - 1 {
             last_pct = pct;
-            progress_cb("Archiving mod", i as u32 + 1, total);
+            progress_cb("Archiving mod", i as u32 + 1, total as u32);
         }
     }
 

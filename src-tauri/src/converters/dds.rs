@@ -433,11 +433,12 @@ mod tests {
     }
 
     fn build_dx10_header(dxgi_format: u32) -> Vec<u8> {
-        let mut data = vec![0u8; 132];
-        data[0..4].copy_from_slice(b"DDS ");
-        data[84..88].copy_from_slice(b"DX10");
-        data[80..84].copy_from_slice(&0u32.to_le_bytes());
-        data[128..132].copy_from_slice(&dxgi_format.to_le_bytes());
+        let mut data = vec![0u8; DDS_HEADER_MIN_LEN + 4];
+        data[0..4].copy_from_slice(DDS_MAGIC);
+        data[DDS_FOURCC_OFFSET..DDS_FOURCC_OFFSET + 4].copy_from_slice(b"DX10");
+        data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4].copy_from_slice(&0u32.to_le_bytes());
+        data[DDS_HEADER_MIN_LEN..DDS_HEADER_MIN_LEN + 4]
+            .copy_from_slice(&dxgi_format.to_le_bytes());
         data
     }
 
