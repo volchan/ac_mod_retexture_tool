@@ -159,13 +159,13 @@ fn detect_dxgi_format(data: &[u8]) -> String {
         data[DDS_HEADER_MIN_LEN + 3],
     ]);
     match dxgi {
-        70 | 71 => "BC1".to_string(),
-        72 | 73 => "BC2".to_string(),
-        74 | 75 => "BC3".to_string(),
-        80 | 81 => "BC4".to_string(),
-        82 | 83 => "BC5".to_string(),
-        94 | 95 => "BC6H".to_string(),
-        97 | 98 => "BC7".to_string(),
+        70..=72 => "BC1".to_string(),
+        73..=75 => "BC2".to_string(),
+        76..=78 => "BC3".to_string(),
+        79..=81 => "BC4".to_string(),
+        82..=84 => "BC5".to_string(),
+        94..=96 => "BC6H".to_string(),
+        97..=99 => "BC7".to_string(),
         28 => "RGBA8".to_string(),
         _ => format!("DXGI{dxgi}"),
     }
@@ -438,7 +438,34 @@ mod tests {
         data[0..4].copy_from_slice(b"DDS ");
         data[84..88].copy_from_slice(b"DX10");
         data[80..84].copy_from_slice(&0u32.to_le_bytes());
-        data[128..132].copy_from_slice(&98u32.to_le_bytes()); // DXGI format 98 = BC7_UNORM_SRGB
+        data[128..132].copy_from_slice(&98u32.to_le_bytes()); // DXGI format 98 = BC7_UNORM
         assert_eq!(detect_format(&data), "BC7");
+    }
+
+    fn build_dx10_header(dxgi_format: u32) -> Vec<u8> {
+        let mut data = vec![0u8; 132];
+        data[0..4].copy_from_slice(b"DDS ");
+        data[84..88].copy_from_slice(b"DX10");
+        data[80..84].copy_from_slice(&0u32.to_le_bytes());
+        data[128..132].copy_from_slice(&dxgi_format.to_le_bytes());
+        data
+    }
+
+    #[test]
+    fn test_detect_format_dxgi_bc3_unorm() {
+        // DXGI 77 = BC3_UNORM (DXT5) — previously fell through to "DXGI77"
+        assert_eq!(detect_format(&build_dx10_header(77)), "BC3");
+    }
+
+    #[test]
+    fn test_detect_format_dxgi_bc1_srgb() {
+        // DXGI 72 = BC1_UNORM_SRGB — previously mapped to BC2 by mistake
+        assert_eq!(detect_format(&build_dx10_header(72)), "BC1");
+    }
+
+    #[test]
+    fn test_detect_format_dxgi_bc2_unorm() {
+        // DXGI 74 = BC2_UNORM — previously mapped to BC3 by mistake
+        assert_eq!(detect_format(&build_dx10_header(74)), "BC2");
     }
 }
