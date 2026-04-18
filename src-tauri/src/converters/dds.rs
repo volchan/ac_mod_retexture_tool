@@ -159,16 +159,17 @@ fn detect_dxgi_format(data: &[u8]) -> String {
         data[DDS_HEADER_MIN_LEN + 3],
     ]);
     match dxgi {
-        70..=72 => "BC1".to_string(),
-        73..=75 => "BC2".to_string(),
-        76..=78 => "BC3".to_string(),
-        79..=81 => "BC4".to_string(),
-        82..=84 => "BC5".to_string(),
-        94..=96 => "BC6H".to_string(),
-        97..=99 => "BC7".to_string(),
-        28 => "RGBA8".to_string(),
-        _ => format!("DXGI{dxgi}"),
+        70..=72 => "BC1",
+        73..=75 => "BC2",
+        76..=78 => "BC3",
+        79..=81 => "BC4",
+        82..=84 => "BC5",
+        94..=96 => "BC6H",
+        97..=99 => "BC7",
+        28 => "RGBA8",
+        _ => return format!("DXGI{dxgi}"),
     }
+    .to_string()
 }
 
 fn parse_image_format(format: &str) -> Result<ImageFormat, crate::errors::AppError> {
@@ -436,7 +437,7 @@ mod tests {
         let mut data = vec![0u8; DDS_HEADER_MIN_LEN + 4];
         data[0..4].copy_from_slice(DDS_MAGIC);
         data[DDS_FOURCC_OFFSET..DDS_FOURCC_OFFSET + 4].copy_from_slice(b"DX10");
-        data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4].copy_from_slice(&0u32.to_le_bytes());
+        data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4].copy_from_slice(&0u32.to_le_bytes()); // DDPF_FOURCC
         data[DDS_HEADER_MIN_LEN..DDS_HEADER_MIN_LEN + 4]
             .copy_from_slice(&dxgi_format.to_le_bytes());
         data
