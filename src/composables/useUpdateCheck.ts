@@ -3,6 +3,30 @@ import { getAppVersion } from '@/lib/tauri'
 
 const RELEASES_URL = 'https://api.github.com/repos/volchan/ac_mod_retexture_tool/releases/latest'
 
+const PLATFORM_EXTENSIONS: Record<string, string[]> = {
+  win: ['.exe', '.msi'],
+  mac: ['.dmg'],
+  linux: ['.appimage', '.deb', '.rpm'],
+}
+
+type NavigatorWithUAData = Navigator & { userAgentData?: { platform: string } }
+
+function getPlatformExtensions(): string[] {
+  const nav = navigator as NavigatorWithUAData
+  const p = (nav.userAgentData?.platform ?? navigator.platform).toLowerCase()
+  if (p.includes('win')) return PLATFORM_EXTENSIONS.win
+  if (p.includes('mac')) return PLATFORM_EXTENSIONS.mac
+  return PLATFORM_EXTENSIONS.linux
+}
+
+function hasPlatformAsset(assets: { name: string }[]): boolean {
+  const exts = getPlatformExtensions()
+  return assets.some((a) => {
+    const name = a.name.toLowerCase()
+    return exts.some((ext) => name.endsWith(ext))
+  })
+}
+
 function isNewer(latest: string, current: string): boolean {
   const parse = (v: string) => v.split('.').map(Number)
   const [latestParts, currentParts] = [parse(latest), parse(current)]
@@ -29,7 +53,8 @@ export function useUpdateCheck() {
       if (!response.ok) return
       const data = await response.json()
       const latest = (data.tag_name as string).replace(/^v/, '')
-      if (isNewer(latest, current)) {
+      const assets = (data.assets ?? []) as { name: string }[]
+      if (isNewer(latest, current) && hasPlatformAsset(assets)) {
         latestVersion.value = latest
         updateAvailable.value = true
       }

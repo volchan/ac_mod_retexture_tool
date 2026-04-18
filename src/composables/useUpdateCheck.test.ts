@@ -18,21 +18,39 @@ async function withSetup<T>(composable: () => T): Promise<{ result: T; unmount: 
   return { result, unmount: () => wrapper.unmount() }
 }
 
-function mockFetch(tagName: string, ok = true) {
+const MOCK_ASSETS = [{ name: 'app_1.0.0_x64-setup.exe' }]
+
+function mockFetch(tagName: string, ok = true, assets = MOCK_ASSETS) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => ({
       ok,
-      json: async () => ({ tag_name: tagName }),
+      json: async () => ({ tag_name: tagName, assets }),
     })),
   )
 }
 
+function setPlatform(platform: string) {
+  Object.defineProperty(navigator, 'platform', { value: platform, configurable: true })
+}
+
+async function testPlatformAsset(platform: string, assetName: string, expected: boolean) {
+  setPlatform(platform)
+  mockFetch('v1.1.0', true, [{ name: assetName }])
+  const { result, unmount } = await withSetup(() => useUpdateCheck())
+  expect(result.updateAvailable.value).toBe(expected)
+  unmount()
+}
+
+const originalPlatform = navigator.platform
+
 beforeEach(() => {
   vi.mocked(getVersion).mockResolvedValue('1.0.0')
+  setPlatform('Win32')
 })
 
 afterEach(() => {
+  setPlatform(originalPlatform)
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -116,5 +134,46 @@ describe('useUpdateCheck', () => {
     const { result, unmount } = await withSetup(() => useUpdateCheck())
     expect(result.updateAvailable.value).toBe(false)
     unmount()
+  })
+
+  it('stays false when newer version has no platform binary', async () => {
+    mockFetch('v1.1.0', true, [{ name: 'source.tar.gz' }])
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.updateAvailable.value).toBe(false)
+    unmount()
+  })
+
+  it('stays false when newer version has empty assets', async () => {
+    mockFetch('v1.1.0', true, [])
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.updateAvailable.value).toBe(false)
+    unmount()
+  })
+
+  it('sets updateAvailable when newer version has matching binary', async () => {
+    mockFetch('v1.1.0', true, [{ name: 'app_1.1.0_x64-setup.exe' }])
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.updateAvailable.value).toBe(true)
+    unmount()
+  })
+
+  it('matches uppercase asset extension', async () => {
+    await testPlatformAsset('Win32', 'app_1.1.0_x64-setup.EXE', true)
+  })
+
+  it('sets updateAvailable on macOS with .dmg asset', async () => {
+    await testPlatformAsset('MacIntel', 'app_1.1.0.dmg', true)
+  })
+
+  it('stays false on macOS when only .exe asset present', async () => {
+    await testPlatformAsset('MacIntel', 'app_1.1.0_x64-setup.exe', false)
+  })
+
+  it('sets updateAvailable on Linux with .AppImage asset', async () => {
+    await testPlatformAsset('Linux x86_64', 'app_1.1.0.AppImage', true)
+  })
+
+  it('sets updateAvailable on Linux with lowercase .appimage asset', async () => {
+    await testPlatformAsset('Linux x86_64', 'app_1.1.0.appimage', true)
   })
 })
