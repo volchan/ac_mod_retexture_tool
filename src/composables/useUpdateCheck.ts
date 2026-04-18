@@ -6,18 +6,21 @@ const RELEASES_URL = 'https://api.github.com/repos/volchan/ac_mod_retexture_tool
 const PLATFORM_EXTENSIONS: Record<string, string[]> = {
   win: ['.exe', '.msi'],
   mac: ['.dmg'],
-  linux: ['.AppImage', '.deb', '.rpm'],
+  linux: ['.appimage', '.deb', '.rpm'],
 }
 
+type NavigatorWithUAData = Navigator & { userAgentData?: { platform: string } }
+
 function getPlatformExtensions(): string[] {
-  const p = navigator.platform.toLowerCase()
+  const nav = navigator as NavigatorWithUAData
+  const p = (nav.userAgentData?.platform ?? navigator.platform).toLowerCase()
   if (p.includes('win')) return PLATFORM_EXTENSIONS.win
   if (p.includes('mac')) return PLATFORM_EXTENSIONS.mac
   return PLATFORM_EXTENSIONS.linux
 }
 
 function hasPlatformAsset(assets: { name: string }[]): boolean {
-  const exts = getPlatformExtensions().map((ext) => ext.toLowerCase())
+  const exts = getPlatformExtensions()
   return assets.some((a) => {
     const name = a.name.toLowerCase()
     return exts.some((ext) => name.endsWith(ext))

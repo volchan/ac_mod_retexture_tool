@@ -30,12 +30,27 @@ function mockFetch(tagName: string, ok = true, assets = MOCK_ASSETS) {
   )
 }
 
+function setPlatform(platform: string) {
+  Object.defineProperty(navigator, 'platform', { value: platform, configurable: true })
+}
+
+async function testPlatformAsset(platform: string, assetName: string, expected: boolean) {
+  setPlatform(platform)
+  mockFetch('v1.1.0', true, [{ name: assetName }])
+  const { result, unmount } = await withSetup(() => useUpdateCheck())
+  expect(result.updateAvailable.value).toBe(expected)
+  unmount()
+}
+
+const originalPlatform = navigator.platform
+
 beforeEach(() => {
   vi.mocked(getVersion).mockResolvedValue('1.0.0')
-  vi.stubGlobal('navigator', { ...navigator, platform: 'Win32' })
+  setPlatform('Win32')
 })
 
 afterEach(() => {
+  setPlatform(originalPlatform)
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -142,42 +157,23 @@ describe('useUpdateCheck', () => {
     unmount()
   })
 
-  it('matches .EXE uppercase asset name', async () => {
-    mockFetch('v1.1.0', true, [{ name: 'app_1.1.0_x64-setup.EXE' }])
-    const { result, unmount } = await withSetup(() => useUpdateCheck())
-    expect(result.updateAvailable.value).toBe(true)
-    unmount()
+  it('matches uppercase asset extension', async () => {
+    await testPlatformAsset('Win32', 'app_1.1.0_x64-setup.EXE', true)
   })
 
   it('sets updateAvailable on macOS with .dmg asset', async () => {
-    vi.stubGlobal('navigator', { ...navigator, platform: 'MacIntel' })
-    mockFetch('v1.1.0', true, [{ name: 'app_1.1.0.dmg' }])
-    const { result, unmount } = await withSetup(() => useUpdateCheck())
-    expect(result.updateAvailable.value).toBe(true)
-    unmount()
+    await testPlatformAsset('MacIntel', 'app_1.1.0.dmg', true)
   })
 
   it('stays false on macOS when only .exe asset present', async () => {
-    vi.stubGlobal('navigator', { ...navigator, platform: 'MacIntel' })
-    mockFetch('v1.1.0', true, [{ name: 'app_1.1.0_x64-setup.exe' }])
-    const { result, unmount } = await withSetup(() => useUpdateCheck())
-    expect(result.updateAvailable.value).toBe(false)
-    unmount()
+    await testPlatformAsset('MacIntel', 'app_1.1.0_x64-setup.exe', false)
   })
 
   it('sets updateAvailable on Linux with .AppImage asset', async () => {
-    vi.stubGlobal('navigator', { ...navigator, platform: 'Linux x86_64' })
-    mockFetch('v1.1.0', true, [{ name: 'app_1.1.0.AppImage' }])
-    const { result, unmount } = await withSetup(() => useUpdateCheck())
-    expect(result.updateAvailable.value).toBe(true)
-    unmount()
+    await testPlatformAsset('Linux x86_64', 'app_1.1.0.AppImage', true)
   })
 
   it('sets updateAvailable on Linux with lowercase .appimage asset', async () => {
-    vi.stubGlobal('navigator', { ...navigator, platform: 'Linux x86_64' })
-    mockFetch('v1.1.0', true, [{ name: 'app_1.1.0.appimage' }])
-    const { result, unmount } = await withSetup(() => useUpdateCheck())
-    expect(result.updateAvailable.value).toBe(true)
-    unmount()
+    await testPlatformAsset('Linux x86_64', 'app_1.1.0.appimage', true)
   })
 })
