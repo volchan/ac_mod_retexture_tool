@@ -18,18 +18,21 @@ async function withSetup<T>(composable: () => T): Promise<{ result: T; unmount: 
   return { result, unmount: () => wrapper.unmount() }
 }
 
-function mockFetch(tagName: string, ok = true) {
+const MOCK_ASSETS = [{ name: 'app_1.0.0_x64-setup.exe' }]
+
+function mockFetch(tagName: string, ok = true, assets = MOCK_ASSETS) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => ({
       ok,
-      json: async () => ({ tag_name: tagName }),
+      json: async () => ({ tag_name: tagName, assets }),
     })),
   )
 }
 
 beforeEach(() => {
   vi.mocked(getVersion).mockResolvedValue('1.0.0')
+  vi.stubGlobal('navigator', { ...navigator, platform: 'Win32' })
 })
 
 afterEach(() => {
@@ -115,6 +118,27 @@ describe('useUpdateCheck', () => {
     )
     const { result, unmount } = await withSetup(() => useUpdateCheck())
     expect(result.updateAvailable.value).toBe(false)
+    unmount()
+  })
+
+  it('stays false when newer version has no platform binary', async () => {
+    mockFetch('v1.1.0', true, [{ name: 'source.tar.gz' }])
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.updateAvailable.value).toBe(false)
+    unmount()
+  })
+
+  it('stays false when newer version has empty assets', async () => {
+    mockFetch('v1.1.0', true, [])
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.updateAvailable.value).toBe(false)
+    unmount()
+  })
+
+  it('sets updateAvailable when newer version has matching binary', async () => {
+    mockFetch('v1.1.0', true, [{ name: 'app_1.1.0_x64-setup.exe' }])
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.updateAvailable.value).toBe(true)
     unmount()
   })
 })
