@@ -328,22 +328,40 @@ describe('useTextureDetail', () => {
     unmount()
   })
 
-  it('skin-source texture invokes get_skin_texture', async () => {
+  it('skin-source texture invokes get_skin_texture with modPath and filePath', async () => {
     const tex = makeTexture({
       id: 'tex1',
       source: 'skin',
-      path: '/mods/skins/0_default/body.dds',
+      path: '/mods/car/skins/0_default/body.dds',
       kn5File: undefined,
     })
     mockInvokeHandler('get_skin_texture', () => 'data:image/png;base64,SKIN')
 
     const { result, unmount } = await withSetup(() => useTextureDetail())
-    result.open('tex1', [tex])
+    result.open('tex1', [tex], '/mods/car')
     await vi.runAllTimersAsync()
     await flushPromises()
 
     expect(result.loadError.value).toBeNull()
     expect(result.originalDataUrl.value).toBe('data:image/png;base64,SKIN')
+    result.close()
+    unmount()
+  })
+
+  it('skin-source texture sets error when modPath is unavailable', async () => {
+    const tex = makeTexture({
+      id: 'tex1',
+      source: 'skin',
+      path: '/mods/car/skins/0_default/body.dds',
+      kn5File: undefined,
+    })
+
+    const { result, unmount } = await withSetup(() => useTextureDetail())
+    result.open('tex1', [tex]) // no modPath
+    await vi.runAllTimersAsync()
+    await flushPromises()
+
+    expect(result.loadError.value).toBe('Mod path unavailable')
     result.close()
     unmount()
   })

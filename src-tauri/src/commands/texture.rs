@@ -33,7 +33,7 @@ fn image_to_data_url(img: DynamicImage) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn get_skin_texture(file_path: String) -> Result<String, String> {
+pub fn get_skin_texture(mod_path: String, file_path: String) -> Result<String, String> {
     let path = Path::new(&file_path);
     let ext = path
         .extension()
@@ -44,6 +44,13 @@ pub fn get_skin_texture(file_path: String) -> Result<String, String> {
             "unsupported file type: expected .dds, got {:?}",
             ext.as_deref().unwrap_or("none")
         ));
+    }
+    let canonical_mod =
+        std::fs::canonicalize(&mod_path).map_err(|e| format!("invalid mod path: {e}"))?;
+    let canonical_file =
+        std::fs::canonicalize(path).map_err(|e| format!("invalid file path: {e}"))?;
+    if !canonical_file.starts_with(&canonical_mod) {
+        return Err("path escapes mod directory".to_string());
     }
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
     let img = dds::decode_to_image(&data).map_err(|e| e.to_string())?;
@@ -242,24 +249,51 @@ mod tests {
     #[test]
     fn get_skin_texture_returns_data_url_for_dds_file() {
         let dds = make_solid_dds();
-        let path = std::env::temp_dir().join("test_skin_texture.dds");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("body.dds");
         std::fs::write(&path, &dds).unwrap();
-        let result = get_skin_texture(path.to_str().unwrap().to_string());
-        std::fs::remove_file(&path).ok();
+        let result = get_skin_texture(
+            dir.path().to_str().unwrap().to_string(),
+            path.to_str().unwrap().to_string(),
+        );
         assert!(result.is_ok());
         assert!(result.unwrap().starts_with("data:image/png;base64,"));
     }
 
     #[test]
     fn get_skin_texture_errors_on_missing_file() {
-        let result = get_skin_texture("/nonexistent/path/body.dds".to_string());
+        let dir = tempfile::tempdir().unwrap();
+        let result = get_skin_texture(
+            dir.path().to_str().unwrap().to_string(),
+            dir.path().join("nonexistent.dds").to_str().unwrap().to_string(),
+        );
         assert!(result.is_err());
     }
 
     #[test]
     fn get_skin_texture_rejects_non_dds_extension() {
-        let result = get_skin_texture("/some/path/texture.png".to_string());
+        let dir = tempfile::tempdir().unwrap();
+        let result = get_skin_texture(
+            dir.path().to_str().unwrap().to_string(),
+            "/some/path/texture.png".to_string(),
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("unsupported file type"));
+    }
+
+    #[test]
+    fn get_skin_texture_rejects_path_outside_mod_dir() {
+        let dds = make_solid_dds();
+        let root = tempfile::tempdir().unwrap();
+        let mod_dir = root.path().join("mod");
+        std::fs::create_dir(&mod_dir).unwrap();
+        let outside = root.path().join("secret.dds");
+        std::fs::write(&outside, &dds).unwrap();
+        let result = get_skin_texture(
+            mod_dir.to_str().unwrap().to_string(),
+            outside.to_str().unwrap().to_string(),
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("escapes mod directory"));
     }
 }

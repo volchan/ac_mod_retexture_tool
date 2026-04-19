@@ -55,11 +55,15 @@ export function useTextureDetail() {
         }
         return
       }
+      if (!modPath.value) {
+        loadError.value = 'Mod path unavailable'
+        return
+      }
       isLoadingOriginal.value = true
       await new Promise((resolve) => setTimeout(resolve, 0))
       if (activeTextureId.value !== capturedId) return
       try {
-        const dataUrl = await getSkinTexture(tex.path)
+        const dataUrl = await getSkinTexture(modPath.value, tex.path)
         if (activeTextureId.value !== capturedId) return
         originalDataUrl.value = dataUrl
         loadError.value = null

@@ -7,7 +7,10 @@ import {
 } from '../__mocks__/tauri-api'
 import type { Mod, ProgressInfo, Texture } from '../types/index'
 import {
+  clearKn5Cache,
   getKn5Texture,
+  getSkinTexture,
+  getTrackHeroImage,
   onRepackProgress,
   openTexturePreviewWindow,
   repackMod,
@@ -199,5 +202,46 @@ describe('openTexturePreviewWindow', () => {
 
     const [label] = vi.mocked(WebviewWindow).mock.calls[0] as [string]
     expect(label).toBe('preview_my_texture_dds')
+  })
+})
+
+describe('clearKn5Cache', () => {
+  it('invokes clear_kn5_cache with no args', async () => {
+    mockInvokeHandler('clear_kn5_cache', () => undefined)
+    await clearKn5Cache()
+    const { invoke } = await import('../__mocks__/tauri-api')
+    expect(invoke).toHaveBeenCalledWith('clear_kn5_cache')
+  })
+})
+
+describe('getTrackHeroImage', () => {
+  it('invokes get_track_hero_image with correct args and returns data url', async () => {
+    mockInvokeHandler('get_track_hero_image', () => 'data:image/png;base64,HERO')
+    const result = await getTrackHeroImage('/mods/spa', 'preview.png')
+    const { invoke } = await import('../__mocks__/tauri-api')
+    expect(invoke).toHaveBeenCalledWith('get_track_hero_image', {
+      modPath: '/mods/spa',
+      filename: 'preview.png',
+    })
+    expect(result).toBe('data:image/png;base64,HERO')
+  })
+
+  it('returns null when image is not found', async () => {
+    mockInvokeHandler('get_track_hero_image', () => null)
+    const result = await getTrackHeroImage('/mods/spa', 'missing.png')
+    expect(result).toBeNull()
+  })
+})
+
+describe('getSkinTexture', () => {
+  it('invokes get_skin_texture with mod path and file path', async () => {
+    mockInvokeHandler('get_skin_texture', () => 'data:image/png;base64,SKIN')
+    const result = await getSkinTexture('/mods/car', '/mods/car/skins/0_default/body.dds')
+    const { invoke } = await import('../__mocks__/tauri-api')
+    expect(invoke).toHaveBeenCalledWith('get_skin_texture', {
+      modPath: '/mods/car',
+      filePath: '/mods/car/skins/0_default/body.dds',
+    })
+    expect(result).toBe('data:image/png;base64,SKIN')
   })
 })

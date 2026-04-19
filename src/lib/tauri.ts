@@ -82,8 +82,8 @@ export async function getKn5Texture(kn5Path: string, textureName: string): Promi
   return invoke('get_kn5_texture', { kn5Path, textureName })
 }
 
-export async function getSkinTexture(filePath: string): Promise<string> {
-  return invoke('get_skin_texture', { filePath })
+export async function getSkinTexture(modPath: string, filePath: string): Promise<string> {
+  return invoke('get_skin_texture', { modPath, filePath })
 }
 
 export async function getTrackHeroImage(modPath: string, filename: string): Promise<string | null> {
