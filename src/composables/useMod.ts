@@ -10,11 +10,11 @@ export function useMod() {
     isLoading.value = true
     try {
       mod.value = await scanModFolder(path)
+      isLoading.value = false
       return null
     } catch (e) {
-      return { error: e instanceof Error ? e.message : String(e) }
-    } finally {
       isLoading.value = false
+      return { error: e instanceof Error ? e.message : String(e) }
     }
   }
 

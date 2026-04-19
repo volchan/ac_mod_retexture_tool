@@ -3,7 +3,7 @@ import { onRepackProgress, repackMod } from '@/lib/tauri'
 import type { ProgressInfo, RepackOptions } from '@/types/index'
 
 const isRepacking = ref(false)
-const repackProgress = ref<ProgressInfo>({ current: 0, total: 4, label: '' })
+const repackProgress = ref<ProgressInfo>({ current: 0, total: 0, label: '' })
 const repackDone = ref(false)
 const repackError = ref<string | null>(null)
 
@@ -12,7 +12,7 @@ export function useRepack() {
     isRepacking.value = true
     repackDone.value = false
     repackError.value = null
-    repackProgress.value = { current: 0, total: 4, label: '' }
+    repackProgress.value = { current: 0, total: 0, label: '' }
 
     const unlisten = await onRepackProgress((info) => {
       repackProgress.value = info
@@ -23,15 +23,14 @@ export function useRepack() {
       repackDone.value = true
     } catch (e) {
       repackError.value = e instanceof Error ? e.message : String(e)
-    } finally {
-      isRepacking.value = false
-      unlisten()
     }
+    isRepacking.value = false
+    unlisten()
   }
 
   function reset() {
     isRepacking.value = false
-    repackProgress.value = { current: 0, total: 4, label: '' }
+    repackProgress.value = { current: 0, total: 0, label: '' }
     repackDone.value = false
     repackError.value = null
   }

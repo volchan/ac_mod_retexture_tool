@@ -91,6 +91,11 @@ function close() {
 
 const cancelConfirm = useCancelConfirm(close)
 
+function handleEscapeKey() {
+  if (repackDone.value) close()
+  else if (!isRepacking.value) cancelConfirm.request()
+}
+
 watch(
   () => props.open,
   (val) => {
@@ -121,6 +126,7 @@ defineExpose({
   labelToStep,
   confirm,
   close,
+  handleEscapeKey,
   STEPS,
   replacementCount,
   unchangedCount,
@@ -134,7 +140,7 @@ defineExpose({
       class="max-w-lg"
       :show-close-button="false"
       @interact-outside.prevent
-      @escape-key-down.prevent="repackDone ? close() : (!isRepacking && cancelConfirm.request())"
+      @escape-key-down.prevent="handleEscapeKey"
     >
       <DialogHeader>
         <DialogTitle>Repack mod</DialogTitle>

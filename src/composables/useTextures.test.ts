@@ -299,4 +299,28 @@ describe('useTextures', () => {
     expect(result.textures.value.find((t) => t.id === 'tex2')?.replacement).toBeUndefined()
     unmount()
   })
+
+  it('init while decoding cancels previous decode and restarts', async () => {
+    let resolveFirst!: () => void
+    const firstPending = new Promise<void>((r) => {
+      resolveFirst = r
+    })
+    mockInvokeHandler('decode_mod_textures', () => firstPending)
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    result.init(baseMod)
+    await nextTick()
+    await nextTick()
+
+    expect(result.isDecoding.value).toBe(true)
+
+    mockInvokeHandler('decode_mod_textures', () => undefined)
+    await result.init(baseMod)
+    await nextTick()
+
+    expect(result.isDecoding.value).toBe(false)
+
+    resolveFirst()
+    unmount()
+  })
 })

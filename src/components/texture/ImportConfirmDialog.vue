@@ -35,7 +35,7 @@ const mismatchCount = computed(() => props.matched.filter((m) => m.hasDimensionM
 function sourceLabel(m: MatchedTexture): string {
   if (m.texture.kn5File) return m.texture.kn5File
   if (m.texture.skinFolder) return `skins/${m.texture.skinFolder}`
-  return m.texture.path.split('/').pop() ?? m.texture.path
+  return m.texture.path.split('/').pop() as string
 }
 
 function handleApply() {
@@ -48,6 +48,14 @@ function handleClose() {
 }
 
 const cancelConfirm = useCancelConfirm(handleClose)
+
+function handleEscapeKey() {
+  cancelConfirm.request()
+}
+
+function preventInteractOutside(e: Event) {
+  e.preventDefault()
+}
 
 watch(open, (val) => {
   if (!val) cancelConfirm.reset()
@@ -68,6 +76,8 @@ defineExpose({
   sourceLabel,
   handleApply,
   handleClose,
+  handleEscapeKey,
+  preventInteractOutside,
   cancelConfirm,
 })
 </script>
@@ -77,8 +87,8 @@ defineExpose({
     <DialogContent
       class="max-w-lg"
       :show-close-button="false"
-      @interact-outside.prevent
-      @escape-key-down.prevent="cancelConfirm.request()"
+      @interact-outside="preventInteractOutside"
+      @escape-key-down.prevent="handleEscapeKey"
     >
       <DialogHeader>
         <DialogTitle>Replace {{ matched.length }} texture{{ matched.length !== 1 ? 's' : '' }}?</DialogTitle>

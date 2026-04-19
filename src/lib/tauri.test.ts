@@ -1,10 +1,36 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { clearInvokeHandlers, mockInvokeHandler } from '../__mocks__/tauri-api'
-import type { Mod } from '../types/index'
-import { scanModFolder } from './tauri'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  clearInvokeHandlers,
+  listen,
+  mockInvokeHandler,
+  WebviewWindow,
+} from '../__mocks__/tauri-api'
+import type { Mod, ProgressInfo, Texture } from '../types/index'
+import {
+  getKn5Texture,
+  onRepackProgress,
+  openTexturePreviewWindow,
+  repackMod,
+  scanModFolder,
+  showSaveDialog,
+} from './tauri'
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  save: vi.fn(async () => null),
+}))
+
+import { save } from '@tauri-apps/plugin-dialog'
+
+beforeEach(() => {
+  vi.mocked(WebviewWindow).mockClear()
+  ;(
+    WebviewWindow as unknown as { getByLabel: ReturnType<typeof vi.fn> }
+  ).getByLabel.mockResolvedValue(null)
+})
 
 afterEach(() => {
   clearInvokeHandlers()
+  vi.restoreAllMocks()
 })
 
 describe('scanModFolder', () => {
@@ -27,5 +53,151 @@ describe('scanModFolder', () => {
 
     const result = await scanModFolder('/mods/ferrari_488')
     expect(result).toEqual(mockMod)
+  })
+})
+
+describe('showSaveDialog', () => {
+  it('calls save with defaultPath and zip filter', async () => {
+    vi.mocked(save).mockResolvedValueOnce('/output/car.zip')
+
+    const result = await showSaveDialog('car.zip')
+    expect(save).toHaveBeenCalledWith({
+      defaultPath: 'car.zip',
+      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+    })
+    expect(result).toBe('/output/car.zip')
+  })
+})
+
+describe('repackMod', () => {
+  it('invokes repack_mod with opts', async () => {
+    mockInvokeHandler('repack_mod', () => undefined)
+
+    await repackMod({
+      modPath: '/mods/car',
+      outputPath: '/out/car.zip',
+      meta: { name: 'Car', folderName: 'car', author: '', version: '', description: '' },
+      replacements: [],
+    })
+  })
+})
+
+describe('onRepackProgress', () => {
+  it('registers repack-progress listener and returns unlisten', async () => {
+    const handler = vi.fn()
+    vi.mocked(listen).mockImplementation(async (eventName, cb) => {
+      if (eventName === 'repack-progress') {
+        const typedCb = cb as (e: { payload: ProgressInfo }) => void
+        typedCb({ payload: { current: 1, total: 2, label: 'packing' } })
+      }
+      return () => {}
+    })
+
+    const unlisten = await onRepackProgress(handler)
+    expect(handler).toHaveBeenCalledWith({ current: 1, total: 2, label: 'packing' })
+    expect(typeof unlisten).toBe('function')
+  })
+})
+
+describe('getKn5Texture', () => {
+  it('invokes get_kn5_texture and returns data url', async () => {
+    mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,abc')
+
+    const result = await getKn5Texture('/mods/car.kn5', 'body.dds')
+    expect(result).toBe('data:image/png;base64,abc')
+  })
+})
+
+function makeTexture(overrides: Partial<Texture> = {}): Texture {
+  return {
+    id: 'tex1',
+    name: 'body.dds',
+    path: '/mods/car.kn5',
+    source: 'kn5',
+    kn5File: '/mods/car.kn5',
+    category: 'body',
+    width: 1024,
+    height: 1024,
+    format: 'BC3',
+    previewUrl: 'data:image/png;base64,abc',
+    isDecoded: true,
+    ...overrides,
+  }
+}
+
+describe('openTexturePreviewWindow', () => {
+  it('creates WebviewWindow with preview URL containing encoded texture data', async () => {
+    const tex = makeTexture()
+    await openTexturePreviewWindow(tex)
+
+    expect(WebviewWindow).toHaveBeenCalledOnce()
+    const [label, opts] = vi.mocked(WebviewWindow).mock.calls[0] as [
+      string,
+      { url: string; title: string },
+    ]
+    expect(label).toBe('preview_tex1')
+    expect(opts.url).toContain('preview=1')
+    expect(opts.url).toContain('data=')
+    expect(opts.title).toBe('body.dds')
+  })
+
+  it('encodes texture data without previewUrl or isDecoded', async () => {
+    const tex = makeTexture({ previewUrl: 'data:image/png;base64,LARGE' })
+    await openTexturePreviewWindow(tex)
+
+    const [, opts] = vi.mocked(WebviewWindow).mock.calls[0] as [string, { url: string }]
+    const encoded =
+      new URL(`http://x${opts.url.slice(opts.url.indexOf('?'))}`).searchParams.get('data') ?? ''
+    const decoded = JSON.parse(decodeURIComponent(encoded))
+    expect(decoded).not.toHaveProperty('previewUrl')
+    expect(decoded).not.toHaveProperty('isDecoded')
+    expect(decoded.id).toBe('tex1')
+    expect(decoded.name).toBe('body.dds')
+  })
+
+  it('strips replacement previewUrl when encoding', async () => {
+    const tex = makeTexture({
+      replacement: {
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,THUMBNAIL',
+        width: 1024,
+        height: 1024,
+      },
+    })
+    await openTexturePreviewWindow(tex)
+
+    const [, opts] = vi.mocked(WebviewWindow).mock.calls[0] as [string, { url: string }]
+    const encoded =
+      new URL(`http://x${opts.url.slice(opts.url.indexOf('?'))}`).searchParams.get('data') ?? ''
+    const decoded = JSON.parse(decodeURIComponent(encoded))
+    expect(decoded.replacement).toEqual({
+      sourcePath: '/import/body.png',
+      width: 1024,
+      height: 1024,
+    })
+    expect(decoded.replacement.previewUrl).toBeUndefined()
+  })
+
+  it('focuses existing window instead of creating a new one', async () => {
+    const mockFocus = vi.fn().mockResolvedValue(undefined)
+    ;(
+      WebviewWindow as unknown as { getByLabel: ReturnType<typeof vi.fn> }
+    ).getByLabel.mockResolvedValue({
+      setFocus: mockFocus,
+    })
+
+    const tex = makeTexture()
+    await openTexturePreviewWindow(tex)
+
+    expect(WebviewWindow).not.toHaveBeenCalled()
+    expect(mockFocus).toHaveBeenCalledOnce()
+  })
+
+  it('sanitizes texture id for window label', async () => {
+    const tex = makeTexture({ id: 'my/texture.dds' })
+    await openTexturePreviewWindow(tex)
+
+    const [label] = vi.mocked(WebviewWindow).mock.calls[0] as [string]
+    expect(label).toBe('preview_my_texture_dds')
   })
 })

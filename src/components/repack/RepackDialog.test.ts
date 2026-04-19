@@ -10,7 +10,8 @@ vi.mock('@/lib/tauri', () => ({
 }))
 
 import { useRepack } from '@/composables/useRepack'
-import { repackMod } from '@/lib/tauri'
+import { onRepackProgress, repackMod } from '@/lib/tauri'
+import type { ProgressInfo } from '@/types/index'
 
 const mod: Mod = {
   modType: 'car',
@@ -218,5 +219,164 @@ describe('RepackDialog', () => {
 
     expect(wrapper.emitted('update:open')).toBeTruthy()
     expect(wrapper.emitted('update:open')?.[0]).toEqual([false])
+  })
+
+  it('close does nothing when isRepacking', async () => {
+    let resolveRepack!: () => void
+    vi.mocked(repackMod).mockImplementationOnce(
+      () =>
+        new Promise<void>((r) => {
+          resolveRepack = r
+        }),
+    )
+
+    const wrapper = mount(RepackDialog, {
+      props: { open: true, mod, outputPath: '/out/car.zip', replacements },
+    })
+    await flush()
+
+    findButton('Confirm')?.click()
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+
+    expect(wrapper.vm.isRepacking).toBe(true)
+    wrapper.vm.close()
+    await nextTick()
+
+    expect(wrapper.emitted('update:open')).toBeFalsy()
+
+    resolveRepack()
+    await flush()
+    wrapper.unmount()
+  })
+
+  it('close emits done after repack completes', async () => {
+    vi.mocked(repackMod).mockResolvedValueOnce(undefined)
+
+    const wrapper = mount(RepackDialog, {
+      props: { open: true, mod, outputPath: '/out/car.zip', replacements },
+    })
+    await flush()
+
+    findButton('Confirm')?.click()
+    await flush()
+
+    expect(wrapper.vm.repackDone).toBe(true)
+    findButton('Close')?.click()
+    await flush()
+
+    expect(wrapper.emitted('done')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('shows plural texture count for 2 replacements', async () => {
+    const twoReplacements = [
+      replacements[0],
+      {
+        textureId: 'tex_2',
+        sourcePath: '/import/livery.png',
+        kn5File: '/mods/ferrari_488/ferrari_488.kn5',
+        textureName: 'livery.dds',
+        originalFormat: 'BC1',
+        heroImagePath: undefined,
+      },
+    ]
+    mount(RepackDialog, {
+      props: { open: true, mod, outputPath: '/out/car.zip', replacements: twoReplacements },
+    })
+    await flush()
+    expect(bodyText()).toContain('2 textures')
+  })
+
+  it('fires progress events updating step state', async () => {
+    let progressCb!: (info: ProgressInfo) => void
+    vi.mocked(onRepackProgress).mockImplementationOnce(async (handler) => {
+      progressCb = handler
+      return () => {}
+    })
+    vi.mocked(repackMod).mockImplementationOnce(async () => {
+      progressCb({ current: 1, total: 4, label: 'Copying files' })
+      progressCb({ current: 2, total: 4, label: 'Updating metadata' })
+      progressCb({ current: 3, total: 4, label: 'Recompiling textures in car.kn5' })
+      progressCb({ current: 4, total: 4, label: 'Archiving mod' })
+    })
+
+    mount(RepackDialog, {
+      props: { open: true, mod, outputPath: '/out/car.zip', replacements },
+    })
+    await flush()
+
+    findButton('Confirm')?.click()
+    await flush()
+
+    expect(bodyText()).toContain('successfully')
+  })
+
+  it('handleEscapeKey calls close when repackDone', async () => {
+    vi.mocked(repackMod).mockResolvedValueOnce(undefined)
+    const wrapper = mount(RepackDialog, {
+      props: { open: true, mod, outputPath: '/out/car.zip', replacements },
+    })
+    await flush()
+    findButton('Confirm')?.click()
+    await flush()
+
+    expect(wrapper.vm.repackDone).toBe(true)
+    wrapper.vm.handleEscapeKey()
+    await flush()
+    expect(wrapper.emitted('update:open')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('handleEscapeKey requests cancel when not done and not repacking', async () => {
+    const wrapper = mount(RepackDialog, {
+      props: { open: true, mod, outputPath: '/out/car.zip', replacements },
+    })
+    await flush()
+
+    wrapper.vm.handleEscapeKey()
+    await flush()
+    expect(wrapper.vm.cancelConfirm.confirming.value).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('handleEscapeKey does nothing when isRepacking', async () => {
+    let resolveRepack!: () => void
+    vi.mocked(repackMod).mockImplementationOnce(
+      () =>
+        new Promise<void>((r) => {
+          resolveRepack = r
+        }),
+    )
+    const wrapper = mount(RepackDialog, {
+      props: { open: true, mod, outputPath: '/out/car.zip', replacements },
+    })
+    await flush()
+    findButton('Confirm')?.click()
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+
+    expect(wrapper.vm.isRepacking).toBe(true)
+    wrapper.vm.handleEscapeKey()
+    await nextTick()
+    expect(wrapper.emitted('update:open')).toBeFalsy()
+    expect(wrapper.vm.cancelConfirm.confirming.value).toBe(false)
+
+    resolveRepack()
+    await flush()
+    wrapper.unmount()
+  })
+
+  it('resets cancelConfirm when dialog closes externally', async () => {
+    const wrapper = mount(RepackDialog, {
+      props: { open: true, mod, outputPath: '/out/car.zip', replacements },
+    })
+    await flush()
+
+    await wrapper.setProps({ open: false })
+    await flush()
+
+    expect(wrapper.emitted('update:open')).toBeFalsy()
+    wrapper.unmount()
   })
 })

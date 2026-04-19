@@ -53,3 +53,12 @@ export const webviewWindow = {
 }
 
 export const { getCurrentWebviewWindow } = webviewWindow
+
+/** Mocked convertFileSrc — returns an asset:// URL for the given path. */
+export function convertFileSrc(path: string): string {
+  return `asset://${path}`
+}
+
+/** Mocked WebviewWindow — tracks constructor calls and getByLabel lookups. */
+export const WebviewWindow = vi.fn()
+;(WebviewWindow as Record<string, unknown>).getByLabel = vi.fn(async () => null)

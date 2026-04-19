@@ -38,7 +38,7 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
     const existing = nodeMap.get(dirPath)
     if (existing) return existing
     const parentPath = dirPath.substring(0, dirPath.lastIndexOf('/'))
-    const name = dirPath.split('/').pop() ?? ''
+    const name = dirPath.split('/').pop() as string
     const node: TreeNode = { name, path: dirPath, isDir: true, children: [] }
     nodeMap.set(dirPath, node)
     if (parentPath && parentPath !== modPath) {
@@ -97,7 +97,8 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
 
   function sort(nodes: TreeNode[]) {
     nodes.sort((a, b) => {
-      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
+      const d = Number(b.isDir) - Number(a.isDir)
+      if (d !== 0) return d
       return a.name.localeCompare(b.name)
     })
     for (const n of nodes) if (n.isDir) sort(n.children)

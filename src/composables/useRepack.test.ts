@@ -129,6 +129,15 @@ describe('useRepack', () => {
     unmount()
   })
 
+  it('sets repackError from non-Error thrown value', async () => {
+    vi.mocked(repackMod).mockRejectedValueOnce('raw string error')
+    const [{ repackError, startRepack }, unmount] = withSetup(() => useRepack())
+
+    await startRepack(opts)
+    expect(repackError.value).toBe('raw string error')
+    unmount()
+  })
+
   it('clears previous error on new startRepack', async () => {
     vi.mocked(repackMod).mockRejectedValueOnce(new Error('first'))
     const [{ repackError, startRepack }, unmount] = withSetup(() => useRepack())

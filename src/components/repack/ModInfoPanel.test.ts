@@ -206,4 +206,179 @@ describe('ModInfoPanel', () => {
     await btn?.trigger('click')
     expect(wrapper.emitted('repack')).toBeTruthy()
   })
+
+  it('shows dashes for empty author, version, and no description', () => {
+    const mod: Mod = {
+      ...carMod,
+      meta: { name: 'X', folderName: 'x', author: '', version: '', description: '' },
+    }
+    const wrapper = mount(ModInfoPanel, { props: { mod } })
+    expect(wrapper.text()).not.toContain('Description')
+  })
+
+  it('shows dashes for empty car meta fields', () => {
+    const mod: Mod = {
+      ...carMod,
+      carMeta: { brand: '', carClass: '', bhp: 0, weight: 0 },
+    }
+    const wrapper = mount(ModInfoPanel, { props: { mod } })
+    expect(wrapper.text()).toContain('Car details')
+  })
+
+  it('shows dashes for empty track meta fields', () => {
+    const mod: Mod = {
+      ...trackMod,
+      trackMeta: { country: '', length: 0, pitboxes: 0 },
+    }
+    const wrapper = mount(ModInfoPanel, { props: { mod } })
+    expect(wrapper.text()).toContain('Track details')
+  })
+
+  it('shows singular mismatch text for exactly one mismatch', async () => {
+    await seedTextures([makeTexture('a', true, 'car.kn5', { width: 512, height: 512 })])
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    expect(wrapper.text()).toContain('1 texture has different dimensions')
+  })
+
+  it('shows plural mismatch text for two mismatches', async () => {
+    await seedTextures([
+      makeTexture('a', true, 'car.kn5', { width: 512, height: 512 }),
+      makeTexture('b', true, 'car.kn5', { width: 256, height: 256 }),
+    ])
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    expect(wrapper.text()).toContain('2 textures have different dimensions')
+  })
+
+  it('detects height-only dimension mismatch', async () => {
+    await seedTextures([makeTexture('a', true, 'car.kn5', { width: 1024, height: 512 })])
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    expect(wrapper.text()).toContain('different dimensions')
+  })
+
+  it('shows preview category texture under its label in breakdown', async () => {
+    const previewTex: Texture = {
+      id: 'p1',
+      name: 'preview_boot.png',
+      path: 'ui/boot/preview.png',
+      source: 'skin',
+      category: 'preview',
+      width: 1920,
+      height: 1080,
+      format: 'PNG',
+      previewUrl: '',
+      isDecoded: true,
+      replacement: { sourcePath: '/import/preview.png', previewUrl: '', width: 1920, height: 1080 },
+    }
+    const handlers = new Map<string, EventHandler>()
+    vi.mocked(listen).mockImplementation(async (eventName, handler) => {
+      handlers.set(eventName, handler as EventHandler)
+      return () => {}
+    })
+    mockInvokeHandler('decode_mod_textures', () => {
+      handlers.get('decode-texture')?.({ payload: previewTex })
+      return undefined
+    })
+    const App = defineComponent({
+      setup() {
+        const { init } = useTextures()
+        init(carMod)
+        return {}
+      },
+      template: '<div/>',
+    })
+    const w = mount(App)
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+    w.unmount()
+
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    expect(wrapper.text()).toContain('Queued for repack')
+  })
+
+  it('groups skin texture without kn5File under skinFolder in breakdown', async () => {
+    const skinTex: Texture = {
+      id: 's1',
+      name: 'livery.dds',
+      path: '/mods/car/skins/default/livery.dds',
+      source: 'skin',
+      skinFolder: 'default',
+      category: 'livery',
+      width: 512,
+      height: 512,
+      format: 'BC1',
+      previewUrl: '',
+      isDecoded: true,
+      replacement: { sourcePath: '/import/livery.png', previewUrl: '', width: 512, height: 512 },
+    }
+    const handlers = new Map<string, EventHandler>()
+    vi.mocked(listen).mockImplementation(async (eventName, handler) => {
+      handlers.set(eventName, handler as EventHandler)
+      return () => {}
+    })
+    mockInvokeHandler('decode_mod_textures', () => {
+      handlers.get('decode-texture')?.({ payload: skinTex })
+      return undefined
+    })
+    const App = defineComponent({
+      setup() {
+        const { init } = useTextures()
+        init(carMod)
+        return {}
+      },
+      template: '<div/>',
+    })
+    const w = mount(App)
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+    w.unmount()
+
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    expect(wrapper.text()).toContain('default')
+  })
+
+  it('groups skin texture with no kn5File or skinFolder under "other"', async () => {
+    const orphanTex: Texture = {
+      id: 'o1',
+      name: 'extra.dds',
+      path: '/mods/car/extra.dds',
+      source: 'skin',
+      category: 'body',
+      width: 256,
+      height: 256,
+      format: 'BC1',
+      previewUrl: '',
+      isDecoded: true,
+      replacement: { sourcePath: '/import/extra.png', previewUrl: '', width: 256, height: 256 },
+    }
+    const handlers = new Map<string, EventHandler>()
+    vi.mocked(listen).mockImplementation(async (eventName, handler) => {
+      handlers.set(eventName, handler as EventHandler)
+      return () => {}
+    })
+    mockInvokeHandler('decode_mod_textures', () => {
+      handlers.get('decode-texture')?.({ payload: orphanTex })
+      return undefined
+    })
+    const App = defineComponent({
+      setup() {
+        const { init } = useTextures()
+        init(carMod)
+        return {}
+      },
+      template: '<div/>',
+    })
+    const w = mount(App)
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+    w.unmount()
+
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    expect(wrapper.text()).toContain('other')
+  })
 })

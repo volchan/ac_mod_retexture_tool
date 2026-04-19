@@ -176,4 +176,29 @@ describe('useUpdateCheck', () => {
   it('sets updateAvailable on Linux with lowercase .appimage asset', async () => {
     await testPlatformAsset('Linux x86_64', 'app_1.1.0.appimage', true)
   })
+
+  it('stays false when response assets field is missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ tag_name: 'v2.0.0' }),
+      })),
+    )
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.updateAvailable.value).toBe(false)
+    unmount()
+  })
+
+  it('uses userAgentData platform when available', async () => {
+    Object.defineProperty(navigator, 'userAgentData', {
+      value: { platform: 'Windows' },
+      configurable: true,
+    })
+    mockFetch('v1.1.0', true, [{ name: 'app_1.1.0_x64-setup.exe' }])
+    const { result, unmount } = await withSetup(() => useUpdateCheck())
+    expect(result.updateAvailable.value).toBe(true)
+    Object.defineProperty(navigator, 'userAgentData', { value: undefined, configurable: true })
+    unmount()
+  })
 })

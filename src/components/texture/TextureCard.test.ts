@@ -50,7 +50,7 @@ describe('TextureCard', () => {
     expect(wrapper.find('.bg-blue-500.rounded-full').exists()).toBe(true)
   })
 
-  it('does not show checkmark when not selected', () => {
+  it('does not show checkmark badge when not selected', () => {
     const wrapper = mount(TextureCard, {
       props: { texture: makeTexture(), isSelected: false },
     })
@@ -80,12 +80,31 @@ describe('TextureCard', () => {
     expect(wrapper.find('.bg-amber-500').exists()).toBe(false)
   })
 
-  it('emits toggle-select when clicked', async () => {
+  it('emits toggle-select when card is clicked', async () => {
     const wrapper = mount(TextureCard, {
       props: { texture: makeTexture(), isSelected: false },
     })
     await wrapper.trigger('click')
     expect(wrapper.emitted('toggle-select')).toHaveLength(1)
+    expect(wrapper.emitted('open-detail')).toBeFalsy()
+  })
+
+  it('emits open-detail when magnifier button is clicked', async () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture(), isSelected: false },
+    })
+    const btn = wrapper.find('button[title="View full size"]')
+    await btn.trigger('click')
+    expect(wrapper.emitted('open-detail')).toHaveLength(1)
+  })
+
+  it('magnifier click does not emit toggle-select', async () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture(), isSelected: false },
+    })
+    const btn = wrapper.find('button[title="View full size"]')
+    await btn.trigger('click')
+    expect(wrapper.emitted('toggle-select')).toBeFalsy()
   })
 
   it('applies ring-2 ring-blue-500 class when selected', () => {

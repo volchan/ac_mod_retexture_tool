@@ -1,6 +1,10 @@
 import { getVersion } from '@tauri-apps/api/app'
-import { invoke } from '@tauri-apps/api/core'
+import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+
+export { convertFileSrc }
+
 import { save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ImportScanResult, Mod, ProgressInfo, RepackOptions, Texture } from '@/types/index'
@@ -68,6 +72,50 @@ export async function repackMod(opts: RepackOptions): Promise<void> {
 
 export async function onRepackProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
   return listen('repack-progress', (e) => cb(e.payload as ProgressInfo))
+}
+
+export async function getKn5Texture(kn5Path: string, textureName: string): Promise<string> {
+  return invoke('get_kn5_texture', { kn5Path, textureName })
+}
+
+export async function openTexturePreviewWindow(texture: Texture): Promise<void> {
+  const label = `preview_${texture.id.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 48)}`
+
+  const existing = await WebviewWindow.getByLabel(label)
+  if (existing) {
+    await existing.setFocus()
+    return
+  }
+
+  const payload = {
+    id: texture.id,
+    name: texture.name,
+    path: texture.path,
+    source: texture.source,
+    kn5File: texture.kn5File,
+    skinFolder: texture.skinFolder,
+    category: texture.category,
+    width: texture.width,
+    height: texture.height,
+    format: texture.format,
+    replacement: texture.replacement
+      ? {
+          sourcePath: texture.replacement.sourcePath,
+          width: texture.replacement.width,
+          height: texture.replacement.height,
+        }
+      : undefined,
+  }
+
+  new WebviewWindow(label, {
+    url: `/?preview=1&data=${encodeURIComponent(JSON.stringify(payload))}`,
+    title: texture.name,
+    width: 1368,
+    height: 855,
+    minWidth: 640,
+    minHeight: 480,
+    resizable: true,
+  })
 }
 
 export async function scanImportFolder(
