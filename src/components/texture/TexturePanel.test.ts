@@ -257,7 +257,10 @@ describe('TexturePanel', () => {
     }
     await nextTick()
 
-    expect(mockOpenPreviewWindow).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }))
+    expect(mockOpenPreviewWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'a' }),
+      baseMod.path,
+    )
     wrapper.unmount()
   })
 
@@ -273,7 +276,10 @@ describe('TexturePanel', () => {
 
     await wrapper.vm.handleOpenDetail('b')
 
-    expect(mockOpenPreviewWindow).toHaveBeenCalledWith(expect.objectContaining({ id: 'b' }))
+    expect(mockOpenPreviewWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'b' }),
+      baseMod.path,
+    )
     wrapper.unmount()
   })
 

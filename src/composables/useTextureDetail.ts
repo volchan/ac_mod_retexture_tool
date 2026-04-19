@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { convertFileSrc, getKn5Texture } from '@/lib/tauri'
+import { convertFileSrc, getKn5Texture, getTrackHeroImage } from '@/lib/tauri'
 import type { Texture } from '@/types/index'
 
 const activeTextureId = ref<string | null>(null)
@@ -8,6 +8,7 @@ const activeTab = ref<'original' | 'replacement'>('original')
 const originalDataUrl = ref<string | null>(null)
 const isLoadingOriginal = ref(false)
 const loadError = ref<string | null>(null)
+const modPath = ref<string | null>(null)
 
 export function useTextureDetail() {
   const activeTexture = computed<Texture | null>(
@@ -25,6 +26,25 @@ export function useTextureDetail() {
     const tex = visibleList.value.find((t) => t.id === capturedId) as Texture
 
     if (tex.source === 'skin') {
+      if (tex.category === 'preview' && modPath.value) {
+        isLoadingOriginal.value = true
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        if (activeTextureId.value !== capturedId) return
+        try {
+          const dataUrl = await getTrackHeroImage(modPath.value, tex.path)
+          if (activeTextureId.value !== capturedId) return
+          originalDataUrl.value = dataUrl ?? tex.previewUrl
+          loadError.value = null
+        } catch (e) {
+          if (activeTextureId.value !== capturedId) return
+          loadError.value = e instanceof Error ? e.message : String(e)
+        } finally {
+          if (activeTextureId.value === capturedId) {
+            isLoadingOriginal.value = false
+          }
+        }
+        return
+      }
       originalDataUrl.value = convertFileSrc(tex.path)
       return
     }
@@ -47,9 +67,10 @@ export function useTextureDetail() {
     }
   }
 
-  function open(textureId: string, list: Texture[]) {
+  function open(textureId: string, list: Texture[], path?: string) {
     activeTextureId.value = textureId
     visibleList.value = list
+    modPath.value = path ?? null
     originalDataUrl.value = null
     loadError.value = null
     activeTab.value = 'original'

@@ -128,7 +128,7 @@ function makeTexture(overrides: Partial<Texture> = {}): Texture {
 describe('openTexturePreviewWindow', () => {
   it('creates WebviewWindow with preview URL containing encoded texture data', async () => {
     const tex = makeTexture()
-    await openTexturePreviewWindow(tex)
+    await openTexturePreviewWindow(tex, "/mods/car")
 
     expect(WebviewWindow).toHaveBeenCalledOnce()
     const [label, opts] = vi.mocked(WebviewWindow).mock.calls[0] as [
@@ -143,7 +143,7 @@ describe('openTexturePreviewWindow', () => {
 
   it('encodes texture data without previewUrl or isDecoded', async () => {
     const tex = makeTexture({ previewUrl: 'data:image/png;base64,LARGE' })
-    await openTexturePreviewWindow(tex)
+    await openTexturePreviewWindow(tex, "/mods/car")
 
     const [, opts] = vi.mocked(WebviewWindow).mock.calls[0] as [string, { url: string }]
     const encoded =
@@ -164,7 +164,7 @@ describe('openTexturePreviewWindow', () => {
         height: 1024,
       },
     })
-    await openTexturePreviewWindow(tex)
+    await openTexturePreviewWindow(tex, "/mods/car")
 
     const [, opts] = vi.mocked(WebviewWindow).mock.calls[0] as [string, { url: string }]
     const encoded =
@@ -187,7 +187,7 @@ describe('openTexturePreviewWindow', () => {
     })
 
     const tex = makeTexture()
-    await openTexturePreviewWindow(tex)
+    await openTexturePreviewWindow(tex, "/mods/car")
 
     expect(WebviewWindow).not.toHaveBeenCalled()
     expect(mockFocus).toHaveBeenCalledOnce()
@@ -195,7 +195,7 @@ describe('openTexturePreviewWindow', () => {
 
   it('sanitizes texture id for window label', async () => {
     const tex = makeTexture({ id: 'my/texture.dds' })
-    await openTexturePreviewWindow(tex)
+    await openTexturePreviewWindow(tex, "/mods/car")
 
     const [label] = vi.mocked(WebviewWindow).mock.calls[0] as [string]
     expect(label).toBe('preview_my_texture_dds')

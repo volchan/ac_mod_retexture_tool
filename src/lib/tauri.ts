@@ -78,7 +78,11 @@ export async function getKn5Texture(kn5Path: string, textureName: string): Promi
   return invoke('get_kn5_texture', { kn5Path, textureName })
 }
 
-export async function openTexturePreviewWindow(texture: Texture): Promise<void> {
+export async function getTrackHeroImage(modPath: string, filename: string): Promise<string | null> {
+  return invoke('get_track_hero_image', { modPath, filename })
+}
+
+export async function openTexturePreviewWindow(texture: Texture, modPath: string): Promise<void> {
   const label = `preview_${texture.id.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 48)}`
 
   const existing = await WebviewWindow.getByLabel(label)
@@ -98,6 +102,7 @@ export async function openTexturePreviewWindow(texture: Texture): Promise<void> 
     width: texture.width,
     height: texture.height,
     format: texture.format,
+    modPath,
     replacement: texture.replacement
       ? {
           sourcePath: texture.replacement.sourcePath,

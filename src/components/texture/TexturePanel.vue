@@ -170,7 +170,7 @@ function handleApplyImport(matched: MatchedTexture[]) {
 
 async function handleOpenDetail(id: string) {
   const texture = textures.value.find((t) => t.id === id)
-  if (texture) await openTexturePreviewWindow(texture)
+  if (texture) await openTexturePreviewWindow(texture, props.mod.path)
 }
 
 onMounted(() => {

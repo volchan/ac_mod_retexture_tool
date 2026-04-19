@@ -11,9 +11,15 @@ onMounted(() => {
   const raw = new URLSearchParams(window.location.search).get('data')
   if (!raw) return
   try {
-    const parsed = JSON.parse(decodeURIComponent(raw)) as Omit<Texture, 'previewUrl' | 'isDecoded'>
-    const tex: Texture = { ...parsed, previewUrl: '', isDecoded: true }
-    open(tex.id, [tex])
+    const parsed = JSON.parse(decodeURIComponent(raw)) as Omit<
+      Texture,
+      'previewUrl' | 'isDecoded'
+    > & {
+      modPath?: string
+    }
+    const { modPath: parsedModPath, ...texFields } = parsed
+    const tex: Texture = { ...texFields, previewUrl: '', isDecoded: true }
+    open(tex.id, [tex], parsedModPath)
   } catch {
     // malformed URL — window shows nothing
   }
