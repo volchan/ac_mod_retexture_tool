@@ -23,6 +23,7 @@ export function useTextureDetail() {
   const hasNext = computed(() => activeIndex.value < visibleList.value.length - 1)
 
   async function loadOriginal(capturedId: string) {
+    loadError.value = null
     const tex = visibleList.value.find((t) => t.id === capturedId)
     if (!tex) {
       loadError.value = 'Texture not found'

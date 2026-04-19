@@ -12,7 +12,11 @@ use crate::parsers::kn5::Kn5File;
 
 pub type TextureMap = HashMap<String, Vec<u8>>;
 
-pub struct Kn5Cache(pub Mutex<HashMap<String, Arc<TextureMap>>>);
+// Per-path slot: Mutex serializes concurrent loads for the same KN5 file.
+// Option is None until first successful load; failed loads leave it None so callers retry.
+type CacheSlot = Mutex<Option<Arc<TextureMap>>>;
+
+pub struct Kn5Cache(pub Mutex<HashMap<String, Arc<CacheSlot>>>);
 
 impl Default for Kn5Cache {
     fn default() -> Self {
@@ -46,14 +50,13 @@ pub fn get_skin_texture(file_path: String) -> Result<String, String> {
     image_to_data_url(img)
 }
 
-pub fn load_kn5_textures(kn5_path: &str) -> Result<Arc<TextureMap>, String> {
+pub fn build_texture_map(kn5_path: &str) -> Result<TextureMap, String> {
     let kn5 = Kn5File::open(Path::new(kn5_path)).map_err(|e| e.to_string())?;
-    let map: TextureMap = kn5
+    Ok(kn5
         .textures
         .into_iter()
         .map(|t| (t.name.to_ascii_lowercase(), t.data))
-        .collect();
-    Ok(Arc::new(map))
+        .collect())
 }
 
 pub fn decode_texture(texture_map: &TextureMap, texture_name: &str) -> Result<String, String> {
@@ -71,21 +74,30 @@ pub fn get_kn5_texture(
     texture_name: String,
     cache: State<'_, Kn5Cache>,
 ) -> Result<String, String> {
-    let cached = {
-        let guard = cache.0.lock().map_err(|e| e.to_string())?;
-        guard.get(&kn5_path).map(Arc::clone)
+    // Step 1: acquire (or insert) the per-path slot under a brief main-cache lock.
+    let slot: Arc<CacheSlot> = {
+        let mut guard = cache.0.lock().map_err(|e| e.to_string())?;
+        Arc::clone(
+            guard
+                .entry(kn5_path.clone())
+                .or_insert_with(|| Arc::new(Mutex::new(None))),
+        )
     };
 
-    let texture_map = match cached {
-        Some(arc) => arc,
-        None => {
-            let arc = load_kn5_textures(&kn5_path)?;
-            let mut guard = cache.0.lock().map_err(|e| e.to_string())?;
-            Arc::clone(guard.entry(kn5_path.clone()).or_insert(arc))
+    // Step 2: lock the per-path slot; only one thread loads a given KN5 at a time.
+    let texture_arc: Arc<TextureMap> = {
+        let mut slot_guard = slot.lock().map_err(|e| e.to_string())?;
+        if let Some(ref arc) = *slot_guard {
+            Arc::clone(arc)
+        } else {
+            let arc = Arc::new(build_texture_map(&kn5_path)?);
+            *slot_guard = Some(Arc::clone(&arc));
+            arc
         }
     };
 
-    decode_texture(&texture_map, &texture_name)
+    // Step 3: decode outside any lock.
+    decode_texture(&texture_arc, &texture_name)
 }
 
 #[tauri::command]
@@ -155,7 +167,7 @@ mod tests {
     fn returns_data_url_for_valid_dds_texture() {
         let dds = make_solid_dds();
         let f = write_temp_kn5(&[("body.dds", &dds)]);
-        let map = load_kn5_textures(f.path().to_str().unwrap()).unwrap();
+        let map = build_texture_map(f.path().to_str().unwrap()).unwrap();
         let result = decode_texture(&map, "body.dds");
         assert!(result.is_ok());
         assert!(result.unwrap().starts_with("data:image/png;base64,"));
@@ -165,7 +177,7 @@ mod tests {
     fn returns_data_url_for_embedded_png_texture() {
         let png = make_png_bytes();
         let f = write_temp_kn5(&[("preview.png", &png)]);
-        let map = load_kn5_textures(f.path().to_str().unwrap()).unwrap();
+        let map = build_texture_map(f.path().to_str().unwrap()).unwrap();
         let result = decode_texture(&map, "preview.png");
         assert!(result.is_ok());
         assert!(result.unwrap().starts_with("data:image/png;base64,"));
@@ -173,7 +185,7 @@ mod tests {
 
     #[test]
     fn errors_on_missing_kn5_file() {
-        let result = load_kn5_textures("/tmp/nonexistent_file.kn5");
+        let result = build_texture_map("/tmp/nonexistent_file.kn5");
         assert!(result.is_err());
         let msg = result.unwrap_err();
         assert!(msg.contains("IO") || msg.contains("os error") || msg.contains("No such file"));
@@ -183,7 +195,7 @@ mod tests {
     fn errors_on_texture_not_found() {
         let dds = make_solid_dds();
         let f = write_temp_kn5(&[("body.dds", &dds)]);
-        let map = load_kn5_textures(f.path().to_str().unwrap()).unwrap();
+        let map = build_texture_map(f.path().to_str().unwrap()).unwrap();
         let result = decode_texture(&map, "other.dds");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Not found: other.dds"));
@@ -193,7 +205,7 @@ mod tests {
     fn errors_on_invalid_kn5_magic() {
         let mut f = NamedTempFile::new().unwrap();
         f.write_all(b"not a kn5 file at all").unwrap();
-        let result = load_kn5_textures(f.path().to_str().unwrap());
+        let result = build_texture_map(f.path().to_str().unwrap());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("invalid KN5 magic"));
     }
@@ -202,21 +214,28 @@ mod tests {
     fn texture_lookup_is_case_insensitive() {
         let dds = make_solid_dds();
         let f = write_temp_kn5(&[("Body.DDS", &dds)]);
-        let map = load_kn5_textures(f.path().to_str().unwrap()).unwrap();
+        let map = build_texture_map(f.path().to_str().unwrap()).unwrap();
         let result = decode_texture(&map, "body.dds");
         assert!(result.is_ok());
     }
 
     #[test]
-    fn cache_hit_avoids_reparsing() {
+    fn cache_slot_is_populated_on_first_load_and_reused() {
         let dds = make_solid_dds();
         let f = write_temp_kn5(&[("body.dds", &dds)]);
         let path = f.path().to_str().unwrap();
-        let arc = load_kn5_textures(path).unwrap();
-        let mut cache: HashMap<String, Arc<TextureMap>> = HashMap::new();
-        cache.insert(path.to_string(), Arc::clone(&arc));
-        assert!(cache.contains_key(path));
-        let result = decode_texture(&cache[path], "body.dds");
+        let slot: Arc<CacheSlot> = Arc::new(Mutex::new(None));
+
+        // First access: loads from disk
+        {
+            let mut guard = slot.lock().unwrap();
+            let arc = Arc::new(build_texture_map(path).unwrap());
+            *guard = Some(Arc::clone(&arc));
+        }
+
+        // Second access: reuses cached arc
+        let arc = slot.lock().unwrap().clone().unwrap();
+        let result = decode_texture(&arc, "body.dds");
         assert!(result.is_ok());
     }
 
