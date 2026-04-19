@@ -7,6 +7,11 @@ import { convertFileSrc } from '@/lib/tauri'
 const { activeTexture, activeTab, originalDataUrl, isLoadingOriginal, loadError, setTab } =
   useTextureDetail()
 
+function handleImgError() {
+  loadError.value = 'Failed to load image'
+  originalDataUrl.value = null
+}
+
 const replacementFullUrl = computed(() =>
   activeTexture.value?.replacement
     ? convertFileSrc(activeTexture.value.replacement.sourcePath)
@@ -122,6 +127,7 @@ defineExpose({
   onMouseDown,
   onMouseMove,
   onMouseUp,
+  handleImgError,
 })
 </script>
 
@@ -179,6 +185,7 @@ defineExpose({
         :class="isLoadingOriginal ? 'opacity-40' : ''"
         :style="{ transform: imageTransform }"
         draggable="false"
+        @error="handleImgError"
       />
     </div>
 

@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { convertFileSrc, getKn5Texture, getTrackHeroImage } from '@/lib/tauri'
+import { getKn5Texture, getSkinTexture, getTrackHeroImage } from '@/lib/tauri'
 import type { Texture } from '@/types/index'
 
 const activeTextureId = ref<string | null>(null)
@@ -54,7 +54,22 @@ export function useTextureDetail() {
         }
         return
       }
-      originalDataUrl.value = convertFileSrc(tex.path)
+      isLoadingOriginal.value = true
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      if (activeTextureId.value !== capturedId) return
+      try {
+        const dataUrl = await getSkinTexture(tex.path)
+        if (activeTextureId.value !== capturedId) return
+        originalDataUrl.value = dataUrl
+        loadError.value = null
+      } catch (e) {
+        if (activeTextureId.value !== capturedId) return
+        loadError.value = e instanceof Error ? e.message : String(e)
+      } finally {
+        if (activeTextureId.value === capturedId) {
+          isLoadingOriginal.value = false
+        }
+      }
       return
     }
 

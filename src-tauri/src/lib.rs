@@ -27,6 +27,7 @@ pub fn run() {
             commands::import::scan_import_folder,
             commands::repack::repack_mod,
             commands::texture::get_kn5_texture,
+            commands::texture::get_skin_texture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

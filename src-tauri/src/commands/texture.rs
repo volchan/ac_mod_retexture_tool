@@ -16,6 +16,13 @@ fn image_to_data_url(img: DynamicImage) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn get_skin_texture(file_path: String) -> Result<String, String> {
+    let data = std::fs::read(&file_path).map_err(|e| e.to_string())?;
+    let img = dds::decode_to_image(&data).map_err(|e| e.to_string())?;
+    image_to_data_url(img)
+}
+
+#[tauri::command]
 pub fn get_kn5_texture(kn5_path: String, texture_name: String) -> Result<String, String> {
     let kn5 = Kn5File::open(Path::new(&kn5_path)).map_err(|e| e.to_string())?;
     let slot = kn5
@@ -151,5 +158,21 @@ mod tests {
             "body.dds".to_string(),
         );
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn get_skin_texture_returns_data_url_for_dds_file() {
+        let dds = make_solid_dds();
+        let mut f = NamedTempFile::new().unwrap();
+        f.write_all(&dds).unwrap();
+        let result = get_skin_texture(f.path().to_str().unwrap().to_string());
+        assert!(result.is_ok());
+        assert!(result.unwrap().starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn get_skin_texture_errors_on_missing_file() {
+        let result = get_skin_texture("/nonexistent/path/body.dds".to_string());
+        assert!(result.is_err());
     }
 }

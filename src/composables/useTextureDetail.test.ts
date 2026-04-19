@@ -328,23 +328,22 @@ describe('useTextureDetail', () => {
     unmount()
   })
 
-  it('skin-source texture uses convertFileSrc directly without IPC', async () => {
+  it('skin-source texture invokes get_skin_texture', async () => {
     const tex = makeTexture({
       id: 'tex1',
       source: 'skin',
-      path: '/mods/skins/0_default/body.png',
+      path: '/mods/skins/0_default/body.dds',
       kn5File: undefined,
     })
-    mockInvokeHandler('get_kn5_texture', () => {
-      throw new Error('should not be called for skin textures')
-    })
+    mockInvokeHandler('get_skin_texture', () => 'data:image/png;base64,SKIN')
 
     const { result, unmount } = await withSetup(() => useTextureDetail())
     result.open('tex1', [tex])
+    await vi.runAllTimersAsync()
     await flushPromises()
 
     expect(result.loadError.value).toBeNull()
-    expect(result.originalDataUrl.value).toBeTruthy()
+    expect(result.originalDataUrl.value).toBe('data:image/png;base64,SKIN')
     result.close()
     unmount()
   })
