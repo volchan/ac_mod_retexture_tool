@@ -85,6 +85,10 @@ export function useTextureDetail() {
   function close() {
     activeTextureId.value = null
     isLoadingOriginal.value = false
+    originalDataUrl.value = null
+    loadError.value = null
+    visibleList.value = []
+    modPath.value = null
   }
 
   function navigate(direction: 'prev' | 'next') {
