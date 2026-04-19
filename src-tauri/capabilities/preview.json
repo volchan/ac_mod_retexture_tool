@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "preview",
+  "description": "Capabilities for texture preview windows",
+  "windows": ["preview_*"],
+  "permissions": [
+    "core:default"
+  ]
+}

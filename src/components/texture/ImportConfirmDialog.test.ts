@@ -106,6 +106,22 @@ describe('ImportConfirmDialog', () => {
     expect(bodyText()).toContain('different dimensions')
   })
 
+  it('shows singular mismatch text for exactly one mismatch', async () => {
+    mount(ImportConfirmDialog, {
+      props: {
+        isOpen: true,
+        matched: [
+          makeMatched({ hasDimensionMismatch: true }),
+          makeMatched({ texture: makeTexture({ id: 'b' }), hasDimensionMismatch: false }),
+        ],
+        unmatched: [],
+      },
+      attachTo: document.body,
+    })
+    await nextTick()
+    expect(bodyText()).toContain('1 texture has different dimensions')
+  })
+
   it('does not show mismatch warning when all dimensions match', async () => {
     mount(ImportConfirmDialog, {
       props: { isOpen: true, matched: [makeMatched()], unmatched: [] },
@@ -164,5 +180,110 @@ describe('ImportConfirmDialog', () => {
     cancelBtn.click()
     await nextTick()
     expect(wrapper.emitted('update:isOpen')).toEqual([[false]])
+  })
+
+  it('resets cancelConfirm when dialog closes externally', async () => {
+    const wrapper = mount(ImportConfirmDialog, {
+      props: { isOpen: true, matched: [makeMatched()], unmatched: [] },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    await wrapper.setProps({ isOpen: false })
+    await nextTick()
+
+    expect(wrapper.emitted('update:isOpen')).toBeFalsy()
+  })
+
+  it('dialog v-model close emits update:isOpen', async () => {
+    const wrapper = mount(ImportConfirmDialog, {
+      props: { isOpen: true, matched: [makeMatched()], unmatched: [] },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    const dialog = wrapper.findComponent({ name: 'Dialog' })
+    await dialog.vm.$emit('update:open', false)
+    await nextTick()
+
+    expect(wrapper.emitted('update:isOpen')).toEqual([[false]])
+    wrapper.unmount()
+  })
+
+  it('interact-outside event does not close dialog', async () => {
+    const wrapper = mount(ImportConfirmDialog, {
+      props: { isOpen: true, matched: [makeMatched()], unmatched: [] },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    wrapper.vm.preventInteractOutside({ preventDefault: vi.fn() })
+    await nextTick()
+
+    expect(wrapper.vm.open).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows plural mismatch text for two mismatches', async () => {
+    mount(ImportConfirmDialog, {
+      props: {
+        isOpen: true,
+        matched: [
+          makeMatched({ hasDimensionMismatch: true }),
+          makeMatched({ texture: makeTexture({ id: 'b' }), hasDimensionMismatch: true }),
+        ],
+        unmatched: [],
+      },
+      attachTo: document.body,
+    })
+    await nextTick()
+    expect(document.body.textContent).toContain('2 textures have different dimensions')
+  })
+
+  it('handleEscapeKey triggers cancel confirm', async () => {
+    const wrapper = mount(ImportConfirmDialog, {
+      props: { isOpen: true, matched: [makeMatched()], unmatched: [] },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    wrapper.vm.handleEscapeKey()
+    await nextTick()
+    expect(wrapper.vm.cancelConfirm.confirming.value).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('sourceLabel returns skinFolder path when kn5File absent', async () => {
+    mount(ImportConfirmDialog, {
+      props: {
+        isOpen: true,
+        matched: [makeMatched({ texture: makeTexture({ kn5File: undefined, skinFolder: 'red' }) })],
+        unmatched: [],
+      },
+      attachTo: document.body,
+    })
+    await nextTick()
+    expect(document.body.textContent).toContain('skins/red')
+  })
+
+  it('sourceLabel returns path basename when no kn5File or skinFolder', async () => {
+    mount(ImportConfirmDialog, {
+      props: {
+        isOpen: true,
+        matched: [
+          makeMatched({
+            texture: makeTexture({
+              kn5File: undefined,
+              skinFolder: undefined,
+              path: '/mods/car/body.dds',
+            }),
+          }),
+        ],
+        unmatched: [],
+      },
+      attachTo: document.body,
+    })
+    await nextTick()
+    expect(document.body.textContent).toContain('body.dds')
   })
 })

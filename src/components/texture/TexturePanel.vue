@@ -7,7 +7,7 @@ import ImportDropZone from '@/components/texture/ImportDropZone.vue'
 import TextureCard from '@/components/texture/TextureCard.vue'
 import { Progress } from '@/components/ui/progress'
 import { useTextures } from '@/composables/useTextures'
-import { scanImportFolder } from '@/lib/tauri'
+import { openTexturePreviewWindow, scanImportFolder } from '@/lib/tauri'
 import type {
   MatchedTexture,
   MatchedTextureRaw,
@@ -94,7 +94,7 @@ const groupedTextures = computed<TextureGroup[]>(() => {
   }
 
   for (const k of sortedOriginKeys) {
-    const bucket = originMap.get(k) ?? []
+    const bucket = originMap.get(k) as Texture[]
     const sorted = [...bucket].sort((a, b) => a.name.localeCompare(b.name))
     groups.push({ key: k, label: k === '__other__' ? 'Other' : k, textures: sorted })
   }
@@ -168,6 +168,11 @@ function handleApplyImport(matched: MatchedTexture[]) {
   applyReplacements(matched)
 }
 
+async function handleOpenDetail(id: string) {
+  const texture = textures.value.find((t) => t.id === id)
+  if (texture) await openTexturePreviewWindow(texture, props.mod.path)
+}
+
 onMounted(() => {
   init(props.mod)
 })
@@ -185,6 +190,7 @@ defineExpose({
   ImportDropZone,
   TextureCard,
   Progress,
+  handleOpenDetail,
   extractDialogOpen,
   importDialogOpen,
   importMatched,
@@ -265,6 +271,7 @@ defineExpose({
             :texture="texture"
             :is-selected="selected.has(texture.id)"
             @toggle-select="handleToggleSelect(texture.id)"
+            @open-detail="handleOpenDetail(texture.id)"
           />
         </div>
       </template>
@@ -298,4 +305,5 @@ defineExpose({
     :mod-path="mod.path"
     :mod-name="mod.meta.folderName"
   />
+
 </template>

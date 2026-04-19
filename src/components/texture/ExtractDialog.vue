@@ -113,6 +113,15 @@ function handleClose() {
 
 const cancelConfirm = useCancelConfirm(handleClose)
 
+function handleEscapeKey() {
+  if (done.value) handleClose()
+  else if (!isExtracting.value) cancelConfirm.request()
+}
+
+function preventInteractOutside(e: Event) {
+  e.preventDefault()
+}
+
 watch(dialogOpen, (val) => {
   if (!val) cancelConfirm.reset()
 })
@@ -140,6 +149,8 @@ defineExpose({
   browsOutputDir,
   handleExtract,
   handleClose,
+  handleEscapeKey,
+  preventInteractOutside,
   cancelConfirm,
 })
 </script>
@@ -149,8 +160,8 @@ defineExpose({
     <DialogContent
       class="max-w-lg"
       :show-close-button="false"
-      @interact-outside.prevent
-      @escape-key-down.prevent="done ? handleClose() : (!isExtracting && cancelConfirm.request())"
+      @interact-outside="preventInteractOutside"
+      @escape-key-down.prevent="handleEscapeKey"
     >
       <DialogHeader>
         <DialogTitle>Extract {{ textures.length }} texture{{ textures.length !== 1 ? 's' : '' }}</DialogTitle>

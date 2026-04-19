@@ -7,6 +7,7 @@ pub mod parsers;
 use std::sync::{atomic::AtomicBool, Arc};
 
 pub struct DecodeCancel(pub Arc<AtomicBool>);
+pub use commands::texture::Kn5Cache;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -15,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(DecodeCancel(Arc::new(AtomicBool::new(false))))
+        .manage(Kn5Cache::default())
         .invoke_handler(tauri::generate_handler![
             commands::scan::scan_mod_folder,
             commands::decode::decode_mod_textures,
@@ -26,6 +28,9 @@ pub fn run() {
             commands::track_hero::preview_replacement_image,
             commands::import::scan_import_folder,
             commands::repack::repack_mod,
+            commands::texture::get_kn5_texture,
+            commands::texture::get_skin_texture,
+            commands::texture::clear_kn5_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

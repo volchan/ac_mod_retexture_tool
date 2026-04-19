@@ -266,4 +266,295 @@ describe('ExtractDialog', () => {
 
     expect(wrapper.emitted('update:isOpen')).toEqual([[false]])
   })
+
+  it('handleClose returns early when isExtracting', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    let resolveExtract!: () => void
+    mockInvokeHandler(
+      'extract_textures',
+      () =>
+        new Promise<string[]>((r) => {
+          resolveExtract = () => r([])
+        }),
+    )
+
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    findButton('Extract')?.click()
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+
+    expect(wrapper.vm.isExtracting).toBe(true)
+    wrapper.vm.handleClose()
+    await nextTick()
+
+    expect(wrapper.emitted('update:isOpen')).toBeFalsy()
+
+    resolveExtract()
+    await flush()
+    wrapper.unmount()
+  })
+
+  it('handleClose emits done when extraction was completed', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => [])
+
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+    findButton('Extract')?.click()
+    await flush()
+
+    expect(wrapper.vm.done).toBe(true)
+    findButton('Close')?.click()
+    await flush()
+
+    expect(wrapper.emitted('done')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('shows root folder path when folder name is empty', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    const previewTexture: Texture = {
+      id: 'p1',
+      name: 'preview_boot.png',
+      path: 'boot.png',
+      source: 'skin',
+      category: 'preview',
+      width: 1920,
+      height: 1080,
+      format: 'PNG',
+      previewUrl: '',
+      isDecoded: true,
+    }
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures: [previewTexture], modPath: '/mods/track', modName: 'track' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    expect(bodyText()).toContain('track/')
+  })
+
+  it('extracts skin texture without skinFolder using path directly', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    const skinTexture: Texture = {
+      id: 'c',
+      name: 'sponsor.dds',
+      path: '/mods/car/skins/sponsor.dds',
+      source: 'skin',
+      category: 'livery',
+      width: 256,
+      height: 256,
+      format: 'BC1',
+      previewUrl: '',
+      isDecoded: true,
+    }
+    mockInvokeHandler('extract_textures', () => [])
+
+    mount(ExtractDialog, {
+      props: {
+        isOpen: true,
+        textures: [...textures, skinTexture],
+        modPath: '/mods/car',
+        modName: 'car',
+      },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+    findButton('Extract')?.click()
+    await flush()
+
+    expect(bodyText()).toContain('Extracted successfully')
+  })
+
+  it('fires extract-progress callback and updates progress', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    type ProgressCb = (e: { payload: unknown }) => void
+    let progressHandler: ProgressCb | undefined
+    vi.mocked(listen).mockImplementation(async (eventName, handler) => {
+      if (eventName === 'extract-progress') progressHandler = handler as ProgressCb
+      return () => {}
+    })
+
+    mockInvokeHandler('extract_textures', () => {
+      progressHandler?.({ payload: { current: 1, total: 3, label: 'body.dds' } })
+      return []
+    })
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    findButton('Extract')?.click()
+    await flush()
+
+    expect(document.body.textContent).toContain('Extracted successfully')
+  })
+
+  it('dialog v-model close emits update:isOpen', async () => {
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    const dialog = wrapper.findComponent({ name: 'Dialog' })
+    await dialog.vm.$emit('update:open', false)
+    await nextTick()
+
+    expect(wrapper.emitted('update:isOpen')).toEqual([[false]])
+    wrapper.unmount()
+  })
+
+  it('interact-outside event does not close dialog', async () => {
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    wrapper.vm.preventInteractOutside({ preventDefault: vi.fn() })
+    await nextTick()
+
+    expect(wrapper.vm.dialogOpen).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('handleExtract returns early when outputDir is empty', async () => {
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    await wrapper.vm.handleExtract()
+
+    expect(wrapper.vm.isExtracting).toBe(false)
+    expect(wrapper.vm.done).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('handleEscapeKey calls handleClose when done', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => [])
+
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+    findButton('Extract')?.click()
+    await flush()
+
+    expect(wrapper.vm.done).toBe(true)
+    wrapper.vm.handleEscapeKey()
+    await nextTick()
+    expect(wrapper.emitted('update:isOpen')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('handleEscapeKey requests cancel when not done and not extracting', async () => {
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    wrapper.vm.handleEscapeKey()
+    await nextTick()
+    expect(wrapper.vm.cancelConfirm.confirming.value).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('handleEscapeKey does nothing when isExtracting', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    let resolveExtract!: () => void
+    mockInvokeHandler(
+      'extract_textures',
+      () =>
+        new Promise<string[]>((r) => {
+          resolveExtract = () => r([])
+        }),
+    )
+
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+    findButton('Extract')?.click()
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+
+    expect(wrapper.vm.isExtracting).toBe(true)
+    wrapper.vm.handleEscapeKey()
+    await nextTick()
+    expect(wrapper.emitted('update:isOpen')).toBeFalsy()
+    expect(wrapper.vm.cancelConfirm.confirming.value).toBe(false)
+
+    resolveExtract()
+    await flush()
+    wrapper.unmount()
+  })
+
+  it('resets cancelConfirm when dialog closes externally', async () => {
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    await wrapper.setProps({ isOpen: false })
+    await nextTick()
+
+    expect(wrapper.emitted('update:isOpen')).toBeFalsy()
+  })
 })

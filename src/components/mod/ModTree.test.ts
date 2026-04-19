@@ -106,4 +106,55 @@ describe('ModTree', () => {
     const wrapper = mount(ModTree, { props: { mod: trackMod } })
     expect(wrapper.text()).toContain('Track')
   })
+
+  it('renders json file icon in expanded subfolder', async () => {
+    const wrapper = mount(ModTree, { props: { mod: baseMod } })
+    const uiButton = wrapper.findAll('button').find((b) => b.text().includes('ui'))
+    await uiButton?.trigger('click')
+    await nextTick()
+    expect(wrapper.text()).toContain('ui_car.json')
+  })
+
+  it('builds 3-level nesting correctly', async () => {
+    const deepMod: Mod = {
+      ...baseMod,
+      files: [
+        {
+          name: 'body.kn5',
+          path: '/mods/ferrari_488/data/models/body.kn5',
+          fileType: 'kn5',
+        },
+      ],
+      skinFolders: [],
+    }
+    const wrapper = mount(ModTree, { props: { mod: deepMod } })
+    const dataButton = wrapper.findAll('button').find((b) => b.text().includes('data'))
+    await dataButton?.trigger('click')
+    await nextTick()
+    const modelsButton = wrapper.findAll('button').find((b) => b.text().includes('models'))
+    await modelsButton?.trigger('click')
+    await nextTick()
+    expect(wrapper.text()).toContain('body.kn5')
+  })
+
+  it('shows all file type icons inside expanded folders', async () => {
+    const mixedMod: Mod = {
+      ...baseMod,
+      files: [
+        { name: 'car.kn5', path: '/mods/ferrari_488/data/car.kn5', fileType: 'kn5' },
+        { name: 'settings.ini', path: '/mods/ferrari_488/data/settings.ini', fileType: 'ini' },
+        { name: 'preview.dds', path: '/mods/ferrari_488/data/preview.dds', fileType: 'dds' },
+        { name: 'config.json', path: '/mods/ferrari_488/data/config.json', fileType: 'json' },
+      ],
+      skinFolders: [],
+    }
+    const wrapper = mount(ModTree, { props: { mod: mixedMod } })
+    const dataButton = wrapper.findAll('button').find((b) => b.text().includes('data'))
+    await dataButton?.trigger('click')
+    await nextTick()
+    expect(wrapper.text()).toContain('car.kn5')
+    expect(wrapper.text()).toContain('settings.ini')
+    expect(wrapper.text()).toContain('preview.dds')
+    expect(wrapper.text()).toContain('config.json')
+  })
 })

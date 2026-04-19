@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckIcon, Loader2Icon } from 'lucide-vue-next'
+import { CheckIcon, Loader2Icon, ZoomInIcon } from 'lucide-vue-next'
 import { previewLabel } from '@/lib/utils'
 import type { Texture } from '@/types/index'
 
@@ -10,13 +10,27 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'toggle-select': []
+  'open-detail': []
 }>()
 
-function handleClick() {
+function handleToggleSelect() {
   emit('toggle-select')
 }
 
-defineExpose({ CheckIcon, Loader2Icon, props, handleClick, previewLabel })
+function handleOpenDetail(e: MouseEvent) {
+  e.stopPropagation()
+  emit('open-detail')
+}
+
+defineExpose({
+  CheckIcon,
+  Loader2Icon,
+  ZoomInIcon,
+  props,
+  handleToggleSelect,
+  handleOpenDetail,
+  previewLabel,
+})
 </script>
 
 <template>
@@ -26,9 +40,9 @@ defineExpose({ CheckIcon, Loader2Icon, props, handleClick, previewLabel })
       props.isSelected ? 'ring-2 ring-blue-500' : 'ring-1 ring-border',
       props.texture.replacement ? 'ring-2 ring-amber-500' : '',
     ]"
-    @click="handleClick"
+    @click="handleToggleSelect"
   >
-    <div class="checkerboard w-full relative aspect-square">
+    <div class="checkerboard w-full relative aspect-square group">
       <img
         v-if="props.texture.replacement"
         :src="props.texture.replacement.previewUrl"
@@ -53,6 +67,15 @@ defineExpose({ CheckIcon, Loader2Icon, props, handleClick, previewLabel })
       >
         <CheckIcon :size="12" class="text-white" />
       </div>
+      <button
+        type="button"
+        class="absolute bottom-1 right-1 bg-black/40 hover:bg-black/70 rounded p-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity"
+        title="View full size"
+        aria-label="View full size"
+        @click="handleOpenDetail"
+      >
+        <ZoomInIcon :size="14" class="text-white" />
+      </button>
       <div
         v-if="props.texture.replacement"
         class="absolute top-1 right-1 bg-amber-500 text-white text-[10px] font-medium px-1.5 py-0.5 rounded"

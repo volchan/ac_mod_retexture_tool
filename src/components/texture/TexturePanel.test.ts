@@ -3,8 +3,15 @@ import { listen } from '@tauri-apps/api/event'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import type { Mod, Texture } from '@/types/index'
+import type { MatchedTexture, Mod, Texture } from '@/types/index'
 import TexturePanel from './TexturePanel.vue'
+
+const mockOpenPreviewWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+
+vi.mock('@/lib/tauri', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/tauri')>()
+  return { ...actual, openTexturePreviewWindow: mockOpenPreviewWindow }
+})
 
 const baseMod: Mod = {
   modType: 'car',
@@ -43,6 +50,7 @@ type EventHandler = (e: { payload: unknown }) => void
 let capturedHandlers: Map<string, EventHandler>
 
 beforeEach(() => {
+  mockOpenPreviewWindow.mockClear()
   clearInvokeHandlers()
   mockInvokeHandler('cancel_decode', () => undefined)
   capturedHandlers = new Map()
@@ -215,7 +223,7 @@ describe('TexturePanel', () => {
     wrapper.unmount()
   })
 
-  it('emits selection-change when texture card is toggled', async () => {
+  it('clicking card toggles selection and emits selection-change', async () => {
     mockInvokeHandler('decode_mod_textures', () => {
       emitDecodeTexture(makeTexture({ id: 'a', category: 'body' }))
       return undefined
@@ -228,8 +236,50 @@ describe('TexturePanel', () => {
     if (card.exists()) {
       await card.trigger('click')
     }
-
     await nextTick()
+
+    expect(wrapper.emitted('selection-change')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('clicking magnifier button opens texture preview window', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', category: 'body' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    const btn = wrapper.find('button[title="View full size"]')
+    if (btn.exists()) {
+      await btn.trigger('click')
+    }
+    await nextTick()
+
+    expect(mockOpenPreviewWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'a' }),
+      baseMod.path,
+    )
+    wrapper.unmount()
+  })
+
+  it('handleOpenDetail opens preview window for given texture', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', category: 'body' }))
+      emitDecodeTexture(makeTexture({ id: 'b', category: 'body' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    await wrapper.vm.handleOpenDetail('b')
+
+    expect(mockOpenPreviewWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'b' }),
+      baseMod.path,
+    )
     wrapper.unmount()
   })
 
@@ -315,6 +365,164 @@ describe('TexturePanel', () => {
     const groups = wrapper.vm.groupedTextures
     expect(groups[0].key).toBe('aaa.kn5')
     expect(groups[1].key).toBe('zzz.kn5')
+    wrapper.unmount()
+  })
+
+  it('handleImport does nothing when no textures loaded', async () => {
+    mockInvokeHandler('decode_mod_textures', () => undefined)
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    await wrapper.vm.handleImport('/import')
+    await nextTick()
+
+    expect(wrapper.vm.importDialogOpen).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('handleImport calls scan and opens import dialog', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', source: 'kn5', kn5File: 'car.kn5' }))
+      emitDecodeTexture(
+        makeTexture({ id: 'b', source: 'skin', skinFolder: 'default', kn5File: undefined }),
+      )
+      emitDecodeTexture(
+        makeTexture({ id: 'c', source: 'skin', skinFolder: undefined, kn5File: undefined }),
+      )
+      return undefined
+    })
+    mockInvokeHandler('scan_import_folder', () => ({
+      matched: [
+        {
+          textureId: 'a',
+          sourcePath: '/import/body.png',
+          previewUrl: 'data:image/png;base64,x',
+          sourceWidth: 1024,
+          sourceHeight: 1024,
+          hasDimensionMismatch: false,
+        },
+      ],
+      unmatched: [],
+    }))
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    await wrapper.vm.handleImport('/import')
+    await nextTick()
+
+    expect(wrapper.vm.importDialogOpen).toBe(true)
+    expect(wrapper.vm.importMatched).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('multiple hero textures are sorted in hero group', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(
+        makeTexture({ id: 'z', name: 'z_preview.png', category: 'preview', source: 'skin' }),
+      )
+      emitDecodeTexture(
+        makeTexture({ id: 'a', name: 'a_preview.png', category: 'preview', source: 'skin' }),
+      )
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    const groups = wrapper.vm.groupedTextures
+    expect(groups[0].key).toBe('__hero__')
+    expect(groups[0].textures[0].name).toBe('a_preview.png')
+    expect(groups[0].textures[1].name).toBe('z_preview.png')
+    wrapper.unmount()
+  })
+
+  it('clicking extract button opens extract dialog', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    const selectAllBtn = wrapper.findAll('button').find((b) => b.text() === 'Select all')
+    await selectAllBtn?.trigger('click')
+    await nextTick()
+
+    const extractBtn = wrapper.findAll('button').find((b) => b.text().includes('Extract'))
+    await extractBtn?.trigger('click')
+    await nextTick()
+
+    expect(wrapper.vm.extractDialogOpen).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('extract dialog v-model close updates extractDialogOpen', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    wrapper.vm.extractDialogOpen = true
+    await nextTick()
+
+    const extractDialog = wrapper.findComponent({ name: 'ExtractDialog' })
+    await extractDialog.vm.$emit('update:isOpen', false)
+    await nextTick()
+
+    expect(wrapper.vm.extractDialogOpen).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('import dialog v-model close updates importDialogOpen', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    wrapper.vm.importDialogOpen = true
+    await nextTick()
+
+    const importDialog = wrapper.findComponent({ name: 'ImportConfirmDialog' })
+    await importDialog.vm.$emit('update:isOpen', false)
+    await nextTick()
+
+    expect(wrapper.vm.importDialogOpen).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('handleApplyImport applies replacements to textures', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    const tex = wrapper.vm.groupedTextures[0]?.textures[0] as Texture
+    const matched: MatchedTexture[] = [
+      {
+        texture: tex,
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,x',
+        sourceWidth: 1024,
+        sourceHeight: 1024,
+        hasDimensionMismatch: false,
+      },
+    ]
+    wrapper.vm.handleApplyImport(matched)
+    await nextTick()
+
+    expect(wrapper.vm.groupedTextures[0]?.textures[0]?.replacement).toBeDefined()
     wrapper.unmount()
   })
 })
