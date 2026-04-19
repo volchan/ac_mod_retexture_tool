@@ -38,8 +38,12 @@ export function useTextureDetail() {
         try {
           const dataUrl = await getTrackHeroImage(modPath.value, tex.path)
           if (activeTextureId.value !== capturedId) return
-          originalDataUrl.value = dataUrl ?? tex.previewUrl
-          loadError.value = null
+          if (dataUrl === null) {
+            loadError.value = 'Preview image not found'
+          } else {
+            originalDataUrl.value = dataUrl
+            loadError.value = null
+          }
         } catch (e) {
           if (activeTextureId.value !== capturedId) return
           loadError.value = e instanceof Error ? e.message : String(e)
