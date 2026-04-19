@@ -38,6 +38,7 @@ defineExpose({
       v-if="activeTexture"
       role="dialog"
       aria-modal="true"
+      :aria-label="activeTexture?.name ?? 'Texture details'"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
       @click.self="close"
     >
@@ -45,7 +46,9 @@ defineExpose({
         class="relative flex w-[90vw] max-w-6xl h-[85vh] rounded-lg border bg-card shadow-xl overflow-hidden"
       >
         <button
+          type="button"
           class="absolute top-2 right-2 z-10 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          aria-label="Close"
           @click="close"
         >
           <XIcon :size="18" />
@@ -53,7 +56,9 @@ defineExpose({
 
         <button
           v-if="hasPrev"
+          type="button"
           class="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-colors"
+          aria-label="Previous texture"
           @click="navigate('prev')"
         >
           <ChevronLeftIcon :size="20" />
@@ -61,7 +66,9 @@ defineExpose({
 
         <button
           v-if="hasNext"
+          type="button"
           class="absolute right-[calc(18rem+0.5rem)] top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-colors"
+          aria-label="Next texture"
           @click="navigate('next')"
         >
           <ChevronRightIcon :size="20" />

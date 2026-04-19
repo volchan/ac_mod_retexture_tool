@@ -184,22 +184,28 @@ defineExpose({
 
     <div class="flex items-center justify-center gap-1 px-3 py-1.5 border-t bg-card/50 shrink-0">
       <button
+        type="button"
         class="p-1.5 rounded hover:bg-accent transition-colors"
         title="Zoom out"
+        aria-label="Zoom out"
         @click="zoomOut"
       >
         <ZoomOutIcon :size="13" class="text-muted-foreground" />
       </button>
       <button
+        type="button"
         class="text-[11px] text-muted-foreground hover:text-foreground transition-colors min-w-[3.5rem] text-center tabular-nums"
         title="Reset zoom"
+        aria-label="Reset zoom"
         @click="resetView"
       >
         {{ zoomPercent }}%
       </button>
       <button
+        type="button"
         class="p-1.5 rounded hover:bg-accent transition-colors"
         title="Zoom in"
+        aria-label="Zoom in"
         @click="zoomIn"
       >
         <ZoomInIcon :size="13" class="text-muted-foreground" />
