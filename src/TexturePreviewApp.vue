@@ -22,7 +22,7 @@ function toPreviewTexture(payload: Omit<TexturePreviewPayload, 'modPath'>): Text
   }
 }
 
-const { open } = useTextureDetail()
+const { open, activeTexture } = useTextureDetail()
 
 onMounted(() => {
   const raw = new URLSearchParams(window.location.search).get('data')
@@ -33,16 +33,18 @@ onMounted(() => {
     const tex = toPreviewTexture(texFields)
     open(tex.id, [tex], parsedModPath)
   } catch {
-    // malformed URL — window shows nothing
+    // malformed URL — viewer stays hidden
   }
 })
 
-defineExpose({ TextureDetailImage, TextureDetailMeta })
+defineExpose({ TextureDetailImage, TextureDetailMeta, activeTexture })
 </script>
 
 <template>
   <div class="flex h-screen bg-background text-foreground">
-    <TextureDetailImage class="flex-1 min-w-0" />
-    <TextureDetailMeta />
+    <template v-if="activeTexture">
+      <TextureDetailImage class="flex-1 min-w-0" />
+      <TextureDetailMeta />
+    </template>
   </div>
 </template>

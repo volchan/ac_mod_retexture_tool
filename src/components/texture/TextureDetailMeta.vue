@@ -10,18 +10,20 @@ defineExpose({ activeTexture })
   <div class="flex flex-col gap-5 p-4 overflow-y-auto bg-muted/30 w-72 shrink-0">
     <div>
       <p class="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Texture</p>
-      <p class="text-sm font-medium font-mono break-all">{{ activeTexture?.name }}</p>
+      <p class="text-sm font-medium font-mono break-all">{{ activeTexture?.name ?? '—' }}</p>
     </div>
 
     <div>
       <p class="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Dimensions</p>
-      <p class="text-sm">{{ activeTexture?.width }}×{{ activeTexture?.height }}</p>
+      <p class="text-sm">
+        {{ activeTexture ? `${activeTexture.width}×${activeTexture.height}` : '—' }}
+      </p>
     </div>
 
     <div>
       <p class="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Format</p>
       <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-muted border">
-        {{ activeTexture?.format }}
+        {{ activeTexture?.format ?? '—' }}
       </span>
     </div>
 

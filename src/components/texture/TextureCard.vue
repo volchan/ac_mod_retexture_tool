@@ -68,8 +68,10 @@ defineExpose({
         <CheckIcon :size="12" class="text-white" />
       </div>
       <button
-        class="absolute bottom-1 right-1 bg-black/40 hover:bg-black/70 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+        type="button"
+        class="absolute bottom-1 right-1 bg-black/40 hover:bg-black/70 rounded p-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity"
         title="View full size"
+        aria-label="View full size"
         @click="handleOpenDetail"
       >
         <ZoomInIcon :size="14" class="text-white" />
