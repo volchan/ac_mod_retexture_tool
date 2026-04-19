@@ -155,7 +155,7 @@ describe('TextureDetailImage', () => {
     wrapper.unmount()
   })
 
-  it('no image rendered when activeTexture has no replacement and no original loaded', async () => {
+  it('hides image after close even when texture had a replacement', async () => {
     mockInvokeHandler('get_kn5_texture', () => new Promise(() => {}))
     const texWithReplacement = makeTexture({
       id: 'tex1',

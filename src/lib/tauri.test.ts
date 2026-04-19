@@ -141,7 +141,7 @@ describe('openTexturePreviewWindow', () => {
     expect(opts.title).toBe('body.dds')
   })
 
-  it('encodes texture data without previewUrl or isDecoded', async () => {
+  it('strips previewUrl and isDecoded from encoded payload', async () => {
     const tex = makeTexture({ previewUrl: 'data:image/png;base64,LARGE' })
     await openTexturePreviewWindow(tex, '/mods/car')
 
