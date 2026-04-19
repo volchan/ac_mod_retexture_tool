@@ -52,7 +52,7 @@ pub fn get_skin_texture(mod_path: String, file_path: String) -> Result<String, S
     if !canonical_file.starts_with(&canonical_mod) {
         return Err("path escapes mod directory".to_string());
     }
-    let data = std::fs::read(path).map_err(|e| e.to_string())?;
+    let data = std::fs::read(&canonical_file).map_err(|e| e.to_string())?;
     let img = dds::decode_to_image(&data).map_err(|e| e.to_string())?;
     image_to_data_url(img)
 }

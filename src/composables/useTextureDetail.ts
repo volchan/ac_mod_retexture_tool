@@ -33,6 +33,10 @@ export function useTextureDetail() {
     if (tex.source === 'skin') {
       isLoadingOriginal.value = false
       if (tex.category === 'preview' && modPath.value) {
+        if (tex.path.startsWith('/') || tex.path.split('/').includes('..')) {
+          loadError.value = 'Invalid texture path'
+          return
+        }
         isLoadingOriginal.value = true
         await new Promise((resolve) => setTimeout(resolve, 0))
         if (activeTextureId.value !== capturedId) return

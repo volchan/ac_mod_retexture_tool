@@ -4,41 +4,7 @@ import { onMounted, ref } from 'vue'
 import TextureDetailImage from '@/components/texture/TextureDetailImage.vue'
 import TextureDetailMeta from '@/components/texture/TextureDetailMeta.vue'
 import { useTextureDetail } from '@/composables/useTextureDetail'
-import type { Texture, TextureReplacement } from '@/types/index'
-
-type ReplacementPayload = Omit<TextureReplacement, 'previewUrl'> & { previewUrl?: string }
-type TexturePreviewPayload = Omit<Texture, 'previewUrl' | 'isDecoded' | 'replacement'> & {
-  modPath?: string
-  replacement?: ReplacementPayload
-}
-
-function isValidPayload(p: unknown): p is TexturePreviewPayload {
-  if (typeof p !== 'object' || p === null) return false
-  const o = p as Record<string, unknown>
-  return (
-    typeof o.id === 'string' &&
-    o.id.length > 0 &&
-    typeof o.name === 'string' &&
-    o.name.length > 0 &&
-    typeof o.path === 'string' &&
-    (o.source === 'kn5' || o.source === 'skin') &&
-    typeof o.width === 'number' &&
-    typeof o.height === 'number' &&
-    typeof o.format === 'string' &&
-    typeof o.category === 'string'
-  )
-}
-
-function toPreviewTexture(payload: Omit<TexturePreviewPayload, 'modPath'>): Texture {
-  return {
-    ...payload,
-    replacement: payload.replacement
-      ? { ...payload.replacement, previewUrl: payload.replacement.previewUrl ?? '' }
-      : undefined,
-    previewUrl: '',
-    isDecoded: true,
-  }
-}
+import { isValidPayload, toPreviewTexture } from '@/lib/previewPayload'
 
 const { open, activeTexture } = useTextureDetail()
 const parseError = ref<string | null>(null)

@@ -348,6 +348,74 @@ describe('useTextureDetail', () => {
     unmount()
   })
 
+  it('track hero with relative safe path loads successfully', async () => {
+    const tex = makeTexture({
+      id: 'tex1',
+      source: 'skin',
+      category: 'preview',
+      path: 'ui/boot/preview.png',
+      kn5File: undefined,
+    })
+    mockInvokeHandler('get_track_hero_image', () => 'data:image/png;base64,HERO')
+
+    const { result, unmount } = await withSetup(() => useTextureDetail())
+    result.open('tex1', [tex], '/mods/spa')
+    await flushAll()
+
+    expect(result.loadError.value).toBeNull()
+    expect(result.originalDataUrl.value).toBe('data:image/png;base64,HERO')
+    result.close()
+    unmount()
+  })
+
+  it('track hero with absolute path sets error and does not invoke backend', async () => {
+    const invokedCommands: string[] = []
+    mockInvokeHandler('get_track_hero_image', () => {
+      invokedCommands.push('get_track_hero_image')
+      return null
+    })
+    const tex = makeTexture({
+      id: 'tex1',
+      source: 'skin',
+      category: 'preview',
+      path: '/etc/passwd',
+      kn5File: undefined,
+    })
+
+    const { result, unmount } = await withSetup(() => useTextureDetail())
+    result.open('tex1', [tex], '/mods/spa')
+    await flushAll()
+
+    expect(result.loadError.value).toBe('Invalid texture path')
+    expect(invokedCommands).toHaveLength(0)
+    result.close()
+    unmount()
+  })
+
+  it('track hero with path traversal sets error and does not invoke backend', async () => {
+    const invokedCommands: string[] = []
+    mockInvokeHandler('get_track_hero_image', () => {
+      invokedCommands.push('get_track_hero_image')
+      return null
+    })
+    const tex = makeTexture({
+      id: 'tex1',
+      source: 'skin',
+      category: 'preview',
+      path: '../../etc/passwd',
+      kn5File: undefined,
+    })
+
+    const { result, unmount } = await withSetup(() => useTextureDetail())
+    result.open('tex1', [tex], '/mods/spa')
+    await flushAll()
+
+    expect(result.loadError.value).toBe('Invalid texture path')
+    expect(invokedCommands).toHaveLength(0)
+    result.close()
+    unmount()
+  })
+
   it('skin-source texture sets error when modPath is unavailable', async () => {
     const tex = makeTexture({
       id: 'tex1',
