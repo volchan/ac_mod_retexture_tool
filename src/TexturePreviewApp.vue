@@ -11,10 +11,7 @@ onMounted(() => {
   const raw = new URLSearchParams(window.location.search).get('data')
   if (!raw) return
   try {
-    const parsed = JSON.parse(decodeURIComponent(raw)) as Omit<
-      Texture,
-      'previewUrl' | 'isDecoded'
-    > & {
+    const parsed = JSON.parse(raw) as Omit<Texture, 'previewUrl' | 'isDecoded'> & {
       modPath?: string
     }
     const { modPath: parsedModPath, ...texFields } = parsed

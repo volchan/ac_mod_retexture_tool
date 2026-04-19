@@ -150,7 +150,7 @@ defineExpose({
       @mousedown="onMouseDown"
     >
       <div
-        v-if="isLoadingOriginal"
+        v-if="isLoadingOriginal && activeTab === 'original'"
         class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-sm"
       >
         <Loader2Icon class="animate-spin text-foreground" :size="36" />
@@ -158,7 +158,7 @@ defineExpose({
       </div>
 
       <div
-        v-else-if="loadError"
+        v-else-if="loadError && activeTab === 'original'"
         class="flex flex-col items-center gap-2 text-muted-foreground p-6 text-center"
       >
         <AlertCircleIcon :size="32" class="text-destructive" />

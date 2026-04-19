@@ -23,9 +23,14 @@ export function useTextureDetail() {
   const hasNext = computed(() => activeIndex.value < visibleList.value.length - 1)
 
   async function loadOriginal(capturedId: string) {
-    const tex = visibleList.value.find((t) => t.id === capturedId) as Texture
+    const tex = visibleList.value.find((t) => t.id === capturedId)
+    if (!tex) {
+      loadError.value = 'Texture not found'
+      return
+    }
 
     if (tex.source === 'skin') {
+      isLoadingOriginal.value = false
       if (tex.category === 'preview' && modPath.value) {
         isLoadingOriginal.value = true
         await new Promise((resolve) => setTimeout(resolve, 0))
