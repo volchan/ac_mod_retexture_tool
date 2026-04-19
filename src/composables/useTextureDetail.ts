@@ -93,7 +93,7 @@ export function useTextureDetail() {
     const clamped = Math.max(0, Math.min(next, visibleList.value.length - 1))
     const target = visibleList.value[clamped]
     if (target) {
-      open(target.id, visibleList.value)
+      open(target.id, visibleList.value, modPath.value ?? undefined)
     }
   }
 
