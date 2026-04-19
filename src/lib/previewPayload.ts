@@ -7,6 +7,7 @@ export type TexturePreviewPayload = Omit<Texture, 'previewUrl' | 'isDecoded' | '
 }
 
 export function isSafeRelativePath(p: string): boolean {
+  if (p.includes('\\')) return false
   if (p.startsWith('/') || /^[A-Za-z]:/.test(p)) return false
   return !p.split('/').includes('..')
 }

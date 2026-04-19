@@ -8,6 +8,23 @@ use std::path::Path;
 const THUMBNAIL_MAX: u32 = 256;
 const PREVIEW_FILENAME: &str = "preview.png";
 
+fn validate_relative_filename(filename: &str) -> Result<(), String> {
+    if filename.contains('\\') {
+        return Err("filename must not contain backslashes".to_string());
+    }
+    let path = Path::new(filename);
+    if path.is_absolute() {
+        return Err("filename must be relative".to_string());
+    }
+    if path
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("filename must not contain '..' segments".to_string());
+    }
+    Ok(())
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackLayoutHero {
@@ -87,6 +104,7 @@ pub fn list_track_hero_images(mod_path: String) -> Result<Vec<TrackLayoutHero>, 
 
 #[tauri::command]
 pub fn get_track_hero_image(mod_path: String, filename: String) -> Result<Option<String>, String> {
+    validate_relative_filename(&filename)?;
     let root = Path::new(&mod_path);
     let flat = [root.join(&filename), root.join("ui").join(&filename)];
     if let Some(path) = flat.iter().find(|p| p.exists()) {
@@ -115,6 +133,7 @@ pub fn extract_track_hero_image(
     filename: String,
     output_path: String,
 ) -> Result<(), String> {
+    validate_relative_filename(&filename)?;
     let src = Path::new(&mod_path).join(&filename);
     let dst = Path::new(&output_path);
     std::fs::copy(&src, dst).map_err(|e| e.to_string())?;
@@ -143,6 +162,37 @@ mod tests {
         let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
             ImageBuffer::from_fn(64, 64, |_, _| Rgba([255, 0, 0, 255]));
         DynamicImage::ImageRgba8(img).save(path).unwrap();
+    }
+
+    #[test]
+    fn validate_relative_filename_accepts_safe_paths() {
+        assert!(validate_relative_filename("preview.png").is_ok());
+        assert!(validate_relative_filename("ui/boot/preview.png").is_ok());
+    }
+
+    #[test]
+    fn validate_relative_filename_rejects_absolute_paths() {
+        assert!(validate_relative_filename("/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn validate_relative_filename_rejects_parent_traversal() {
+        assert!(validate_relative_filename("../../etc/passwd").is_err());
+    }
+
+    #[test]
+    fn validate_relative_filename_rejects_backslashes() {
+        assert!(validate_relative_filename("..\\..\\secret").is_err());
+    }
+
+    #[test]
+    fn get_track_hero_image_rejects_absolute_filename() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let result = get_track_hero_image(
+            tmp_dir.path().to_string_lossy().to_string(),
+            "/etc/passwd".to_string(),
+        );
+        assert!(result.is_err());
     }
 
     #[test]

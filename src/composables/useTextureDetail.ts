@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { isSafeRelativePath } from '@/lib/previewPayload'
 import { getKn5Texture, getSkinTexture, getTrackHeroImage } from '@/lib/tauri'
 import type { Texture } from '@/types/index'
 
@@ -26,6 +27,8 @@ export function useTextureDetail() {
     loadError.value = null
     const tex = visibleList.value.find((t) => t.id === capturedId)
     if (!tex) {
+      isLoadingOriginal.value = false
+      originalDataUrl.value = null
       loadError.value = 'Texture not found'
       return
     }
@@ -33,7 +36,7 @@ export function useTextureDetail() {
     if (tex.source === 'skin') {
       isLoadingOriginal.value = false
       if (tex.category === 'preview' && modPath.value) {
-        if (tex.path.startsWith('/') || tex.path.split('/').includes('..')) {
+        if (!isSafeRelativePath(tex.path)) {
           loadError.value = 'Invalid texture path'
           return
         }

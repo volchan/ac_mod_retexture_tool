@@ -21,8 +21,20 @@ describe('isSafeRelativePath', () => {
     expect(isSafeRelativePath('/etc/passwd')).toBe(false)
   })
 
-  it('rejects Windows drive paths', () => {
+  it('rejects Windows drive paths with forward slash', () => {
     expect(isSafeRelativePath('C:/file.png')).toBe(false)
+  })
+
+  it('rejects Windows drive paths with backslash', () => {
+    expect(isSafeRelativePath('C:\\Windows\\win.ini')).toBe(false)
+  })
+
+  it('rejects UNC paths with backslashes', () => {
+    expect(isSafeRelativePath('\\\\server\\share\\file')).toBe(false)
+  })
+
+  it('rejects backslash traversal', () => {
+    expect(isSafeRelativePath('..\\..\\secret')).toBe(false)
   })
 
   it('rejects paths with .. traversal', () => {
