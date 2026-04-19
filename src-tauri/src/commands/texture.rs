@@ -265,7 +265,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let result = get_skin_texture(
             dir.path().to_str().unwrap().to_string(),
-            dir.path().join("nonexistent.dds").to_str().unwrap().to_string(),
+            dir.path()
+                .join("nonexistent.dds")
+                .to_str()
+                .unwrap()
+                .to_string(),
         );
         assert!(result.is_err());
     }
