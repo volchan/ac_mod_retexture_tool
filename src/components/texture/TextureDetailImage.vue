@@ -9,7 +9,9 @@ const { activeTexture, activeTab, originalDataUrl, isLoadingOriginal, loadError,
 
 function handleImgError() {
   loadError.value = 'Failed to load image'
-  originalDataUrl.value = null
+  if (activeTab.value === 'original') {
+    originalDataUrl.value = null
+  }
 }
 
 const replacementFullUrl = computed(() =>
