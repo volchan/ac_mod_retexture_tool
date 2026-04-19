@@ -162,8 +162,7 @@ mod tests {
     #[test]
     fn errors_on_missing_kn5_file() {
         let mut cache = HashMap::new();
-        let result =
-            lookup_kn5_texture(&mut cache, "/tmp/nonexistent_file.kn5", "body.dds");
+        let result = lookup_kn5_texture(&mut cache, "/tmp/nonexistent_file.kn5", "body.dds");
         assert!(result.is_err());
         let msg = result.unwrap_err();
         assert!(msg.contains("IO") || msg.contains("os error") || msg.contains("No such file"));
