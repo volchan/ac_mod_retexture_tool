@@ -14,18 +14,19 @@ export function useRepack() {
     repackError.value = null
     repackProgress.value = { current: 0, total: 0, label: '' }
 
-    const unlisten = await onRepackProgress((info) => {
-      repackProgress.value = info
-    })
-
+    let unlisten: (() => void) | undefined
     try {
+      unlisten = await onRepackProgress((info) => {
+        repackProgress.value = info
+      })
       await repackMod(opts)
       repackDone.value = true
     } catch (e) {
       repackError.value = e instanceof Error ? e.message : String(e)
+    } finally {
+      isRepacking.value = false
+      unlisten?.()
     }
-    isRepacking.value = false
-    unlisten()
   }
 
   function reset() {

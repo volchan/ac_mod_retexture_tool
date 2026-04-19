@@ -87,7 +87,7 @@ export async function getTrackHeroImage(modPath: string, filename: string): Prom
 }
 
 export async function openTexturePreviewWindow(texture: Texture, modPath: string): Promise<void> {
-  const label = `preview_${texture.id.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 48)}`
+  const label = `preview_${texture.id.replace(/[^a-zA-Z0-9]/g, '_')}`
 
   const existing = await WebviewWindow.getByLabel(label)
   if (existing) {

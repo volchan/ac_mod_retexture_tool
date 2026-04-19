@@ -8,8 +8,8 @@ const { activeTexture, activeTab, originalDataUrl, isLoadingOriginal, loadError,
   useTextureDetail()
 
 function handleImgError() {
-  loadError.value = 'Failed to load image'
   if (activeTab.value === 'original') {
+    loadError.value = 'Failed to load image'
     originalDataUrl.value = null
   }
 }
