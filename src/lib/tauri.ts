@@ -74,6 +74,10 @@ export async function onRepackProgress(cb: (info: ProgressInfo) => void): Promis
   return listen('repack-progress', (e) => cb(e.payload as ProgressInfo))
 }
 
+export async function clearKn5Cache(): Promise<void> {
+  return invoke('clear_kn5_cache')
+}
+
 export async function getKn5Texture(kn5Path: string, textureName: string): Promise<string> {
   return invoke('get_kn5_texture', { kn5Path, textureName })
 }
@@ -91,8 +95,7 @@ export async function openTexturePreviewWindow(texture: Texture, modPath: string
 
   const existing = await WebviewWindow.getByLabel(label)
   if (existing) {
-    await existing.setFocus()
-    return
+    await existing.close()
   }
 
   const payload = {

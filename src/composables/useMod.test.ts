@@ -6,6 +6,7 @@ import { useMod } from './useMod'
 
 vi.mock('@/lib/tauri', () => ({
   scanModFolder: vi.fn(),
+  clearKn5Cache: vi.fn().mockResolvedValue(undefined),
 }))
 
 import { scanModFolder } from '@/lib/tauri'

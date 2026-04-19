@@ -30,6 +30,7 @@ pub fn run() {
             commands::repack::repack_mod,
             commands::texture::get_kn5_texture,
             commands::texture::get_skin_texture,
+            commands::texture::clear_kn5_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

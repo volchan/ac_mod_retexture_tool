@@ -178,19 +178,19 @@ describe('openTexturePreviewWindow', () => {
     expect(decoded.replacement.previewUrl).toBeUndefined()
   })
 
-  it('focuses existing window instead of creating a new one', async () => {
-    const mockFocus = vi.fn().mockResolvedValue(undefined)
+  it('closes existing window and recreates it with fresh payload', async () => {
+    const mockClose = vi.fn().mockResolvedValue(undefined)
     ;(
       WebviewWindow as unknown as { getByLabel: ReturnType<typeof vi.fn> }
     ).getByLabel.mockResolvedValue({
-      setFocus: mockFocus,
+      close: mockClose,
     })
 
     const tex = makeTexture()
     await openTexturePreviewWindow(tex, '/mods/car')
 
-    expect(WebviewWindow).not.toHaveBeenCalled()
-    expect(mockFocus).toHaveBeenCalledOnce()
+    expect(mockClose).toHaveBeenCalledOnce()
+    expect(WebviewWindow).toHaveBeenCalledOnce()
   })
 
   it('sanitizes texture id for window label', async () => {
