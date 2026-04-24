@@ -22,6 +22,7 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 zip = { version = "2", features = ["deflate"] }
 tempfile = "3"
+tauri-plugin-window-state = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
