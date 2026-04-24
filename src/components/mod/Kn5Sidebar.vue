@@ -54,7 +54,12 @@ const kn5Groups = computed(() => {
 const totalTextures = computed(() => props.textures.length)
 const totalReplacements = computed(() => props.textures.filter((t) => t.replacement).length)
 
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/')
+}
+
 function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[]): TreeNode[] {
+  const base = normalizePath(modPath)
   const nodeMap = new Map<string, TreeNode>()
 
   function ensureDir(dirPath: string): TreeNode {
@@ -64,7 +69,7 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
     const name = dirPath.split('/').pop() as string
     const node: TreeNode = { name, path: dirPath, isDir: true, children: [] }
     nodeMap.set(dirPath, node)
-    if (parentPath && parentPath !== modPath) {
+    if (parentPath && parentPath !== base) {
       const parent = ensureDir(parentPath)
       if (!parent.children.find((c) => c.path === dirPath)) parent.children.push(node)
     }
@@ -74,15 +79,16 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
   const roots: TreeNode[] = []
 
   for (const file of files) {
-    const dirPath = file.path.substring(0, file.path.lastIndexOf('/'))
+    const filePath = normalizePath(file.path)
+    const dirPath = filePath.substring(0, filePath.lastIndexOf('/'))
     const fileNode: TreeNode = {
       name: file.name,
-      path: file.path,
+      path: filePath,
       isDir: false,
       fileType: file.fileType,
       children: [],
     }
-    if (dirPath === modPath) {
+    if (dirPath === base) {
       roots.push(fileNode)
     } else {
       const parent = ensureDir(dirPath)
@@ -92,18 +98,19 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
 
   for (const [path, node] of nodeMap) {
     const parentPath = path.substring(0, path.lastIndexOf('/'))
-    if (parentPath === modPath && !roots.find((r) => r.path === path)) roots.push(node)
+    if (parentPath === base && !roots.find((r) => r.path === path)) roots.push(node)
   }
 
   if (skinFolders.length > 0) {
-    const skinsPath = `${modPath}/skins`
+    const skinsPath = `${base}/skins`
     const skinsNode: TreeNode = { name: 'skins', path: skinsPath, isDir: true, children: [] }
     for (const skin of skinFolders) {
-      const skinNode: TreeNode = { name: skin.name, path: skin.path, isDir: true, children: [] }
+      const skinPath = normalizePath(skin.path)
+      const skinNode: TreeNode = { name: skin.name, path: skinPath, isDir: true, children: [] }
       for (const sf of skin.files) {
         skinNode.children.push({
           name: sf.name,
-          path: sf.path,
+          path: normalizePath(sf.path),
           isDir: false,
           fileType: sf.fileType,
           children: [],
@@ -154,6 +161,7 @@ defineExpose({
   FolderIcon,
   FolderOpenIcon,
   ModTreeNodes,
+  normalizePath,
   Button,
   kn5Groups,
   totalTextures,
