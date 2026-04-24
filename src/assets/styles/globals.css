@@ -144,6 +144,12 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body,
+  #app {
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', -apple-system, sans-serif;
