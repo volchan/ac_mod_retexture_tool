@@ -74,7 +74,12 @@ async function handleDrop(path: string) {
     return
   }
   if (!mod.value) return
-  if (mod.value.modType !== 'track' && mod.value.modType !== 'car') {
+  if (mod.value.modType === 'car') {
+    closeMod()
+    toast.error('Car mods are coming soon.')
+    return
+  }
+  if (mod.value.modType !== 'track') {
     closeMod()
     toast.error('Unsupported mod type.')
     return
