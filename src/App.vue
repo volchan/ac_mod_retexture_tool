@@ -87,7 +87,7 @@ async function handleDrop(path: string) {
 watch(
   () => textures.value.length,
   (count) => {
-    if (mod.value && count > 0) updateTextureCount(mod.value.meta.folderName, count)
+    if (mod.value) updateTextureCount(mod.value.meta.folderName, count)
   },
 )
 

@@ -76,11 +76,12 @@ defineExpose({
             class="absolute top-2 right-2 text-[9.5px] font-medium px-1.5 py-px rounded bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
           >Size↕</span>
           <img
-            v-if="texture.replacement"
+            v-if="texture.replacement?.previewUrl"
             :src="texture.replacement.previewUrl"
             :alt="`${texture.name} replacement`"
             class="max-w-[85%] max-h-[85%] object-contain drop-shadow-md"
           />
+          <div v-else-if="texture.replacement" class="text-muted-foreground text-[11px]">Loading…</div>
           <div v-else class="text-muted-foreground text-[11px]">Drop a PNG to preview</div>
         </div>
       </div>
