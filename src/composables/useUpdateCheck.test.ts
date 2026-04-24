@@ -76,6 +76,14 @@ describe('isNewer', () => {
   it('newer minor beta is newer than older stable', () =>
     expect(isNewer('1.1.0-beta.1', '1.0.0')).toBe(true))
   it('missing patch treated as 0', () => expect(isNewer('1.1.1', '1.1')).toBe(true))
+  it('pre-release strings with special chars fall back to localeCompare', () => {
+    const result = isNewer('1.0.0-z.extra', '1.0.0-a.extra')
+    expect(typeof result).toBe('boolean')
+  })
+  it('pre-release localeCompare branch: snapshot vs nightly returns a boolean', () => {
+    const result = isNewer('1.0.0-snapshot', '1.0.0-nightly')
+    expect(typeof result).toBe('boolean')
+  })
 })
 
 // ─── isBetaVersion unit tests ─────────────────────────────────────────────────

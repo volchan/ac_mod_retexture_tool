@@ -300,6 +300,92 @@ describe('useTextures', () => {
     unmount()
   })
 
+  it('revertReplacement removes replacement from texture', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'tex1' }))
+      return undefined
+    })
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod)
+
+    result.applyReplacements([
+      {
+        texture: result.textures.value[0],
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,x',
+        sourceWidth: 1024,
+        sourceHeight: 1024,
+        hasDimensionMismatch: false,
+      },
+    ])
+    expect(result.textures.value[0].replacement).toBeDefined()
+
+    result.revertReplacement('tex1')
+    expect(result.textures.value[0].replacement).toBeUndefined()
+    unmount()
+  })
+
+  it('revertAll removes all replacements', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      emitDecodeTexture(makeTexture({ id: 'b' }))
+      return undefined
+    })
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod)
+
+    result.applyReplacements([
+      {
+        texture: result.textures.value.find((t) => t.id === 'a') as Texture,
+        sourcePath: '/import/a.png',
+        previewUrl: 'data:image/png;base64,x',
+        sourceWidth: 1024,
+        sourceHeight: 1024,
+        hasDimensionMismatch: false,
+      },
+      {
+        texture: result.textures.value.find((t) => t.id === 'b') as Texture,
+        sourcePath: '/import/b.png',
+        previewUrl: 'data:image/png;base64,y',
+        sourceWidth: 1024,
+        sourceHeight: 1024,
+        hasDimensionMismatch: false,
+      },
+    ])
+    expect(result.textures.value.every((t) => t.replacement !== undefined)).toBe(true)
+
+    result.revertAll()
+    expect(result.textures.value.every((t) => t.replacement === undefined)).toBe(true)
+    unmount()
+  })
+
+  it('restoreReplacements is a no-op when no saved state exists', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'tex1' }))
+      return undefined
+    })
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod)
+    await result.restoreReplacements('/mods/ferrari')
+
+    expect(result.textures.value[0].replacement).toBeUndefined()
+    unmount()
+  })
+
+  it('setImportFolder updates lastImportFolder', async () => {
+    mockInvokeHandler('decode_mod_textures', () => undefined)
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod)
+    result.setImportFolder('/import/folder')
+
+    expect(result.lastImportFolder.value).toBe('/import/folder')
+    unmount()
+  })
+
   it('init while decoding cancels previous decode and restarts', async () => {
     let resolveFirst!: () => void
     const firstPending = new Promise<void>((r) => {

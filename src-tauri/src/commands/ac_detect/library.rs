@@ -17,10 +17,9 @@ pub fn build_car_entry(folder_id: &str, folder_path: &Path) -> LibraryEntry {
     let author = string_field(&json, "author");
     let brand = string_field(&json, "brand");
 
-    let bhp = parse_numeric_field(&json, "bhp")
-        .or_else(|| parse_specs_field(&json, "bhp"));
-    let weight = parse_numeric_field(&json, "weight")
-        .or_else(|| parse_specs_field(&json, "weight"));
+    let bhp = parse_numeric_field(&json, "bhp").or_else(|| parse_specs_field(&json, "bhp"));
+    let weight =
+        parse_numeric_field(&json, "weight").or_else(|| parse_specs_field(&json, "weight"));
     let year = json
         .get("year")
         .and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()));

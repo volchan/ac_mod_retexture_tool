@@ -90,10 +90,10 @@ mod windows {
 
     use tauri::Emitter;
     use tokio::time::timeout;
-    use winreg::{RegKey, enums::*};
+    use winreg::{enums::*, RegKey};
 
     use super::{
-        AC_SUBPATH, AcCandidate, AcDetectResult, AcProbeEvent, EVENT_AC_PROBE, PROBE_STATUS_ACTIVE,
+        AcCandidate, AcDetectResult, AcProbeEvent, AC_SUBPATH, EVENT_AC_PROBE, PROBE_STATUS_ACTIVE,
         PROBE_STATUS_HIT, PROBE_STATUS_MISS, SOURCE_AUTO, SOURCE_ENV,
     };
     use crate::commands::ac_detect::validate::validate_path;
@@ -153,8 +153,7 @@ mod windows {
             steam_roots.push(normalized);
         }
 
-        if let Some(path) =
-            read_registry_string(HKEY_LOCAL_MACHINE, REG_HKLM_STEAM, "InstallPath")
+        if let Some(path) = read_registry_string(HKEY_LOCAL_MACHINE, REG_HKLM_STEAM, "InstallPath")
         {
             let normalized = path.replace('/', "\\");
             static_candidates.push((

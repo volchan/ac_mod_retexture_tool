@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import type { MatchedTexture, Mod, Texture } from '@/types/index'
 import TexturePanel from './TexturePanel.vue'
@@ -60,6 +61,8 @@ beforeEach(() => {
     return () => {}
   })
   useTextureFilter().reset()
+  const { importPath } = useGlobalCommands()
+  importPath.value = null
 })
 
 afterEach(() => {
@@ -509,6 +512,62 @@ describe('TexturePanel', () => {
     await nextTick()
 
     expect(wrapper.vm.importDialogOpen).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('toggleGroupCollapsed collapses and expands a group', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', name: 'tex.dds', kn5File: 'car.kn5' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    expect(wrapper.vm.collapsedGroups.has('car.kn5')).toBe(false)
+    wrapper.vm.toggleGroupCollapsed('car.kn5')
+    await nextTick()
+    expect(wrapper.vm.collapsedGroups.has('car.kn5')).toBe(true)
+    wrapper.vm.toggleGroupCollapsed('car.kn5')
+    await nextTick()
+    expect(wrapper.vm.collapsedGroups.has('car.kn5')).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('extractTick watch opens extract dialog when textures exist', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a' }))
+      return undefined
+    })
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    const { triggerExtract } = useGlobalCommands()
+    triggerExtract()
+    await nextTick()
+
+    expect(wrapper.vm.extractDialogOpen).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('importPath watch triggers handleImport when path is set', async () => {
+    mockInvokeHandler('decode_mod_textures', () => {
+      emitDecodeTexture(makeTexture({ id: 'a', source: 'kn5', kn5File: 'car.kn5' }))
+      return undefined
+    })
+    mockInvokeHandler('scan_import_folder', () => ({ matched: [], unmatched: [] }))
+
+    const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
+    await waitForDecoding()
+
+    const { triggerImport } = useGlobalCommands()
+    triggerImport('/import/folder')
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+    await nextTick()
+
+    expect(wrapper.vm.importDialogOpen).toBe(true)
     wrapper.unmount()
   })
 

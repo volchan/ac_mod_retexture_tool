@@ -214,6 +214,19 @@ describe('clearKn5Cache', () => {
   })
 })
 
+describe('previewReplacementImage', () => {
+  it('invokes preview_replacement_image and returns data url', async () => {
+    mockInvokeHandler('preview_replacement_image', () => 'data:image/png;base64,PREVIEW')
+    const { previewReplacementImage } = await import('./tauri')
+    const result = await previewReplacementImage('/import/body.png')
+    const { invoke } = await import('../__mocks__/tauri-api')
+    expect(invoke).toHaveBeenCalledWith('preview_replacement_image', {
+      imagePath: '/import/body.png',
+    })
+    expect(result).toBe('data:image/png;base64,PREVIEW')
+  })
+})
+
 describe('getTrackHeroImage', () => {
   it('invokes get_track_hero_image with correct args and returns data url', async () => {
     mockInvokeHandler('get_track_hero_image', () => 'data:image/png;base64,HERO')

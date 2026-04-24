@@ -104,7 +104,11 @@ pub fn count_layout_dirs(mod_path: &Path) -> usize {
     let layout_count = std::fs::read_dir(&ui_path)
         .map(|entries| entries.flatten().filter(|e| e.path().is_dir()).count())
         .unwrap_or(0);
-    if layout_count == 0 { 1 } else { layout_count }
+    if layout_count == 0 {
+        1
+    } else {
+        layout_count
+    }
 }
 
 pub fn count_texture_files(mod_path: &Path) -> usize {

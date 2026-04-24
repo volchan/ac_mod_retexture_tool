@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AcCandidate {
     pub path: String,
     pub label: String,
@@ -16,6 +17,7 @@ pub struct AcDetectResult {
 }
 
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AcProbeEvent {
     pub path: String,
     pub label: String,
@@ -23,6 +25,7 @@ pub struct AcProbeEvent {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AcInstallInfo {
     pub path: String,
     pub version: Option<String>,
@@ -31,6 +34,7 @@ pub struct AcInstallInfo {
 }
 
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryEntry {
     pub id: String,
     pub mod_type: String,

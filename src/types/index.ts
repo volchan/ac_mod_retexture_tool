@@ -142,6 +142,47 @@ export type TextureDensity = 'sm' | 'md' | 'lg'
 
 export type AccentKey = 'cobalt' | 'crimson' | 'papaya' | 'brg'
 
+export interface AcInstall {
+  path: string
+  detectedAt: string
+  source: 'auto' | 'manual' | 'env'
+  version?: string
+}
+
+export interface AcInstallInfo {
+  path: string
+  version?: string
+  carCount: number
+  trackCount: number
+}
+
+export interface AcProbeResult {
+  path: string
+  label: string
+  status: 'pending' | 'active' | 'hit' | 'miss'
+}
+
+export type AcDetectPhase = 'idle' | 'detecting' | 'detected' | 'not_found'
+
+export interface LibraryEntry {
+  id: string
+  modType: ModType
+  path: string
+  name: string
+  isKunos: boolean
+  author?: string
+  textureCount: number
+  brand?: string
+  bhp?: number
+  weight?: number
+  year?: number
+  skinCount?: number
+  country?: string
+  length?: number
+  pitboxes?: number
+  layouts?: number
+}
+
 export interface RecentMod {
   id: string
   modType: ModType
