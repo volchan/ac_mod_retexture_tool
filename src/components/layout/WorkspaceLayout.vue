@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import AppHeader from '@/components/layout/AppHeader.vue'
-import StatusBar from '@/components/layout/StatusBar.vue'
 import Kn5Sidebar from '@/components/mod/Kn5Sidebar.vue'
 import ModInfoPanel from '@/components/repack/ModInfoPanel.vue'
 import InlinePreviewRail from '@/components/texture/InlinePreviewRail.vue'
@@ -11,7 +10,6 @@ const props = defineProps<{
   mod: Mod
   textures: Texture[]
   focusedTexture: Texture | null
-  queueCount: number
 }>()
 
 const emit = defineEmits<{
@@ -25,7 +23,6 @@ const emit = defineEmits<{
 
 defineExpose({
   AppHeader,
-  StatusBar,
   Kn5Sidebar,
   ModInfoPanel,
   InlinePreviewRail,
@@ -36,7 +33,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="h-screen flex flex-col overflow-hidden">
+  <div class="h-full flex flex-col overflow-hidden">
     <!-- Header -->
     <AppHeader :mod="mod" @open-cmd="$emit('open-cmd')" />
 
@@ -66,11 +63,5 @@ defineExpose({
       </aside>
     </main>
 
-    <!-- Status bar -->
-    <StatusBar
-      :mod-name="mod.meta.name"
-      :texture-count="textures.length"
-      :queue-count="queueCount"
-    />
   </div>
 </template>

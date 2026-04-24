@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import CommandPalette from '@/components/CommandPalette.vue'
+import StatusBar from '@/components/layout/StatusBar.vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import RepackDialog from '@/components/repack/RepackDialog.vue'
 import Toaster from '@/components/ui/sonner/Toaster.vue'
@@ -162,6 +163,7 @@ async function handleReplaceTexture() {
 
 defineExpose({
   CommandPalette,
+  StatusBar,
   WorkspaceLayout,
   RepackDialog,
   LibraryView,
@@ -192,27 +194,37 @@ defineExpose({
 </script>
 
 <template>
-  <!-- Library (no mod loaded) -->
-  <LibraryView
-    v-if="!mod"
-    @open="handleOpenRecent"
-    @browse="handleBrowse"
-  />
+  <div class="h-screen flex flex-col overflow-hidden">
+    <!-- Library (no mod loaded) -->
+    <LibraryView
+      v-if="!mod"
+      class="flex-1 min-h-0"
+      @open="handleOpenRecent"
+      @browse="handleBrowse"
+    />
 
-  <!-- Workspace (mod loaded) -->
-  <WorkspaceLayout
-    v-else
-    :mod="mod"
-    :textures="textures"
-    :focused-texture="focusedTexture"
-    :queue-count="queueCount"
-    @repack="handleRepack"
-    @close="handleCmdAction('switch-mod')"
-    @focus-texture="handleFocusTexture"
-    @open-cmd="cmdPaletteOpen = true"
-    @extract-texture="triggerExtract"
-    @replace-texture="handleReplaceTexture"
-  />
+    <!-- Workspace (mod loaded) -->
+    <WorkspaceLayout
+      v-else
+      class="flex-1 min-h-0"
+      :mod="mod"
+      :textures="textures"
+      :focused-texture="focusedTexture"
+      @repack="handleRepack"
+      @close="handleCmdAction('switch-mod')"
+      @focus-texture="handleFocusTexture"
+      @open-cmd="cmdPaletteOpen = true"
+      @extract-texture="triggerExtract"
+      @replace-texture="handleReplaceTexture"
+    />
+
+    <!-- Status bar (always visible) -->
+    <StatusBar
+      :mod-name="mod?.meta.name"
+      :texture-count="textures.length"
+      :queue-count="queueCount"
+    />
+  </div>
 
   <!-- Command palette overlay -->
   <CommandPalette
