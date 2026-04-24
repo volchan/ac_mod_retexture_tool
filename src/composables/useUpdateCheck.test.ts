@@ -168,11 +168,14 @@ describe('useUpdateCheck — stable channel', () => {
       value: { platform: 'Windows' },
       configurable: true,
     })
-    mockStableFetch('v1.1.0')
-    const { result, unmount } = await withSetup(() => useUpdateCheck())
-    expect(result.updateAvailable.value).toBe(true)
-    Object.defineProperty(navigator, 'userAgentData', { value: undefined, configurable: true })
-    unmount()
+    try {
+      mockStableFetch('v1.1.0')
+      const { result, unmount } = await withSetup(() => useUpdateCheck())
+      expect(result.updateAvailable.value).toBe(true)
+      unmount()
+    } finally {
+      Object.defineProperty(navigator, 'userAgentData', { value: undefined, configurable: true })
+    }
   })
 
   it('stays false when assets field is missing', async () => {

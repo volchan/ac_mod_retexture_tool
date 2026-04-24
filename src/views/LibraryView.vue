@@ -94,8 +94,7 @@ defineExpose({
       <!-- Mods grid -->
       <div
         v-if="filtered.length > 0"
-        class="grid gap-2.5"
-        style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr))"
+        class="grid gap-2.5 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]"
       >
         <button
           v-for="m in filtered"

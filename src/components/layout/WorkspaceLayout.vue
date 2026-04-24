@@ -3,6 +3,7 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 import StatusBar from '@/components/layout/StatusBar.vue'
 import Kn5Sidebar from '@/components/mod/Kn5Sidebar.vue'
 import ModInfoPanel from '@/components/repack/ModInfoPanel.vue'
+import InlinePreviewRail from '@/components/texture/InlinePreviewRail.vue'
 import TexturePanel from '@/components/texture/TexturePanel.vue'
 import type { Mod, Texture } from '@/types/index'
 
@@ -18,6 +19,8 @@ const emit = defineEmits<{
   close: []
   'focus-texture': [texture: Texture]
   'open-cmd': []
+  'extract-texture': [texture: Texture]
+  'replace-texture': [texture: Texture]
 }>()
 
 defineExpose({
@@ -25,6 +28,7 @@ defineExpose({
   StatusBar,
   Kn5Sidebar,
   ModInfoPanel,
+  InlinePreviewRail,
   TexturePanel,
   props,
   emit,
@@ -43,11 +47,16 @@ defineExpose({
         <Kn5Sidebar :mod="mod" :textures="textures" @close="$emit('close')" />
       </aside>
 
-      <!-- Center: texture grid -->
+      <!-- Center: texture grid + inline preview -->
       <section class="flex-1 flex flex-col overflow-hidden min-w-0 bg-background">
         <TexturePanel
           :mod="mod"
           @focus-texture="$emit('focus-texture', $event)"
+        />
+        <InlinePreviewRail
+          :texture="focusedTexture"
+          @extract="$emit('extract-texture', $event)"
+          @replace="$emit('replace-texture', $event)"
         />
       </section>
 
@@ -61,7 +70,6 @@ defineExpose({
     <StatusBar
       :mod-name="mod.meta.name"
       :texture-count="textures.length"
-
       :queue-count="queueCount"
     />
   </div>

@@ -152,14 +152,25 @@ pub fn preview_replacement_image(image_path: String) -> Result<String, String> {
     Ok(format!("data:image/png;base64,{b64}"))
 }
 
+fn mime_for_path(path: &str) -> &'static str {
+    let lower = path.to_lowercase();
+    if lower.ends_with(".png") {
+        "image/png"
+    } else if lower.ends_with(".gif") {
+        "image/gif"
+    } else if lower.ends_with(".webp") {
+        "image/webp"
+    } else if lower.ends_with(".bmp") {
+        "image/bmp"
+    } else {
+        "image/jpeg"
+    }
+}
+
 #[tauri::command]
 pub fn load_replacement_full(image_path: String) -> Result<String, String> {
     let bytes = std::fs::read(&image_path).map_err(|e| e.to_string())?;
-    let mime = if image_path.to_lowercase().ends_with(".png") {
-        "image/png"
-    } else {
-        "image/jpeg"
-    };
+    let mime = mime_for_path(&image_path);
     let b64 = general_purpose::STANDARD.encode(&bytes);
     Ok(format!("data:{mime};base64,{b64}"))
 }
@@ -286,6 +297,61 @@ mod tests {
         assert!(result.is_ok());
         let url = result.unwrap();
         assert!(url.starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn mime_for_path_detects_png() {
+        assert_eq!(mime_for_path("image.PNG"), "image/png");
+        assert_eq!(mime_for_path("image.png"), "image/png");
+    }
+
+    #[test]
+    fn mime_for_path_detects_jpeg() {
+        assert_eq!(mime_for_path("image.jpg"), "image/jpeg");
+        assert_eq!(mime_for_path("image.jpeg"), "image/jpeg");
+        assert_eq!(mime_for_path("image.JPG"), "image/jpeg");
+    }
+
+    #[test]
+    fn mime_for_path_detects_gif_webp_bmp() {
+        assert_eq!(mime_for_path("image.gif"), "image/gif");
+        assert_eq!(mime_for_path("image.webp"), "image/webp");
+        assert_eq!(mime_for_path("image.bmp"), "image/bmp");
+    }
+
+    #[test]
+    fn mime_for_path_defaults_to_jpeg_for_unknown() {
+        assert_eq!(mime_for_path("image.tiff"), "image/jpeg");
+        assert_eq!(mime_for_path("image"), "image/jpeg");
+    }
+
+    #[test]
+    fn load_replacement_full_returns_png_data_url() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("test.png");
+        write_red_png(&file_path);
+
+        let result = load_replacement_full(file_path.to_string_lossy().to_string());
+        assert!(result.is_ok());
+        assert!(result.unwrap().starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn load_replacement_full_returns_jpeg_data_url_for_jpg() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("test.jpg");
+        let bytes = b"fake jpeg bytes";
+        std::fs::write(&file_path, bytes).unwrap();
+
+        let result = load_replacement_full(file_path.to_string_lossy().to_string());
+        assert!(result.is_ok());
+        assert!(result.unwrap().starts_with("data:image/jpeg;base64,"));
+    }
+
+    #[test]
+    fn load_replacement_full_fails_for_missing_file() {
+        let result = load_replacement_full("/nonexistent/path/image.png".to_string());
+        assert!(result.is_err());
     }
 
     #[test]

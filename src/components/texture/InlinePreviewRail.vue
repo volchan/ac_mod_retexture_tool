@@ -5,7 +5,6 @@ import type { Texture } from '@/types/index'
 
 const props = defineProps<{
   texture: Texture | null
-  modPath: string
 }>()
 
 const emit = defineEmits<{
@@ -98,7 +97,7 @@ defineExpose({
           <div class="flex justify-between">
             <span class="text-muted-foreground">Size</span>
             <span class="font-mono" :class="hasMismatch ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'">
-              <template v-if="hasMismatch">{{ texture.width }}→{{ texture.replacement?.width }}</template>
+              <template v-if="hasMismatch">{{ texture.width }}×{{ texture.height }}→{{ texture.replacement?.width }}×{{ texture.replacement?.height }}</template>
               <template v-else>{{ texture.width }}×{{ texture.height }}</template>
             </span>
           </div>

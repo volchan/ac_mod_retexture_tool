@@ -185,11 +185,13 @@ describe('TexturePanel', () => {
     // Select all first so "Deselect" button becomes visible
     const buttons = wrapper.findAll('button')
     const selectAllBtn = buttons.find((b) => b.text() === 'Select all')
+    expect(selectAllBtn?.exists()).toBe(true)
     await selectAllBtn?.trigger('click')
     await nextTick()
 
     const allButtons = wrapper.findAll('button')
     const deselectBtn = allButtons.find((b) => b.text() === 'Deselect')
+    expect(deselectBtn?.exists()).toBe(true)
     await deselectBtn?.trigger('click')
 
     expect(wrapper.emitted('selection-change')).toBeTruthy()
@@ -303,6 +305,7 @@ describe('TexturePanel', () => {
 
     const buttons = wrapper.findAll('button')
     const interiorBtn = buttons.find((b) => b.text() === 'Interior')
+    expect(interiorBtn?.exists()).toBe(true)
     await interiorBtn?.trigger('click')
     await nextTick()
 

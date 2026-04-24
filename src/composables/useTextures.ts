@@ -98,7 +98,8 @@ export function useTextures() {
               hasDimensionMismatch:
                 sourceWidth !== texture.width || sourceHeight !== texture.height,
             } satisfies MatchedTexture
-          } catch {
+          } catch (err) {
+            console.warn(`Failed to restore replacement for ${textureKey}:`, sourcePath, err)
             return null
           }
         }),

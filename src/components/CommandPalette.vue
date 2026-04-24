@@ -10,7 +10,7 @@ import {
   PackageIcon,
   UploadIcon,
 } from 'lucide-vue-next'
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { type Component, computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { modKbd } from '@/lib/platform'
@@ -30,7 +30,7 @@ interface PaletteItem {
   label: string
   kbd?: string
   group: string
-  icon: unknown
+  icon: Component
   action: () => void
 }
 
@@ -238,7 +238,7 @@ defineExpose({
             >{{ item.kbd }}</kbd>
           </button>
         </template>
-        <div v-if="filtered.length === 0" class="py-8 text-center text-muted-foreground text-[12px]">
+        <div v-if="flatFiltered.length === 0" class="py-8 text-center text-muted-foreground text-[12px]">
           No results for "{{ query }}"
         </div>
       </div>

@@ -1,4 +1,12 @@
-export const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
+type NavigatorWithUAData = Navigator & { userAgentData?: { platform: string } }
+
+function detectPlatform(): string {
+  if (typeof navigator === 'undefined') return ''
+  const nav = navigator as NavigatorWithUAData
+  return nav.userAgentData?.platform ?? navigator.platform
+}
+
+export const isMac = /Mac/i.test(detectPlatform())
 
 export const MOD_SYMBOL = isMac ? '⌘' : 'Ctrl+'
 

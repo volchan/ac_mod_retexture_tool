@@ -93,7 +93,12 @@ const ACCENTS: Record<AccentKey, AccentDef> = {
 
 const STORAGE_KEY = 'ac-accent'
 
-const accent = ref<AccentKey>((localStorage.getItem(STORAGE_KEY) as AccentKey | null) ?? 'cobalt')
+function loadStoredAccent(): AccentKey {
+  const stored = localStorage.getItem(STORAGE_KEY)
+  return stored && stored in ACCENTS ? (stored as AccentKey) : 'cobalt'
+}
+
+const accent = ref<AccentKey>(loadStoredAccent())
 
 function applyAccentVars(key: AccentKey, isDark: boolean) {
   const tokens = isDark ? ACCENTS[key].dark : ACCENTS[key].light

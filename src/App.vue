@@ -11,6 +11,7 @@ import { useLibrary } from '@/composables/useLibrary'
 import { useMod } from '@/composables/useMod'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
+import { useTheme } from '@/composables/useTheme'
 import { showSaveDialog } from '@/lib/tauri'
 import type { Texture, TextureReplacementOpt } from '@/types/index'
 import LibraryView from '@/views/LibraryView.vue'
@@ -20,6 +21,7 @@ const { textures, selected, selectAll, lastImportFolder } = useTextures()
 const { recentMods, init: initLibrary, addRecent, updateTextureCount } = useLibrary()
 const { reset: resetFilter } = useTextureFilter()
 const { triggerExtract, triggerImport } = useGlobalCommands()
+const { cycleMode } = useTheme()
 
 const focusedTexture = ref<Texture | null>(null)
 const cmdPaletteOpen = ref(false)
@@ -140,6 +142,16 @@ async function handleCmdAction(action: string) {
     resetFilter()
     focusedTexture.value = null
   }
+  if (action === 'toggle-theme') cycleMode()
+}
+
+async function handleReplaceTexture() {
+  const path = await open({
+    directory: true,
+    multiple: false,
+    defaultPath: lastImportFolder.value,
+  })
+  if (typeof path === 'string') triggerImport(path)
 }
 
 defineExpose({
@@ -169,6 +181,7 @@ defineExpose({
   handleFocusTexture,
   handleRepack,
   handleCmdAction,
+  handleReplaceTexture,
 })
 </script>
 
@@ -192,6 +205,8 @@ defineExpose({
     @close="handleCmdAction('switch-mod')"
     @focus-texture="handleFocusTexture"
     @open-cmd="cmdPaletteOpen = true"
+    @extract-texture="triggerExtract"
+    @replace-texture="handleReplaceTexture"
   />
 
   <!-- Command palette overlay -->
@@ -202,7 +217,7 @@ defineExpose({
     @extract="handleCmdAction('extract')"
     @import="handleCmdAction('import')"
     @switch-mod="handleCmdAction('switch-mod')"
-    @toggle-theme="() => {}"
+    @toggle-theme="handleCmdAction('toggle-theme')"
   />
 
   <!-- Repack dialog -->

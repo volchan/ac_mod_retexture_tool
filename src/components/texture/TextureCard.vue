@@ -141,7 +141,7 @@ defineExpose({
       <p class="text-[10px] text-muted-foreground font-mono mt-0.5">
         <span :class="hasMismatch ? 'text-amber-600 dark:text-amber-400' : ''">
           <template v-if="hasMismatch">
-            {{ props.texture.width }}→{{ props.texture.replacement?.width }}
+            {{ props.texture.width }}×{{ props.texture.height }}→{{ props.texture.replacement?.width }}×{{ props.texture.replacement?.height }}
           </template>
           <template v-else-if="props.texture.replacement">
             {{ props.texture.replacement.width }}×{{ props.texture.replacement.height }}
