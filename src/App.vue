@@ -18,7 +18,7 @@ import LibraryView from '@/views/LibraryView.vue'
 
 const { mod, loadMod, closeMod } = useMod()
 const { textures, selected, selectAll, lastImportFolder } = useTextures()
-const { recentMods, init: initLibrary, addRecent, updateTextureCount } = useLibrary()
+const { init: initLibrary, addRecent, updateTextureCount } = useLibrary()
 const { reset: resetFilter } = useTextureFilter()
 const { triggerExtract, triggerImport, triggerQueue } = useGlobalCommands()
 const { cycleMode } = useTheme()
@@ -174,7 +174,6 @@ defineExpose({
   repackReplacements,
   queueCount,
   selectedCount,
-  recentMods,
   updateTextureCount,
   triggerQueue,
   handleDrop,
@@ -191,7 +190,6 @@ defineExpose({
   <!-- Library (no mod loaded) -->
   <LibraryView
     v-if="!mod"
-    :recent-mods="recentMods"
     @open="handleOpenRecent"
     @browse="handleBrowse"
   />

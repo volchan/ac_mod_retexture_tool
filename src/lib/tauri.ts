@@ -7,7 +7,48 @@ export { convertFileSrc }
 
 import { save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import type { ImportScanResult, Mod, ProgressInfo, RepackOptions, Texture } from '@/types/index'
+import type {
+  AcInstallInfo,
+  ImportScanResult,
+  LibraryEntry,
+  Mod,
+  ProgressInfo,
+  RepackOptions,
+  Texture,
+} from '@/types/index'
+
+export interface AcDetectResult {
+  candidates: Array<{
+    path: string
+    label: string
+    source: string
+    version?: string
+    carCount: number
+    trackCount: number
+  }>
+}
+
+export async function detectAcInstall(): Promise<AcDetectResult> {
+  return invoke('detect_ac_install')
+}
+
+export async function validateAcFolder(path: string): Promise<AcInstallInfo> {
+  return invoke('validate_ac_folder', { path })
+}
+
+export async function listAcContent(path: string): Promise<LibraryEntry[]> {
+  return invoke('list_ac_content', { path })
+}
+
+export async function onAcProbe(
+  cb: (event: { path: string; label: string; status: string }) => void,
+): Promise<() => void> {
+  return listen('ac-probe', (e) => cb(e.payload as { path: string; label: string; status: string }))
+}
+
+export async function onAcLibraryEntry(cb: (entry: LibraryEntry) => void): Promise<() => void> {
+  return listen('ac-library-entry', (e) => cb(e.payload as LibraryEntry))
+}
 
 export async function getAppVersion(): Promise<string> {
   return getVersion()
