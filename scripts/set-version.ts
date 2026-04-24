@@ -8,8 +8,10 @@ if (!tag) {
 
 const version = tag.replace(/^v/, '')
 
-if (!/^\d+\.\d+\.\d+$/.test(version)) {
-  console.error(`Invalid version "${version}" derived from tag "${tag}". Expected semver X.Y.Z.`)
+if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
+  console.error(
+    `Invalid version "${version}" derived from tag "${tag}". Expected semver X.Y.Z or X.Y.Z-pre.`,
+  )
   process.exit(1)
 }
 
