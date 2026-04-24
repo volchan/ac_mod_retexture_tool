@@ -54,13 +54,13 @@ defineExpose({ CarIcon, ImageIcon, MapPinIcon })
     <div class="flex items-center gap-2 flex-wrap text-[11px] text-muted-foreground">
       <span class="inline-flex items-center gap-1">
         <ImageIcon :size="10" />
-        {{ entry.textureCount }}
+        {{ entry.textureCount ?? 0 }}
       </span>
       <span v-if="entry.country">{{ entry.country }}</span>
-      <span v-if="entry.length">{{ (entry.length / 1000).toFixed(2) }} km</span>
+      <span v-if="entry.length != null">{{ (entry.length / 1000).toFixed(2) }} km</span>
       <span v-if="entry.brand">{{ entry.brand }}</span>
-      <span v-if="entry.bhp">{{ entry.bhp }} bhp</span>
-      <span v-if="entry.year">{{ entry.year }}</span>
+      <span v-if="entry.bhp != null">{{ entry.bhp }} bhp</span>
+      <span v-if="entry.year != null">{{ entry.year }}</span>
     </div>
 
     <!-- Author footer -->

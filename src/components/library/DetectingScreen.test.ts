@@ -30,8 +30,10 @@ describe('DetectingScreen', () => {
 
   it('renders last probe without border-b class', () => {
     const wrapper = mount(DetectingScreen, { props: { probes: PROBES } })
-    const rows = wrapper.findAll('[class*="px-3.5 py-2.5"]')
-    expect(rows.length).toBeGreaterThan(0)
+    const rows = wrapper.findAll('[data-testid="probe-row"]')
+    expect(rows.length).toBe(PROBES.length)
+    const lastRow = rows[rows.length - 1]
+    expect(lastRow.classes()).not.toContain('border-b')
   })
 
   it('emits pick-manually when skip link clicked', async () => {

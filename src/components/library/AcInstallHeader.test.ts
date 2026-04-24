@@ -53,7 +53,8 @@ describe('AcInstallHeader', () => {
       props: { install: INSTALL, installInfo: INSTALL_INFO, isWindows: true },
     })
     const rescanBtn = wrapper.findAll('button').find((b) => b.text().includes('Rescan'))
-    await rescanBtn?.trigger('click')
+    expect(rescanBtn).toBeDefined()
+    if (rescanBtn) await rescanBtn.trigger('click')
     expect(wrapper.emitted('rescan')).toBeTruthy()
   })
 

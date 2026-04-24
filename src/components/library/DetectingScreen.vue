@@ -28,6 +28,7 @@ defineExpose({ CheckIcon, LoaderIcon, XIcon })
         <div
           v-for="(probe, i) in probes"
           :key="probe.path"
+          data-testid="probe-row"
           class="flex items-center gap-2.5 px-3.5 py-2.5 text-[12px]"
           :class="i < probes.length - 1 ? 'border-b border-border' : ''"
         >

@@ -111,7 +111,7 @@ export function useTextures() {
 
   function setImportFolder(folder: string) {
     lastImportFolder.value = folder
-    persist()
+    persist().catch((err) => console.error('Failed to persist import folder:', err))
   }
 
   function toggleSelect(id: string) {
@@ -152,17 +152,17 @@ export function useTextures() {
         },
       }
     })
-    persist()
+    persist().catch((err) => console.error('Failed to persist replacements:', err))
   }
 
   function revertReplacement(id: string) {
     textures.value = textures.value.map((t) => (t.id === id ? { ...t, replacement: undefined } : t))
-    persist()
+    persist().catch((err) => console.error('Failed to persist revert:', err))
   }
 
   function revertAll() {
     textures.value = textures.value.map((t) => ({ ...t, replacement: undefined }))
-    persist()
+    persist().catch((err) => console.error('Failed to persist revert all:', err))
   }
 
   async function cleanup() {

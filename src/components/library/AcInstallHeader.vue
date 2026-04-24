@@ -48,6 +48,7 @@ defineExpose({ FolderIcon, RefreshCwIcon, Settings2Icon })
       </button>
       <button
         class="inline-flex items-center justify-center w-[30px] h-[30px] rounded-[6px] border border-transparent text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        aria-label="Change location"
         @click="$emit('change')"
       >
         <Settings2Icon :size="15" />

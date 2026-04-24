@@ -94,13 +94,19 @@ const ACCENTS: Record<AccentKey, AccentDef> = {
 const STORAGE_KEY = 'ac-accent'
 
 function loadStoredAccent(): AccentKey {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return stored && stored in ACCENTS ? (stored as AccentKey) : 'cobalt'
+  try {
+    if (typeof window === 'undefined') return 'cobalt'
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored && stored in ACCENTS ? (stored as AccentKey) : 'cobalt'
+  } catch {
+    return 'cobalt'
+  }
 }
 
 const accent = ref<AccentKey>(loadStoredAccent())
 
 function applyAccentVars(key: AccentKey, isDark: boolean) {
+  if (typeof document === 'undefined') return
   const tokens = isDark ? ACCENTS[key].dark : ACCENTS[key].light
   const el = document.documentElement
   el.style.setProperty('--primary', tokens.base)
@@ -113,15 +119,24 @@ function applyAccentVars(key: AccentKey, isDark: boolean) {
 
 function setAccent(key: AccentKey) {
   accent.value = key
-  localStorage.setItem(STORAGE_KEY, key)
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_KEY, key)
+    } catch {
+      // storage unavailable
+    }
+  }
   const { theme } = useTheme()
   applyAccentVars(key, theme.value === 'dark')
 }
 
+let watcherInitialized = false
+
 export function useAccent() {
-  const { theme } = useTheme()
-
-  watch(theme, (t) => applyAccentVars(accent.value, t === 'dark'), { immediate: true })
-
+  if (!watcherInitialized) {
+    watcherInitialized = true
+    const { theme } = useTheme()
+    watch(theme, (t) => applyAccentVars(accent.value, t === 'dark'), { immediate: true })
+  }
   return { accent, setAccent, ACCENTS }
 }

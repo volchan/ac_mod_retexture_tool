@@ -97,8 +97,8 @@ watch(
 )
 
 async function handleBrowse() {
-  const selected = await open({ directory: true, multiple: false })
-  if (typeof selected === 'string') await handleDrop(selected)
+  const chosenPath = await open({ directory: true, multiple: false })
+  if (typeof chosenPath === 'string') await handleDrop(chosenPath)
 }
 
 async function handleOpenRecent(path: string) {

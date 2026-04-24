@@ -49,7 +49,7 @@ afterEach(() => {
 })
 
 describe('init', () => {
-  it('Windows, no cache → phase becomes detecting', async () => {
+  it('Windows, no cache, no candidates → phase becomes not_found', async () => {
     setPlatform('Win32')
     mockInvokeHandler('detect_ac_install', () => ({ candidates: [] }))
     const { result, unmount } = await withSetup(() => useAcDetection())

@@ -219,7 +219,9 @@ mod windows {
     ) -> Result<crate::commands::ac_detect::AcInstallInfo, ()> {
         let p = path.to_string();
         timeout(Duration::from_secs(PROBE_TIMEOUT_SECS), async move {
-            validate_path(&p).map_err(|_| ())
+            tokio::task::spawn_blocking(move || validate_path(&p).map_err(|_| ()))
+                .await
+                .map_err(|_| ())?
         })
         .await
         .map_err(|_| ())?

@@ -60,6 +60,9 @@ export function useAcDetection() {
       } else {
         phase.value = 'not_found'
       }
+    } catch (err) {
+      console.error('AC detection failed:', err)
+      phase.value = 'not_found'
     } finally {
       unlisten()
     }
@@ -94,6 +97,7 @@ export function useAcDetection() {
 
     try {
       const info = await validateAcFolder(selected)
+      validationError.value = null
       const acInstall: AcInstall = {
         path: selected,
         detectedAt: new Date().toISOString(),

@@ -54,7 +54,7 @@ function parseSemver(v: string): SemVer {
 }
 
 export function isBetaVersion(v: string): boolean {
-  return /-(beta|alpha|rc|pre)\b/i.test(v)
+  return /-(beta|alpha|rc|pre)([.\d]|$)/i.test(v)
 }
 
 const PRE_ORDER: Record<string, number> = { alpha: 0, beta: 1, pre: 2, rc: 3 }

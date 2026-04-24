@@ -17,9 +17,12 @@ const replacementDataUrl = ref<string | null>(null)
 const isLoadingReplacement = ref(false)
 const replacementLoadError = ref<string | null>(null)
 
+let loadVersion = 0
+
 watch(
   () => activeTexture.value?.replacement?.sourcePath,
   async (sourcePath) => {
+    const thisVersion = ++loadVersion
     if (!sourcePath) {
       replacementDataUrl.value = null
       replacementLoadError.value = null
@@ -28,12 +31,15 @@ watch(
     isLoadingReplacement.value = true
     replacementLoadError.value = null
     try {
-      replacementDataUrl.value = await loadReplacementFull(sourcePath)
+      const result = await loadReplacementFull(sourcePath)
+      if (thisVersion !== loadVersion) return
+      replacementDataUrl.value = result
     } catch (err) {
+      if (thisVersion !== loadVersion) return
       replacementDataUrl.value = null
       replacementLoadError.value = err instanceof Error ? err.message : 'Failed to load replacement'
     } finally {
-      isLoadingReplacement.value = false
+      if (thisVersion === loadVersion) isLoadingReplacement.value = false
     }
   },
   { immediate: true },

@@ -2,27 +2,29 @@ import { ref } from 'vue'
 import { listAcContent, onAcLibraryEntry } from '@/lib/tauri'
 import type { LibraryEntry, ModType } from '@/types/index'
 
+let activeScanId = 0
+
 export function useAcLibrary() {
   const entries = ref<LibraryEntry[]>([])
   const isScanning = ref(false)
   const scannedCount = ref(0)
 
   async function scanLibrary(installPath: string): Promise<void> {
+    const scanId = ++activeScanId
     isScanning.value = true
     entries.value = []
     scannedCount.value = 0
 
-    const unlisten = await onAcLibraryEntry((entry) => {
-      entries.value.push(entry)
-      scannedCount.value += 1
+    const unlisten = await onAcLibraryEntry(() => {
+      if (scanId === activeScanId) scannedCount.value += 1
     })
 
     try {
       const all = await listAcContent(installPath)
-      entries.value = all
+      if (scanId === activeScanId) entries.value = all
     } finally {
       unlisten()
-      isScanning.value = false
+      if (scanId === activeScanId) isScanning.value = false
     }
   }
 
