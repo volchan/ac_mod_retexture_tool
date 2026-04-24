@@ -78,6 +78,14 @@ export async function clearKn5Cache(): Promise<void> {
   return invoke('clear_kn5_cache')
 }
 
+export async function previewReplacementImage(imagePath: string): Promise<string> {
+  return invoke('preview_replacement_image', { imagePath })
+}
+
+export async function loadReplacementFull(imagePath: string): Promise<string> {
+  return invoke('load_replacement_full', { imagePath })
+}
+
 export async function getKn5Texture(kn5Path: string, textureName: string): Promise<string> {
   return invoke('get_kn5_texture', { kn5Path, textureName })
 }

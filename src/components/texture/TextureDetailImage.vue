@@ -1,31 +1,81 @@
 <script setup lang="ts">
-import { AlertCircleIcon, Loader2Icon, ZoomInIcon, ZoomOutIcon } from 'lucide-vue-next'
+import {
+  AlertCircleIcon,
+  ChevronsLeftRightIcon,
+  Loader2Icon,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from 'lucide-vue-next'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useTextureDetail } from '@/composables/useTextureDetail'
-import { convertFileSrc } from '@/lib/tauri'
+import { loadReplacementFull } from '@/lib/tauri'
 
 const { activeTexture, activeTab, originalDataUrl, isLoadingOriginal, loadError, setTab } =
   useTextureDetail()
 
-function handleImgError() {
-  if (activeTab.value === 'original') {
-    loadError.value = 'Failed to load image'
-    originalDataUrl.value = null
-  }
-}
+const replacementDataUrl = ref<string | null>(null)
+const isLoadingReplacement = ref(false)
 
-const replacementFullUrl = computed(() =>
-  activeTexture.value?.replacement
-    ? convertFileSrc(activeTexture.value.replacement.sourcePath)
-    : null,
+watch(
+  () => activeTexture.value?.replacement?.sourcePath,
+  async (sourcePath) => {
+    if (!sourcePath) {
+      replacementDataUrl.value = null
+      return
+    }
+    isLoadingReplacement.value = true
+    try {
+      replacementDataUrl.value = await loadReplacementFull(sourcePath)
+    } catch {
+      replacementDataUrl.value = null
+    } finally {
+      isLoadingReplacement.value = false
+    }
+  },
+  { immediate: true },
 )
 
-const displaySrc = computed((): string | null => {
-  if (activeTab.value === 'replacement') return replacementFullUrl.value
-  return originalDataUrl.value
+const hasComparison = computed(
+  () => !!activeTexture.value?.replacement && !!replacementDataUrl.value,
+)
+
+// Compare slider
+const sliderPct = ref(50)
+const isSliding = ref(false)
+const containerRef = ref<HTMLElement | null>(null)
+
+function startSlide(e: MouseEvent) {
+  e.stopPropagation()
+  e.preventDefault()
+  isSliding.value = true
+}
+
+function updateSlider(e: MouseEvent) {
+  if (!isSliding.value || !containerRef.value) return
+  const rect = containerRef.value.getBoundingClientRect()
+  const W = rect.width
+  const mouseX = e.clientX - rect.left
+  // Invert the zoom+offset transform to find the element-local clip position
+  const raw = 50 + ((mouseX - W / 2 - offsetX.value) / (zoom.value * W)) * 100
+  sliderPct.value = Math.max(0, Math.min(100, raw))
+}
+
+function stopSlide() {
+  isSliding.value = false
+}
+
+watch(hasComparison, (v) => {
+  if (v) sliderPct.value = 50
 })
 
-const containerRef = ref<HTMLElement | null>(null)
+// Visual pixel position of the slider, accounting for zoom and pan offset
+const sliderVisualX = computed(() => {
+  const W = containerRef.value?.clientWidth ?? 0
+  const x = (sliderPct.value / 100 - 0.5) * zoom.value * W + W / 2 + offsetX.value
+  return Math.max(0, Math.min(W, x))
+})
+
+// Image pan + zoom
 const zoom = ref(1)
 const offsetX = ref(0)
 const offsetY = ref(0)
@@ -67,13 +117,14 @@ function onWheel(e: WheelEvent) {
 }
 
 function onMouseDown(e: MouseEvent) {
-  if (e.button !== 0) return
+  if (e.button !== 0 || isSliding.value) return
   isDragging.value = true
   dragStartX = e.clientX - offsetX.value
   dragStartY = e.clientY - offsetY.value
 }
 
 function onMouseMove(e: MouseEvent) {
+  updateSlider(e)
   if (!isDragging.value) return
   offsetX.value = e.clientX - dragStartX
   offsetY.value = e.clientY - dragStartY
@@ -81,6 +132,7 @@ function onMouseMove(e: MouseEvent) {
 
 function onMouseUp() {
   isDragging.value = false
+  stopSlide()
 }
 
 watch(
@@ -105,6 +157,7 @@ onUnmounted(() => {
 
 defineExpose({
   AlertCircleIcon,
+  ChevronsLeftRightIcon,
   Loader2Icon,
   ZoomInIcon,
   ZoomOutIcon,
@@ -113,8 +166,12 @@ defineExpose({
   originalDataUrl,
   isLoadingOriginal,
   loadError,
-  replacementFullUrl,
-  displaySrc,
+  replacementDataUrl,
+  isLoadingReplacement,
+  hasComparison,
+  sliderPct,
+  sliderVisualX,
+  isSliding,
   zoom,
   offsetX,
   offsetY,
@@ -125,49 +182,36 @@ defineExpose({
   resetView,
   zoomIn,
   zoomOut,
+  startSlide,
+  stopSlide,
   onWheel,
   onMouseDown,
   onMouseMove,
   onMouseUp,
-  handleImgError,
 })
 </script>
 
 <template>
   <div class="flex flex-col h-full min-w-0">
-    <div v-if="activeTexture?.replacement" data-testid="tab-strip" class="flex border-b shrink-0">
-      <button
-        v-for="tab in ['original', 'replacement'] as const"
-        :key="tab"
-        class="px-4 py-2 text-xs font-medium border-b-2 transition-colors capitalize"
-        :class="
-          activeTab === tab
-            ? 'border-primary text-foreground'
-            : 'border-transparent text-muted-foreground hover:text-foreground'
-        "
-        @click="setTab(tab)"
-      >
-        {{ tab }}
-      </button>
-    </div>
-
     <div
       ref="containerRef"
-      class="flex-1 checkerboard flex items-center justify-center relative overflow-hidden select-none"
-      :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
+      class="flex-1 checkerboard relative overflow-hidden select-none"
+      :class="isSliding ? 'cursor-ew-resize' : isDragging ? 'cursor-grabbing' : 'cursor-grab'"
       @mousedown="onMouseDown"
     >
+      <!-- Loading overlay -->
       <div
-        v-if="isLoadingOriginal && activeTab === 'original'"
-        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-sm"
+        v-if="isLoadingOriginal || isLoadingReplacement"
+        class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-sm"
       >
         <Loader2Icon class="animate-spin text-foreground" :size="36" />
         <span class="text-xs text-muted-foreground">Loading texture…</span>
       </div>
 
+      <!-- Error state -->
       <div
-        v-else-if="loadError && activeTab === 'original'"
-        class="flex flex-col items-center gap-2 text-muted-foreground p-6 text-center"
+        v-else-if="loadError"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground p-6 text-center"
       >
         <AlertCircleIcon :size="32" class="text-destructive" />
         <p class="text-sm">{{ loadError }}</p>
@@ -179,18 +223,64 @@ defineExpose({
         </button>
       </div>
 
-      <img
-        v-if="displaySrc"
-        :src="displaySrc"
-        :alt="activeTexture?.name"
-        class="max-w-none pointer-events-none"
-        :class="isLoadingOriginal ? 'opacity-40' : ''"
-        :style="{ transform: imageTransform }"
-        draggable="false"
-        @error="handleImgError"
-      />
+      <!-- Image layer: both images share the same transform for pixel-perfect alignment -->
+      <template v-else>
+        <!-- Original (base layer, always full width) -->
+        <img
+          v-if="originalDataUrl"
+          :src="originalDataUrl"
+          :alt="activeTexture?.name"
+          class="absolute inset-0 w-full h-full object-contain max-w-none pointer-events-none"
+          :style="{ transform: imageTransform }"
+          draggable="false"
+        />
+
+        <!-- Replacement (clipped to left of slider when in compare mode) -->
+        <img
+          v-if="replacementDataUrl"
+          :src="replacementDataUrl"
+          :alt="activeTexture?.name"
+          class="absolute inset-0 w-full h-full object-contain max-w-none pointer-events-none"
+          :style="{
+            transform: imageTransform,
+            clipPath: hasComparison ? `inset(0 ${100 - sliderPct}% 0 0)` : undefined,
+          }"
+          draggable="false"
+        />
+
+        <!-- Compare slider UI -->
+        <template v-if="hasComparison">
+          <!-- Divider line -->
+          <div
+            class="absolute top-0 bottom-0 w-px bg-white/80 z-10 pointer-events-none"
+            :style="{ left: `${sliderVisualX}px` }"
+          />
+
+          <!-- Handle -->
+          <div
+            class="absolute top-1/2 z-10 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center cursor-ew-resize"
+            :style="{ left: `${sliderVisualX}px` }"
+            @mousedown.stop.prevent="startSlide"
+          >
+            <ChevronsLeftRightIcon :size="14" class="text-foreground/70" />
+          </div>
+
+          <!-- Labels -->
+          <div class="absolute top-2.5 left-3 z-10 pointer-events-none">
+            <span class="text-[10.5px] font-semibold px-1.5 py-px rounded bg-black/40 text-white">
+              Replacement
+            </span>
+          </div>
+          <div class="absolute top-2.5 right-3 z-10 pointer-events-none">
+            <span class="text-[10.5px] font-semibold px-1.5 py-px rounded bg-black/40 text-white">
+              Original
+            </span>
+          </div>
+        </template>
+      </template>
     </div>
 
+    <!-- Zoom controls -->
     <div class="flex items-center justify-center gap-1 px-3 py-1.5 border-t bg-card/50 shrink-0">
       <button
         type="button"

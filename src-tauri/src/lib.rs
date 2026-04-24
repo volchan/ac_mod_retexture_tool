@@ -26,6 +26,7 @@ pub fn run() {
             commands::track_hero::get_track_hero_image,
             commands::track_hero::extract_track_hero_image,
             commands::track_hero::preview_replacement_image,
+            commands::track_hero::load_replacement_full,
             commands::import::scan_import_folder,
             commands::repack::repack_mod,
             commands::texture::get_kn5_texture,

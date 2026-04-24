@@ -152,6 +152,18 @@ pub fn preview_replacement_image(image_path: String) -> Result<String, String> {
     Ok(format!("data:image/png;base64,{b64}"))
 }
 
+#[tauri::command]
+pub fn load_replacement_full(image_path: String) -> Result<String, String> {
+    let bytes = std::fs::read(&image_path).map_err(|e| e.to_string())?;
+    let mime = if image_path.to_lowercase().ends_with(".png") {
+        "image/png"
+    } else {
+        "image/jpeg"
+    };
+    let b64 = general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{b64}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

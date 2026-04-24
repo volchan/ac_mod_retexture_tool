@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { useTextureFilter } from '@/composables/useTextureFilter'
 import type { MatchedTexture, Mod, Texture } from '@/types/index'
 import TexturePanel from './TexturePanel.vue'
 
@@ -58,6 +59,7 @@ beforeEach(() => {
     capturedHandlers.set(eventName, handler as EventHandler)
     return () => {}
   })
+  useTextureFilter().reset()
 })
 
 afterEach(() => {
@@ -83,7 +85,7 @@ describe('TexturePanel', () => {
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await nextTick()
 
-    expect(wrapper.find('.h-1').exists()).toBe(true)
+    expect(wrapper.find('.h-0\\.5').exists()).toBe(true)
 
     resolveDecoding()
     await waitForDecoding()
@@ -96,7 +98,7 @@ describe('TexturePanel', () => {
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
 
-    expect(wrapper.find('.h-1').exists()).toBe(false)
+    expect(wrapper.find('.h-0\\.5').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -180,8 +182,14 @@ describe('TexturePanel', () => {
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
 
+    // Select all first so "Deselect" button becomes visible
     const buttons = wrapper.findAll('button')
-    const deselectBtn = buttons.find((b) => b.text() === 'Deselect all')
+    const selectAllBtn = buttons.find((b) => b.text() === 'Select all')
+    await selectAllBtn?.trigger('click')
+    await nextTick()
+
+    const allButtons = wrapper.findAll('button')
+    const deselectBtn = allButtons.find((b) => b.text() === 'Deselect')
     await deselectBtn?.trigger('click')
 
     expect(wrapper.emitted('selection-change')).toBeTruthy()
@@ -283,21 +291,23 @@ describe('TexturePanel', () => {
     wrapper.unmount()
   })
 
-  it('changes active category when CategoryTabs emits change', async () => {
+  it('changes active category when category button is clicked', async () => {
     mockInvokeHandler('decode_mod_textures', () => {
-      emitDecodeTexture(makeTexture({ id: 'a', category: 'body' }))
-      emitDecodeTexture(makeTexture({ id: 'b', category: 'interior' }))
+      emitDecodeTexture(makeTexture({ id: 'a', name: 'body_tex.dds', category: 'body' }))
+      emitDecodeTexture(makeTexture({ id: 'b', name: 'interior_tex.dds', category: 'interior' }))
       return undefined
     })
 
     const wrapper = mount(TexturePanel, { props: { mod: baseMod } })
     await waitForDecoding()
 
-    const categoryTabsVm = wrapper.findComponent({ name: 'CategoryTabs' }).vm
-    categoryTabsVm.$emit('change', 'interior')
+    const buttons = wrapper.findAll('button')
+    const interiorBtn = buttons.find((b) => b.text() === 'Interior')
+    await interiorBtn?.trigger('click')
     await nextTick()
 
-    expect(wrapper.text()).toContain('0 selected')
+    expect(wrapper.text()).toContain('interior_tex.dds')
+    expect(wrapper.text()).not.toContain('body_tex.dds')
     wrapper.unmount()
   })
 

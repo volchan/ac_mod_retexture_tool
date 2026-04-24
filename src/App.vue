@@ -1,28 +1,69 @@
 <script setup lang="ts">
-import { HexagonIcon, ImageIcon } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { open } from '@tauri-apps/plugin-dialog'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
+import CommandPalette from '@/components/CommandPalette.vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
-import ModDropZone from '@/components/mod/ModDropZone.vue'
-import ModTree from '@/components/mod/ModTree.vue'
-import ModInfoPanel from '@/components/repack/ModInfoPanel.vue'
 import RepackDialog from '@/components/repack/RepackDialog.vue'
-import TexturePanel from '@/components/texture/TexturePanel.vue'
 import Toaster from '@/components/ui/sonner/Toaster.vue'
+import { useGlobalCommands } from '@/composables/useGlobalCommands'
+import { useLibrary } from '@/composables/useLibrary'
 import { useMod } from '@/composables/useMod'
+import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { showSaveDialog } from '@/lib/tauri'
-import type { TextureReplacementOpt } from '@/types/index'
+import type { Texture, TextureReplacementOpt } from '@/types/index'
+import LibraryView from '@/views/LibraryView.vue'
 
 const { mod, loadMod, closeMod } = useMod()
-const { textures, selected } = useTextures()
+const { textures, selected, selectAll, lastImportFolder } = useTextures()
+const { recentMods, init: initLibrary, addRecent, updateTextureCount } = useLibrary()
+const { reset: resetFilter } = useTextureFilter()
+const { triggerExtract, triggerImport } = useGlobalCommands()
 
-const textureCount = computed(() => textures.value.length)
-const selectedCount = computed(() => selected.value.size)
-
+const focusedTexture = ref<Texture | null>(null)
+const cmdPaletteOpen = ref(false)
 const repackOpen = ref(false)
 const repackOutputPath = ref('')
 const repackReplacements = ref<TextureReplacementOpt[]>([])
+
+const queueCount = computed(() => textures.value.filter((t) => t.replacement != null).length)
+const selectedCount = computed(() => selected.value.size)
+
+onMounted(async () => {
+  await initLibrary()
+  window.addEventListener('keydown', handleGlobalKey)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKey)
+})
+
+async function handleGlobalKey(e: KeyboardEvent) {
+  if (!(e.metaKey || e.ctrlKey)) return
+  const key = e.key.toLowerCase()
+  if (key === 'k') {
+    e.preventDefault()
+    cmdPaletteOpen.value = true
+  } else if (key === 'a' && mod.value) {
+    e.preventDefault()
+    selectAll()
+  } else if (key === 'r' && mod.value) {
+    e.preventDefault()
+    handleRepack()
+  } else if (key === 'e' && mod.value) {
+    e.preventDefault()
+    triggerExtract()
+  } else if (key === 'i' && mod.value) {
+    e.preventDefault()
+    const path = await open({
+      directory: true,
+      multiple: false,
+      defaultPath: lastImportFolder.value,
+    })
+    if (typeof path === 'string') triggerImport(path)
+  }
+}
 
 async function handleDrop(path: string) {
   const result = await loadMod(path)
@@ -30,10 +71,35 @@ async function handleDrop(path: string) {
     toast.error(result.error)
     return
   }
-  if (mod.value?.modType !== 'track') {
+  if (!mod.value) return
+  if (mod.value.modType !== 'track' && mod.value.modType !== 'car') {
     closeMod()
-    toast.error('Only track mods are supported for now.')
+    toast.error('Unsupported mod type.')
+    return
   }
+  await addRecent(mod.value)
+  focusedTexture.value = null
+  resetFilter()
+}
+
+watch(
+  () => textures.value.length,
+  (count) => {
+    if (mod.value && count > 0) updateTextureCount(mod.value.meta.folderName, count)
+  },
+)
+
+async function handleBrowse() {
+  const selected = await open({ directory: true, multiple: false })
+  if (typeof selected === 'string') await handleDrop(selected)
+}
+
+async function handleOpenRecent(path: string) {
+  await handleDrop(path)
+}
+
+function handleFocusTexture(texture: Texture) {
+  focusedTexture.value = texture
 }
 
 async function handleRepack() {
@@ -58,69 +124,94 @@ async function handleRepack() {
   repackOpen.value = true
 }
 
+async function handleCmdAction(action: string) {
+  if (action === 'repack') handleRepack()
+  if (action === 'extract') triggerExtract()
+  if (action === 'import') {
+    const path = await open({
+      directory: true,
+      multiple: false,
+      defaultPath: lastImportFolder.value,
+    })
+    if (typeof path === 'string') triggerImport(path)
+  }
+  if (action === 'switch-mod') {
+    closeMod()
+    resetFilter()
+    focusedTexture.value = null
+  }
+}
+
 defineExpose({
-  HexagonIcon,
-  ImageIcon,
+  CommandPalette,
   WorkspaceLayout,
-  ModDropZone,
-  ModTree,
   RepackDialog,
-  ModInfoPanel,
-  TexturePanel,
+  LibraryView,
   Toaster,
   mod,
   loadMod,
   closeMod,
-  textureCount,
-  selectedCount,
+  textures,
+  selected,
+  lastImportFolder,
+  focusedTexture,
+  cmdPaletteOpen,
   repackOpen,
   repackOutputPath,
   repackReplacements,
+  queueCount,
+  selectedCount,
+  recentMods,
+  updateTextureCount,
   handleDrop,
+  handleBrowse,
+  handleOpenRecent,
+  handleFocusTexture,
   handleRepack,
+  handleCmdAction,
 })
 </script>
 
 <template>
-  <WorkspaceLayout
-    :mod-name="mod?.meta.name"
-    :texture-count="textureCount"
-    :selected-count="selectedCount"
-  >
-    <template #left>
-      <ModDropZone v-if="!mod" @drop="handleDrop" />
-      <ModTree v-else :mod="mod" @close="closeMod" />
-    </template>
-    <template #center>
-      <TexturePanel v-if="mod" :mod="mod" />
-      <div
-        v-else
-        class="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground"
-      >
-        <ImageIcon :size="48" class="opacity-30" />
-        <span class="text-sm">Drop a mod folder to preview textures</span>
-      </div>
-    </template>
-    <template #right>
-      <ModInfoPanel v-if="mod" :mod="mod" @repack="handleRepack" />
-      <div
-        v-else
-        class="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full"
-      >
-        <HexagonIcon :size="48" class="opacity-30" />
-        <span class="text-sm">Load a mod to edit its info</span>
-      </div>
-    </template>
-  </WorkspaceLayout>
+  <!-- Library (no mod loaded) -->
+  <LibraryView
+    v-if="!mod"
+    :recent-mods="recentMods"
+    @open="handleOpenRecent"
+    @browse="handleBrowse"
+  />
 
+  <!-- Workspace (mod loaded) -->
+  <WorkspaceLayout
+    v-else
+    :mod="mod"
+    :textures="textures"
+    :focused-texture="focusedTexture"
+    :queue-count="queueCount"
+    @repack="handleRepack"
+    @close="handleCmdAction('switch-mod')"
+    @focus-texture="handleFocusTexture"
+    @open-cmd="cmdPaletteOpen = true"
+  />
+
+  <!-- Command palette overlay -->
+  <CommandPalette
+    v-if="cmdPaletteOpen"
+    @close="cmdPaletteOpen = false"
+    @repack="handleCmdAction('repack')"
+    @extract="handleCmdAction('extract')"
+    @import="handleCmdAction('import')"
+    @switch-mod="handleCmdAction('switch-mod')"
+    @toggle-theme="() => {}"
+  />
+
+  <!-- Repack dialog -->
   <RepackDialog
-    v-if="mod && repackOpen"
-    :open="repackOpen"
+    v-if="mod"
+    v-model:open="repackOpen"
     :mod="mod"
     :output-path="repackOutputPath"
     :replacements="repackReplacements"
-    @update:open="repackOpen = $event"
-    @done="repackOpen = false"
   />
 
   <Toaster />

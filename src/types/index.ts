@@ -137,3 +137,23 @@ export interface ImportScanResult {
   matched: MatchedTextureRaw[]
   unmatched: UnmatchedFile[]
 }
+
+export type TextureDensity = 'sm' | 'md' | 'lg'
+
+export type AccentKey = 'cobalt' | 'crimson' | 'papaya' | 'brg'
+
+export interface RecentMod {
+  id: string
+  modType: ModType
+  name: string
+  folderName: string
+  path: string
+  lastOpenedAt: number
+  author?: string
+  textureCount?: number
+  trackLength?: number
+  pitboxes?: number
+  country?: string
+  carBhp?: number
+  carBrand?: string
+}
