@@ -238,8 +238,9 @@ mod windows {
         );
     }
 
-    fn read_registry_string(hive: RegKey, subkey: &str, value: &str) -> Option<String> {
-        hive.open_subkey(subkey)
+    fn read_registry_string(hive: isize, subkey: &str, value: &str) -> Option<String> {
+        RegKey::predef(hive)
+            .open_subkey(subkey)
             .ok()
             .and_then(|key| key.get_value::<String, _>(value).ok())
     }
