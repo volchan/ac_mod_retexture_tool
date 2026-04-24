@@ -15,19 +15,23 @@ const { activeTexture, activeTab, originalDataUrl, isLoadingOriginal, loadError,
 
 const replacementDataUrl = ref<string | null>(null)
 const isLoadingReplacement = ref(false)
+const replacementLoadError = ref<string | null>(null)
 
 watch(
   () => activeTexture.value?.replacement?.sourcePath,
   async (sourcePath) => {
     if (!sourcePath) {
       replacementDataUrl.value = null
+      replacementLoadError.value = null
       return
     }
     isLoadingReplacement.value = true
+    replacementLoadError.value = null
     try {
       replacementDataUrl.value = await loadReplacementFull(sourcePath)
-    } catch {
+    } catch (err) {
       replacementDataUrl.value = null
+      replacementLoadError.value = err instanceof Error ? err.message : 'Failed to load replacement'
     } finally {
       isLoadingReplacement.value = false
     }
@@ -62,6 +66,23 @@ function updateSlider(e: MouseEvent) {
 
 function stopSlide() {
   isSliding.value = false
+}
+
+function handleSliderKey(e: KeyboardEvent) {
+  const step = e.shiftKey ? 10 : 1
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    sliderPct.value = Math.max(0, sliderPct.value - step)
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    sliderPct.value = Math.min(100, sliderPct.value + step)
+  } else if (e.key === 'Home') {
+    e.preventDefault()
+    sliderPct.value = 0
+  } else if (e.key === 'End') {
+    e.preventDefault()
+    sliderPct.value = 100
+  }
 }
 
 watch(hasComparison, (v) => {
@@ -168,6 +189,7 @@ defineExpose({
   loadError,
   replacementDataUrl,
   isLoadingReplacement,
+  replacementLoadError,
   hasComparison,
   sliderPct,
   sliderVisualX,
@@ -184,6 +206,7 @@ defineExpose({
   zoomOut,
   startSlide,
   stopSlide,
+  handleSliderKey,
   onWheel,
   onMouseDown,
   onMouseMove,
@@ -235,6 +258,16 @@ defineExpose({
           draggable="false"
         />
 
+        <!-- Replacement load error badge -->
+        <div
+          v-if="replacementLoadError"
+          role="alert"
+          class="absolute bottom-2 left-2 z-10 flex items-center gap-1.5 px-2 py-1 rounded bg-destructive/90 text-destructive-foreground text-[10.5px] font-medium pointer-events-none"
+        >
+          <AlertCircleIcon :size="11" />
+          {{ replacementLoadError }}
+        </div>
+
         <!-- Replacement (clipped to left of slider when in compare mode) -->
         <img
           v-if="replacementDataUrl"
@@ -260,7 +293,14 @@ defineExpose({
           <div
             class="absolute top-1/2 z-10 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center cursor-ew-resize"
             :style="{ left: `${sliderVisualX}px` }"
+            role="slider"
+            tabindex="0"
+            aria-label="Comparison slider"
+            :aria-valuenow="Math.round(sliderPct)"
+            aria-valuemin="0"
+            aria-valuemax="100"
             @mousedown.stop.prevent="startSlide"
+            @keydown="handleSliderKey"
           >
             <ChevronsLeftRightIcon :size="14" class="text-foreground/70" />
           </div>

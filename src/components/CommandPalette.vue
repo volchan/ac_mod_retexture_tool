@@ -21,6 +21,7 @@ const emit = defineEmits<{
   repack: []
   extract: []
   import: []
+  queue: []
   'switch-mod': []
   'toggle-theme': []
 }>()
@@ -101,7 +102,10 @@ const allItems: PaletteItem[] = [
     label: 'View replacement queue',
     group: 'Navigation',
     icon: ListIcon,
-    action: () => emit('close'),
+    action: () => {
+      emit('queue')
+      emit('close')
+    },
   },
   {
     id: 'switch-mod',

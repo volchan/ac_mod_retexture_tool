@@ -57,13 +57,21 @@ export function isBetaVersion(v: string): boolean {
   return /-(beta|alpha|rc|pre)\b/i.test(v)
 }
 
+const PRE_ORDER: Record<string, number> = { alpha: 0, beta: 1, pre: 2, rc: 3 }
+
 function comparePre(a: string, b: string): number {
   if (a === b) return 0
   const re = /^([a-z]+)\.?(\d+)?$/i
   const ma = a.match(re)
   const mb = b.match(re)
   if (!ma || !mb) return a.localeCompare(b)
-  if (ma[1] !== mb[1]) return ma[1].localeCompare(mb[1])
+  const labelA = ma[1].toLowerCase()
+  const labelB = mb[1].toLowerCase()
+  if (labelA !== labelB) {
+    const orderA = PRE_ORDER[labelA] ?? 99
+    const orderB = PRE_ORDER[labelB] ?? 99
+    return orderA - orderB
+  }
   return (parseInt(ma[2] ?? '0', 10) || 0) - (parseInt(mb[2] ?? '0', 10) || 0)
 }
 

@@ -20,7 +20,7 @@ const { mod, loadMod, closeMod } = useMod()
 const { textures, selected, selectAll, lastImportFolder } = useTextures()
 const { recentMods, init: initLibrary, addRecent, updateTextureCount } = useLibrary()
 const { reset: resetFilter } = useTextureFilter()
-const { triggerExtract, triggerImport } = useGlobalCommands()
+const { triggerExtract, triggerImport, triggerQueue } = useGlobalCommands()
 const { cycleMode } = useTheme()
 
 const focusedTexture = ref<Texture | null>(null)
@@ -143,6 +143,7 @@ async function handleCmdAction(action: string) {
     focusedTexture.value = null
   }
   if (action === 'toggle-theme') cycleMode()
+  if (action === 'queue') triggerQueue()
 }
 
 async function handleReplaceTexture() {
@@ -175,6 +176,7 @@ defineExpose({
   selectedCount,
   recentMods,
   updateTextureCount,
+  triggerQueue,
   handleDrop,
   handleBrowse,
   handleOpenRecent,
@@ -216,6 +218,7 @@ defineExpose({
     @repack="handleCmdAction('repack')"
     @extract="handleCmdAction('extract')"
     @import="handleCmdAction('import')"
+    @queue="handleCmdAction('queue')"
     @switch-mod="handleCmdAction('switch-mod')"
     @toggle-theme="handleCmdAction('toggle-theme')"
   />

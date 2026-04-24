@@ -99,6 +99,8 @@ defineExpose({
             ? 'bg-card text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         "
+        :aria-label="`${d.key} tile size`"
+        :aria-pressed="density === d.key"
         :title="`${d.key} tiles`"
         @click="setDensity(d.key)"
       >

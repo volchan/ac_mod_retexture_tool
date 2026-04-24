@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ArchiveIcon } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import QueueDrawer from '@/components/texture/QueueDrawer.vue'
+import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useTextures } from '@/composables/useTextures'
 import { previewLabel } from '@/lib/utils'
 import type { Mod } from '@/types/index'
@@ -15,8 +16,13 @@ const emit = defineEmits<{
 }>()
 
 const { textures } = useTextures()
+const { queueTick } = useGlobalCommands()
 
 const activeTab = ref<'info' | 'queue'>('info')
+
+watch(queueTick, () => {
+  activeTab.value = 'queue'
+})
 
 const replaced = computed(() => textures.value.filter((t) => t.replacement != null))
 const replacementCount = computed(() => replaced.value.length)
@@ -47,6 +53,7 @@ defineExpose({
   replacementCount,
   replacementByKn5,
   mismatchCount,
+  queueTick,
   previewLabel,
   emit,
 })
