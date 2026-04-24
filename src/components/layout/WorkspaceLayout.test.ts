@@ -43,76 +43,15 @@ beforeEach(() => {
 describe('WorkspaceLayout', () => {
   it('renders with required props without throwing', () => {
     const wrapper = mount(WorkspaceLayout, {
-      props: {
-        mod: makeMod(),
-        textures: [],
-        focusedTexture: null,
-        queueCount: 0,
-      },
+      props: { mod: makeMod(), textures: [], focusedTexture: null },
       global: { stubs: globalStubs },
     })
     expect(wrapper.exists()).toBe(true)
   })
 
-  it('renders StatusBar with mod name', () => {
-    const wrapper = mount(WorkspaceLayout, {
-      props: {
-        mod: makeMod(),
-        textures: [],
-        focusedTexture: null,
-        queueCount: 0,
-      },
-      global: { stubs: globalStubs },
-    })
-    expect(wrapper.text()).toContain('Ferrari 458')
-  })
-
-  it('passes texture count to StatusBar', () => {
-    const textures = Array.from({ length: 7 }, (_, i) => ({
-      id: `t${i}`,
-      name: `tex${i}.dds`,
-      path: '/mods/car.kn5',
-      source: 'kn5' as const,
-      category: 'body' as const,
-      width: 512,
-      height: 512,
-      format: 'BC3',
-      previewUrl: '',
-      isDecoded: false,
-    }))
-    const wrapper = mount(WorkspaceLayout, {
-      props: {
-        mod: makeMod(),
-        textures,
-        focusedTexture: null,
-        queueCount: 0,
-      },
-      global: { stubs: globalStubs },
-    })
-    expect(wrapper.text()).toContain('7')
-  })
-
-  it('shows queue count in StatusBar when queueCount > 0', () => {
-    const wrapper = mount(WorkspaceLayout, {
-      props: {
-        mod: makeMod(),
-        textures: [],
-        focusedTexture: null,
-        queueCount: 3,
-      },
-      global: { stubs: globalStubs },
-    })
-    expect(wrapper.text()).toContain('3 queued')
-  })
-
   it('renders all 3 layout sections', () => {
     const wrapper = mount(WorkspaceLayout, {
-      props: {
-        mod: makeMod(),
-        textures: [],
-        focusedTexture: null,
-        queueCount: 0,
-      },
+      props: { mod: makeMod(), textures: [], focusedTexture: null },
       global: { stubs: globalStubs },
     })
     expect(wrapper.find('[data-testid="kn5-sidebar"]').exists()).toBe(true)
