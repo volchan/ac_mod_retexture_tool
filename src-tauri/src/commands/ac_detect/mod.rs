@@ -24,7 +24,7 @@ const PROBE_STATUS_HIT: &str = "hit";
 const PROBE_STATUS_MISS: &str = "miss";
 
 #[cfg(target_os = "windows")]
-const AC_SUBPATH: &str = "steamapps/common/assettocorsa";
+const AC_SUBPATH: &str = "steamapps\\common\\assettocorsa";
 
 #[cfg(target_os = "windows")]
 const SOURCE_AUTO: &str = "auto";
