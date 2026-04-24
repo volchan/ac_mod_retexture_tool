@@ -1,4 +1,4 @@
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { getAppVersion } from '@/lib/tauri'
 
 const REPO = 'volchan/ac_mod_retexture_tool'
@@ -89,10 +89,18 @@ export function isNewer(candidate: string, baseline: string): boolean {
   return false
 }
 
+const RELEASE_BASE = `https://github.com/${REPO}/releases`
+
+export function releaseUrlFor(version: string): string {
+  if (isBetaVersion(version)) return `${RELEASE_BASE}/tag/v${version}`
+  return `${RELEASE_BASE}/latest`
+}
+
 export function useUpdateCheck() {
   const updateAvailable = ref(false)
   const latestVersion = ref('')
   const currentVersion = ref('')
+  const releaseUrl = computed(() => releaseUrlFor(latestVersion.value))
 
   onMounted(async () => {
     const current = await getAppVersion()
@@ -137,5 +145,5 @@ export function useUpdateCheck() {
     }
   }
 
-  return { updateAvailable, latestVersion, currentVersion }
+  return { updateAvailable, latestVersion, currentVersion, releaseUrl }
 }

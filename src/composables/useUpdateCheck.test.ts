@@ -2,7 +2,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { isBetaVersion, isNewer, useUpdateCheck } from './useUpdateCheck'
+import { isBetaVersion, isNewer, releaseUrlFor, useUpdateCheck } from './useUpdateCheck'
 
 async function withSetup<T>(composable: () => T): Promise<{ result: T; unmount: () => void }> {
   let result!: T
@@ -56,6 +56,23 @@ afterEach(() => {
   setPlatform(originalPlatform)
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+})
+
+// ─── releaseUrlFor unit tests ─────────────────────────────────────────────────
+
+const RELEASES = 'https://github.com/volchan/ac_mod_retexture_tool/releases'
+
+describe('releaseUrlFor', () => {
+  it('returns /releases/latest for stable version', () =>
+    expect(releaseUrlFor('1.0.0')).toBe(`${RELEASES}/latest`))
+  it('returns /releases/latest for empty string', () =>
+    expect(releaseUrlFor('')).toBe(`${RELEASES}/latest`))
+  it('returns /releases/tag/v for beta version', () =>
+    expect(releaseUrlFor('1.0.0-beta.1')).toBe(`${RELEASES}/tag/v1.0.0-beta.1`))
+  it('returns /releases/tag/v for alpha version', () =>
+    expect(releaseUrlFor('2.0.0-alpha.3')).toBe(`${RELEASES}/tag/v2.0.0-alpha.3`))
+  it('returns /releases/tag/v for rc version', () =>
+    expect(releaseUrlFor('1.1.0-rc.1')).toBe(`${RELEASES}/tag/v1.1.0-rc.1`))
 })
 
 // ─── isNewer unit tests ───────────────────────────────────────────────────────

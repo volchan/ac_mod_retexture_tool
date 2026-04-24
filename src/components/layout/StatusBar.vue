@@ -8,9 +8,9 @@ defineProps<{
   queueCount?: number
 }>()
 
-const { updateAvailable, latestVersion, currentVersion } = useUpdateCheck()
+const { updateAvailable, latestVersion, currentVersion, releaseUrl } = useUpdateCheck()
 
-defineExpose({ updateAvailable, latestVersion, currentVersion, openExternalUrl })
+defineExpose({ updateAvailable, latestVersion, currentVersion, releaseUrl, openExternalUrl })
 </script>
 
 <template>
@@ -25,7 +25,7 @@ defineExpose({ updateAvailable, latestVersion, currentVersion, openExternalUrl }
       <button
         v-if="updateAvailable"
         class="text-destructive font-medium hover:underline"
-        @click="openExternalUrl('https://github.com/volchan/ac_mod_retexture_tool/releases/latest')"
+        @click="openExternalUrl(releaseUrl)"
       >
         New version available: v{{ latestVersion }}
       </button>

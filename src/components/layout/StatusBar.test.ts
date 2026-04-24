@@ -1,25 +1,33 @@
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import StatusBar from './StatusBar.vue'
 
+const REPO_BASE = 'https://github.com/volchan/ac_mod_retexture_tool/releases'
+
+function makeUpdateMock(latestVersion: string, updateAvailable = true, currentVersion = '1.0.0') {
+  const latest = ref(latestVersion)
+  return {
+    updateAvailable: ref(updateAvailable),
+    latestVersion: latest,
+    currentVersion: ref(currentVersion),
+    releaseUrl: computed(() =>
+      /-(beta|alpha|rc|pre)/i.test(latest.value)
+        ? `${REPO_BASE}/tag/v${latest.value}`
+        : `${REPO_BASE}/latest`,
+    ),
+  }
+}
+
 vi.mock('@/composables/useUpdateCheck', () => ({
-  useUpdateCheck: vi.fn(() => ({
-    updateAvailable: ref(false),
-    latestVersion: ref(''),
-    currentVersion: ref('1.0.0'),
-  })),
+  useUpdateCheck: vi.fn(() => makeUpdateMock('', false)),
 }))
 
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
 beforeEach(() => {
-  vi.mocked(useUpdateCheck).mockReturnValue({
-    updateAvailable: ref(false),
-    latestVersion: ref(''),
-    currentVersion: ref('1.0.0'),
-  })
+  vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('', false))
 })
 
 afterEach(() => {
@@ -65,11 +73,7 @@ describe('StatusBar', () => {
   })
 
   it('renders clickable update badge when update available', () => {
-    vi.mocked(useUpdateCheck).mockReturnValue({
-      updateAvailable: ref(true),
-      latestVersion: ref('2.0.0'),
-      currentVersion: ref('1.0.0'),
-    })
+    vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('2.0.0'))
     const wrapper = mount(StatusBar)
     const badge = wrapper.find('button')
     expect(badge.exists()).toBe(true)
@@ -77,26 +81,23 @@ describe('StatusBar', () => {
   })
 
   it('shows current version when no update available', () => {
-    vi.mocked(useUpdateCheck).mockReturnValue({
-      updateAvailable: ref(false),
-      latestVersion: ref(''),
-      currentVersion: ref('1.0.0'),
-    })
+    vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('', false))
     const wrapper = mount(StatusBar)
     expect(wrapper.find('button').exists()).toBe(false)
     expect(wrapper.text()).toContain('v1.0.0')
   })
 
-  it('calls openExternalUrl with releases URL on badge click', async () => {
-    vi.mocked(useUpdateCheck).mockReturnValue({
-      updateAvailable: ref(true),
-      latestVersion: ref('2.0.0'),
-      currentVersion: ref('1.0.0'),
-    })
+  it('links to /releases/latest for stable update', async () => {
+    vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('2.0.0'))
     const wrapper = mount(StatusBar)
     await wrapper.find('button').trigger('click')
-    expect(openUrl).toHaveBeenCalledWith(
-      'https://github.com/volchan/ac_mod_retexture_tool/releases/latest',
-    )
+    expect(openUrl).toHaveBeenCalledWith(`${REPO_BASE}/latest`)
+  })
+
+  it('links to specific tag for beta update', async () => {
+    vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('2.0.0-beta.1'))
+    const wrapper = mount(StatusBar)
+    await wrapper.find('button').trigger('click')
+    expect(openUrl).toHaveBeenCalledWith(`${REPO_BASE}/tag/v2.0.0-beta.1`)
   })
 })
