@@ -1,3 +1,4 @@
+pub mod ac_detect;
 pub mod decode;
 pub mod extract;
 pub mod import;
@@ -5,6 +6,7 @@ pub mod repack;
 pub mod scan;
 pub mod texture;
 pub mod track_hero;
+pub use ac_detect::{detect_ac_install, list_ac_content, validate_ac_folder};
 pub use decode::{cancel_decode, decode_mod_textures};
 pub use extract::extract_textures;
 pub use import::scan_import_folder;
