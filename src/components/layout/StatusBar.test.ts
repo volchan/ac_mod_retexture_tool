@@ -28,6 +28,11 @@ import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
 beforeEach(() => {
   vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('', false))
+  vi.spyOn(window, 'matchMedia').mockReturnValue({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  } as unknown as MediaQueryList)
 })
 
 afterEach(() => {
@@ -83,21 +88,34 @@ describe('StatusBar', () => {
   it('shows current version when no update available', () => {
     vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('', false))
     const wrapper = mount(StatusBar)
-    expect(wrapper.find('button').exists()).toBe(false)
+    const updateBtn = wrapper.findAll('button').find((b) => b.text().includes('version'))
+    expect(updateBtn).toBeUndefined()
     expect(wrapper.text()).toContain('v1.0.0')
   })
 
   it('links to /releases/latest for stable update', async () => {
     vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('2.0.0'))
     const wrapper = mount(StatusBar)
-    await wrapper.find('button').trigger('click')
+    const updateBtn = wrapper.findAll('button').find((b) => b.text().includes('New version'))
+    expect(updateBtn).toBeDefined()
+    if (updateBtn) await updateBtn.trigger('click')
     expect(openUrl).toHaveBeenCalledWith(`${REPO_BASE}/latest`)
   })
 
   it('links to specific tag for beta update', async () => {
     vi.mocked(useUpdateCheck).mockReturnValue(makeUpdateMock('2.0.0-beta.1'))
     const wrapper = mount(StatusBar)
-    await wrapper.find('button').trigger('click')
+    const updateBtn = wrapper.findAll('button').find((b) => b.text().includes('New version'))
+    expect(updateBtn).toBeDefined()
+    if (updateBtn) await updateBtn.trigger('click')
     expect(openUrl).toHaveBeenCalledWith(`${REPO_BASE}/tag/v2.0.0-beta.1`)
+  })
+
+  it('renders theme toggle button', () => {
+    const wrapper = mount(StatusBar)
+    const themeBtn = wrapper
+      .findAll('button')
+      .find((b) => b.attributes('aria-label')?.startsWith('Theme:'))
+    expect(themeBtn).toBeDefined()
   })
 })

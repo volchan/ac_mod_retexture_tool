@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { useTheme } from '@/composables/useTheme'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import { openExternalUrl } from '@/lib/tauri'
 
@@ -9,8 +12,24 @@ defineProps<{
 }>()
 
 const { updateAvailable, latestVersion, currentVersion, releaseUrl } = useUpdateCheck()
+const { mode, cycleMode } = useTheme()
 
-defineExpose({ updateAvailable, latestVersion, currentVersion, releaseUrl, openExternalUrl })
+const themeIcon = computed(() => {
+  if (mode.value === 'dark') return MoonIcon
+  if (mode.value === 'system') return MonitorIcon
+  return SunIcon
+})
+
+defineExpose({
+  updateAvailable,
+  latestVersion,
+  currentVersion,
+  releaseUrl,
+  openExternalUrl,
+  mode,
+  cycleMode,
+  themeIcon,
+})
 </script>
 
 <template>
@@ -33,6 +52,14 @@ defineExpose({ updateAvailable, latestVersion, currentVersion, releaseUrl, openE
     </span>
     <span class="text-right flex items-center justify-end gap-2">
       <span v-if="modName && (queueCount ?? 0) > 0" class="text-[var(--accent-text)] font-medium">{{ queueCount }} queued</span>
+      <button
+        type="button"
+        class="inline-flex items-center justify-center w-4 h-4 hover:text-foreground transition-colors"
+        :aria-label="`Theme: ${mode}`"
+        @click="cycleMode()"
+      >
+        <component :is="themeIcon" class="w-3 h-3" />
+      </button>
     </span>
   </footer>
 </template>
