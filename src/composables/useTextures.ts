@@ -107,7 +107,7 @@ export function useTextures() {
       )
     ).filter((m): m is MatchedTexture => m !== null)
 
-    if (matched.length > 0) applyReplacements(matched)
+    if (matched.length > 0 && modPath === currentModPath.value) applyReplacements(matched)
   }
 
   function setImportFolder(folder: string) {

@@ -141,7 +141,7 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
 }
 
 const tree = computed<TreeNode[]>(() =>
-  buildTree(props.mod.path, props.mod.files, props.mod.skinFolders),
+  buildTree(props.mod.path, props.mod.files, props.mod.skinFolders ?? []),
 )
 
 function toggleFolder(path: string) {

@@ -13,10 +13,10 @@ pub fn parse_library_paths(content: &str) -> Vec<String> {
 
 fn extract_path_value(line: &str) -> Option<String> {
     let line = line.trim_start_matches('"');
-    if !line.starts_with("path") {
+    if !line.starts_with("path\"") {
         return None;
     }
-    let after_key = line["path".len()..].trim_start_matches('"').trim();
+    let after_key = line["path\"".len()..].trim();
     let value = after_key.trim_start_matches('"');
     let end = value.find('"')?;
     let path = &value[..end];

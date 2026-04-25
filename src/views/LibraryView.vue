@@ -179,6 +179,7 @@ defineExpose({
             v-model="searchQuery"
             type="text"
             placeholder="Search…"
+            aria-label="Search mods"
             class="w-full h-7 pl-7 pr-2.5 text-[12px] bg-card border border-border rounded-[7px] outline-none focus:border-primary transition-colors"
           />
         </div>

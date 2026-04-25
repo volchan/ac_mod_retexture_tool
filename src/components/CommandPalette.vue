@@ -165,7 +165,8 @@ function handleKey(e: KeyboardEvent) {
   }
   if (e.key === 'ArrowDown') {
     e.preventDefault()
-    activeIdx.value = Math.min(activeIdx.value + 1, flatFiltered.value.length - 1)
+    if (flatFiltered.value.length > 0)
+      activeIdx.value = Math.min(activeIdx.value + 1, flatFiltered.value.length - 1)
   }
   if (e.key === 'ArrowUp') {
     e.preventDefault()

@@ -56,20 +56,19 @@ pub async fn list_ac_content(
     app: tauri::AppHandle,
     path: String,
 ) -> Result<Vec<LibraryEntry>, String> {
-    use std::path::Path;
-
-    let root = Path::new(&path);
-    let cars_dir = root.join("content/cars");
-    let tracks_dir = root.join("content/tracks");
-
-    if !cars_dir.is_dir() {
-        return Err("Missing: content/cars".to_string());
-    }
-    if !tracks_dir.is_dir() {
-        return Err("Missing: content/tracks".to_string());
-    }
+    let root = std::path::PathBuf::from(&path);
 
     let entries = tokio::task::spawn_blocking(move || {
+        let cars_dir = root.join("content/cars");
+        let tracks_dir = root.join("content/tracks");
+
+        if !cars_dir.is_dir() {
+            return Err("Missing: content/cars".to_string());
+        }
+        if !tracks_dir.is_dir() {
+            return Err("Missing: content/tracks".to_string());
+        }
+
         let mut entries: Vec<LibraryEntry> = Vec::new();
         for (id, folder_path) in walk_content_dir(&cars_dir) {
             let entry = build_car_entry(&id, &folder_path);
@@ -81,10 +80,10 @@ pub async fn list_ac_content(
             let _ = app.emit(EVENT_AC_LIBRARY_ENTRY, &entry);
             entries.push(entry);
         }
-        entries
+        Ok::<Vec<LibraryEntry>, String>(entries)
     })
     .await
-    .map_err(|e| format!("Task failed: {e}"))?;
+    .map_err(|e| format!("Task failed: {e}"))??;
 
     Ok(entries)
 }

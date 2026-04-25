@@ -1,6 +1,11 @@
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openUrl: vi.fn(),
+}))
+
 import { computed, ref } from 'vue'
 import StatusBar from './StatusBar.vue'
 

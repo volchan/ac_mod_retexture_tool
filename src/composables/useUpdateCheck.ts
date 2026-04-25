@@ -61,18 +61,25 @@ const PRE_ORDER: Record<string, number> = { alpha: 0, beta: 1, pre: 2, rc: 3 }
 
 function comparePre(a: string, b: string): number {
   if (a === b) return 0
-  const re = /^([a-z]+)\.?(\d+)?$/i
-  const ma = a.match(re)
-  const mb = b.match(re)
-  if (!ma || !mb) return a.localeCompare(b)
-  const labelA = ma[1].toLowerCase()
-  const labelB = mb[1].toLowerCase()
-  if (labelA !== labelB) {
-    const orderA = PRE_ORDER[labelA] ?? 99
-    const orderB = PRE_ORDER[labelB] ?? 99
+  const parsePrerelease = (s: string) => {
+    const parts = s.split('.')
+    const label = /^[a-z]+$/i.test(parts[0]) ? parts[0].toLowerCase() : ''
+    const nums = (label ? parts.slice(1) : parts).map((p) => parseInt(p, 10) || 0)
+    return { label, nums }
+  }
+  const pa = parsePrerelease(a)
+  const pb = parsePrerelease(b)
+  if (pa.label !== pb.label) {
+    const orderA = PRE_ORDER[pa.label] ?? 99
+    const orderB = PRE_ORDER[pb.label] ?? 99
     return orderA - orderB
   }
-  return (parseInt(ma[2] ?? '0', 10) || 0) - (parseInt(mb[2] ?? '0', 10) || 0)
+  const len = Math.max(pa.nums.length, pb.nums.length)
+  for (let i = 0; i < len; i++) {
+    const diff = (pa.nums[i] ?? 0) - (pb.nums[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
 }
 
 export function isNewer(candidate: string, baseline: string): boolean {
