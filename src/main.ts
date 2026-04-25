@@ -21,7 +21,7 @@ const params = new URLSearchParams(window.location.search)
     const splash = document.getElementById('splash')
     if (splash) {
       splash.style.opacity = '0'
-      splash.addEventListener('transitionend', () => splash.remove(), { once: true })
+      setTimeout(() => splash.remove(), 250)
     }
   }
 })()
