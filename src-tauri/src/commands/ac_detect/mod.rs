@@ -72,19 +72,19 @@ pub async fn list_ac_content(
     let entries = tokio::task::spawn_blocking(move || {
         let mut entries: Vec<LibraryEntry> = Vec::new();
         for (id, folder_path) in walk_content_dir(&cars_dir) {
-            entries.push(build_car_entry(&id, &folder_path));
+            let entry = build_car_entry(&id, &folder_path);
+            let _ = app.emit(EVENT_AC_LIBRARY_ENTRY, &entry);
+            entries.push(entry);
         }
         for (id, folder_path) in walk_content_dir(&tracks_dir) {
-            entries.push(build_track_entry(&id, &folder_path));
+            let entry = build_track_entry(&id, &folder_path);
+            let _ = app.emit(EVENT_AC_LIBRARY_ENTRY, &entry);
+            entries.push(entry);
         }
         entries
     })
     .await
     .map_err(|e| format!("Task failed: {e}"))?;
-
-    for entry in &entries {
-        let _ = app.emit(EVENT_AC_LIBRARY_ENTRY, entry);
-    }
 
     Ok(entries)
 }
