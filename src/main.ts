@@ -1,3 +1,4 @@
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { createApp } from 'vue'
 import './assets/styles/globals.css'
 
@@ -11,6 +12,8 @@ const params = new URLSearchParams(window.location.search)
     const { default: App } = await import('./App.vue')
     createApp(App).mount('#app')
   }
+
+  await getCurrentWebviewWindow().show()
 
   const splash = document.getElementById('splash')
   if (splash) {
