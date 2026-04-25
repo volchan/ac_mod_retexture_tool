@@ -69,7 +69,10 @@ defineExpose({
 
 <template>
   <div
-    class="relative cursor-pointer rounded-[8px] overflow-hidden bg-card border transition-all hover:shadow-md"
+    class="relative cursor-pointer rounded-[8px] overflow-hidden bg-card border transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    role="button"
+    tabindex="0"
+    :aria-pressed="props.isSelected"
     :class="[
       props.isSelected
         ? 'border-primary shadow-[0_0_0_1px_var(--color-primary)]'
@@ -80,6 +83,8 @@ defineExpose({
             : 'border-border hover:border-border/80',
     ]"
     @click="handleToggleSelect"
+    @keydown.enter="handleToggleSelect"
+    @keydown.space.prevent="handleToggleSelect"
   >
     <!-- Selected checkmark -->
     <div

@@ -202,13 +202,14 @@ async function handleOpenDetail(id: string) {
   if (texture) await openTexturePreviewWindow(texture, props.mod.path)
 }
 
-const { extractTick, importPath } = useGlobalCommands()
+const { extractTick, importPath, importTick } = useGlobalCommands()
 
 watch(extractTick, () => {
   if (textures.value.length > 0) extractDialogOpen.value = true
 })
 
-watch(importPath, (path) => {
+watch(importTick, () => {
+  const path = importPath.value
   if (path) handleImport(path).catch((err) => console.error('[TexturePanel] Import failed:', err))
 })
 

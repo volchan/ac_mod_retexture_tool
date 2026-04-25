@@ -105,12 +105,14 @@ function loadStoredAccent(): AccentKey {
 }
 
 const accent = ref<AccentKey>(loadStoredAccent())
+const watchedTheme = ref<'light' | 'dark'>('light')
 
 function applyAccentVars(key: AccentKey, isDark: boolean) {
   if (typeof document === 'undefined') return
   const tokens = isDark ? ACCENTS[key].dark : ACCENTS[key].light
   const el = document.documentElement
   el.style.setProperty('--primary', tokens.base)
+  el.style.setProperty('--primary-hover', tokens.hover)
   el.style.setProperty('--primary-foreground', tokens.fg)
   el.style.setProperty('--ring', tokens.base)
   el.style.setProperty('--accent-muted', tokens.muted)
@@ -133,11 +135,19 @@ function setAccent(key: AccentKey) {
 
 let watcherInitialized = false
 
+function setTheme(t: 'light' | 'dark') {
+  watchedTheme.value = t
+}
+
 export function useAccent() {
   if (!watcherInitialized) {
     watcherInitialized = true
     const { theme } = useTheme()
-    watch(theme, (t) => applyAccentVars(accent.value, t === 'dark'), { immediate: true })
+    watchedTheme.value = theme.value
+    watch(theme, (t) => {
+      watchedTheme.value = t
+    })
+    watch(watchedTheme, (t) => applyAccentVars(accent.value, t === 'dark'), { immediate: true })
   }
-  return { accent, setAccent, ACCENTS }
+  return { accent, setAccent, setTheme, ACCENTS }
 }

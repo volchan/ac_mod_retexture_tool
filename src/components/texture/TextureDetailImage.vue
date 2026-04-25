@@ -228,13 +228,22 @@ defineExpose({
       :class="isSliding ? 'cursor-ew-resize' : isDragging ? 'cursor-grabbing' : 'cursor-grab'"
       @mousedown="onMouseDown"
     >
-      <!-- Loading overlay -->
+      <!-- Loading overlay (original only) -->
       <div
-        v-if="isLoadingOriginal || isLoadingReplacement"
+        v-if="isLoadingOriginal"
         class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-sm"
       >
         <Loader2Icon class="animate-spin text-foreground" :size="36" />
         <span class="text-xs text-muted-foreground">Loading texture…</span>
+      </div>
+
+      <!-- Replacement loading badge (non-blocking) -->
+      <div
+        v-if="isLoadingReplacement && !isLoadingOriginal"
+        class="absolute top-2 left-2 z-20 flex items-center gap-1.5 px-2 py-1 rounded bg-black/60 text-white text-[10.5px]"
+      >
+        <Loader2Icon class="animate-spin" :size="12" />
+        Loading replacement…
       </div>
 
       <!-- Error state -->

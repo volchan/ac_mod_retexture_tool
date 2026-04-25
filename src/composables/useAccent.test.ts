@@ -135,9 +135,14 @@ describe('useAccent', () => {
     const { result, unmount } = await withSetup(() => useAccent())
     result.setAccent('cobalt')
     await nextTick()
+    const primaryLight = document.documentElement.style.getPropertyValue('--primary')
+    expect(primaryLight).toBeTruthy()
 
-    const primary = document.documentElement.style.getPropertyValue('--primary')
-    expect(primary).toBeTruthy()
+    result.setTheme('dark')
+    await nextTick()
+    const primaryDark = document.documentElement.style.getPropertyValue('--primary')
+    expect(primaryDark).toBeTruthy()
+    expect(primaryDark).not.toBe(primaryLight)
     unmount()
   })
 

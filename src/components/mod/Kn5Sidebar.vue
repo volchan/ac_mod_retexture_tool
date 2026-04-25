@@ -103,7 +103,10 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
 
   if (skinFolders.length > 0) {
     const skinsPath = `${base}/skins`
-    const skinsNode: TreeNode = { name: 'skins', path: skinsPath, isDir: true, children: [] }
+    let skinsNode = nodeMap.get(skinsPath)
+    if (!skinsNode) {
+      skinsNode = { name: 'skins', path: skinsPath, isDir: true, children: [] }
+    }
     for (const skin of skinFolders) {
       const skinPath = normalizePath(skin.path)
       const skinNode: TreeNode = { name: skin.name, path: skinPath, isDir: true, children: [] }
@@ -120,7 +123,9 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
       skinsNode.children.push(skinNode)
     }
     skinsNode.children.sort((a, b) => a.name.localeCompare(b.name))
-    roots.push(skinsNode)
+    if (!nodeMap.has(skinsPath)) {
+      roots.push(skinsNode)
+    }
   }
 
   function sort(nodes: TreeNode[]) {

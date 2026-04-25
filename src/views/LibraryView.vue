@@ -65,6 +65,7 @@ watch(
   (path) => {
     if (path) scanLibrary(path)
   },
+  { immediate: true },
 )
 
 onMounted(() => {
@@ -139,7 +140,11 @@ defineExpose({
 
       <div
         class="border-2 border-dashed border-border rounded-xl px-6 py-7 text-center bg-card mb-6 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all"
+        role="button"
+        tabindex="0"
         @click="emit('browse')"
+        @keydown.enter="emit('browse')"
+        @keydown.space.prevent="emit('browse')"
       >
         <div
           class="w-11 h-11 rounded-xl bg-[var(--accent-muted)] inline-flex items-center justify-center text-primary mb-3"

@@ -44,6 +44,14 @@ onUnmounted(() => {
 
 async function handleGlobalKey(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey)) return
+  const target = e.target as HTMLElement
+  if (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT' ||
+    target.isContentEditable
+  )
+    return
   const key = e.key.toLowerCase()
   if (key === 'k') {
     e.preventDefault()

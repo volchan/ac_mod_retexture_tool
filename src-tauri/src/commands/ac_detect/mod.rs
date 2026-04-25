@@ -46,7 +46,9 @@ pub async fn detect_ac_install(app: tauri::AppHandle) -> AcDetectResult {
 
 #[tauri::command]
 pub async fn validate_ac_folder(path: String) -> Result<AcInstallInfo, String> {
-    validate_path(&path)
+    tokio::task::spawn_blocking(move || validate_path(&path))
+        .await
+        .map_err(|e| format!("Task failed: {e}"))?
 }
 
 #[tauri::command]
@@ -67,18 +69,21 @@ pub async fn list_ac_content(
         return Err("Missing: content/tracks".to_string());
     }
 
-    let mut entries: Vec<LibraryEntry> = Vec::new();
+    let entries = tokio::task::spawn_blocking(move || {
+        let mut entries: Vec<LibraryEntry> = Vec::new();
+        for (id, folder_path) in walk_content_dir(&cars_dir) {
+            entries.push(build_car_entry(&id, &folder_path));
+        }
+        for (id, folder_path) in walk_content_dir(&tracks_dir) {
+            entries.push(build_track_entry(&id, &folder_path));
+        }
+        entries
+    })
+    .await
+    .map_err(|e| format!("Task failed: {e}"))?;
 
-    for (id, folder_path) in walk_content_dir(&cars_dir) {
-        let entry = build_car_entry(&id, &folder_path);
-        let _ = app.emit(EVENT_AC_LIBRARY_ENTRY, &entry);
-        entries.push(entry);
-    }
-
-    for (id, folder_path) in walk_content_dir(&tracks_dir) {
-        let entry = build_track_entry(&id, &folder_path);
-        let _ = app.emit(EVENT_AC_LIBRARY_ENTRY, &entry);
-        entries.push(entry);
+    for entry in &entries {
+        let _ = app.emit(EVENT_AC_LIBRARY_ENTRY, entry);
     }
 
     Ok(entries)

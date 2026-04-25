@@ -15,10 +15,10 @@ export function useAcDetection() {
   const validationError = ref<string | null>(null)
 
   async function persist(acInstall: AcInstall): Promise<void> {
-    install.value = acInstall
     const store = await load('settings.json')
     await store.set(STORE_KEY, acInstall)
     await store.save()
+    install.value = acInstall
   }
 
   async function startDetection(): Promise<void> {

@@ -76,6 +76,7 @@ export function useTextures() {
   }
 
   async function restoreReplacements(modPath: string): Promise<void> {
+    if (modPath !== currentModPath.value) return
     const state = await loadModState(modPath)
     if (!state || state.replacements.length === 0) return
 

@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useGlobalCommands } from './useGlobalCommands'
 
 beforeEach(() => {
-  const { extractTick, importPath, queueTick } = useGlobalCommands()
+  const { extractTick, importPath, importTick, queueTick } = useGlobalCommands()
   extractTick.value = 0
   importPath.value = null
+  importTick.value = 0
   queueTick.value = 0
 })
 
@@ -34,10 +35,20 @@ describe('useGlobalCommands', () => {
     expect(importPath.value).toBeNull()
   })
 
-  it('triggerImport sets importPath', () => {
-    const { importPath, triggerImport } = useGlobalCommands()
+  it('triggerImport sets importPath and bumps importTick', () => {
+    const { importPath, importTick, triggerImport } = useGlobalCommands()
+    const before = importTick.value
     triggerImport('/some/folder')
     expect(importPath.value).toBe('/some/folder')
+    expect(importTick.value).toBe(before + 1)
+  })
+
+  it('triggerImport re-triggers when called with same path', () => {
+    const { importTick, triggerImport } = useGlobalCommands()
+    const before = importTick.value
+    triggerImport('/same')
+    triggerImport('/same')
+    expect(importTick.value).toBe(before + 2)
   })
 
   it('triggerImport overwrites previous path', () => {
