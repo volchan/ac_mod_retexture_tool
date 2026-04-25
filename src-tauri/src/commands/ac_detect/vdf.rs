@@ -23,7 +23,12 @@ fn extract_path_value(line: &str) -> Option<String> {
     if path.is_empty() {
         return None;
     }
-    Some(path.replace("\\\\", "\\"))
+    let normalized = path.replace("\\\\", "\\");
+    if cfg!(target_os = "windows") {
+        Some(normalized.replace('/', "\\"))
+    } else {
+        Some(normalized)
+    }
 }
 
 #[cfg(test)]

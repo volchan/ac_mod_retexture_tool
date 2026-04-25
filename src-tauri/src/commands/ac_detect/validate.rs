@@ -11,6 +11,14 @@ const APP_MANIFEST: &str = "../appmanifest_244210.acf";
 const BUILD_INI: &str = "content/system/build.ini";
 const VERSION_PREFIX: &str = "VERSION=";
 
+fn normalize_path(path: &str) -> String {
+    if cfg!(target_os = "windows") {
+        path.replace('/', "\\")
+    } else {
+        path.to_string()
+    }
+}
+
 pub fn validate_path(path: &str) -> Result<AcInstallInfo, String> {
     let root = Path::new(path);
 
@@ -39,7 +47,7 @@ pub fn validate_path(path: &str) -> Result<AcInstallInfo, String> {
     let track_count = count_subdirs(&tracks_dir);
 
     Ok(AcInstallInfo {
-        path: path.to_string(),
+        path: normalize_path(path),
         version,
         car_count,
         track_count,
