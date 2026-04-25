@@ -203,4 +203,90 @@ mod tests {
         let result = validate_path(dir.path().to_str().unwrap()).unwrap();
         assert_eq!(result.version, Some("1.16.4".to_string()));
     }
+
+    #[test]
+    fn test_validate_ac_folder_accepts_appmanifest_instead_of_exe() {
+        let outer = TempDir::new().unwrap();
+        let install = outer.path().join("assettocorsa");
+        fs::create_dir_all(install.join("content/cars/car_a")).unwrap();
+        fs::create_dir_all(install.join("content/tracks/track_a")).unwrap();
+        // No acs.exe — create appmanifest in outer (one level up from install)
+        fs::write(outer.path().join("appmanifest_244210.acf"), b"").unwrap();
+        let result = validate_path(install.to_str().unwrap());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_count_subdirs_counts_only_dirs() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir(dir.path().join("a")).unwrap();
+        fs::create_dir(dir.path().join("b")).unwrap();
+        fs::write(dir.path().join("file.txt"), b"").unwrap();
+        assert_eq!(count_subdirs(dir.path()), 2);
+    }
+
+    #[test]
+    fn test_count_subdirs_empty_dir() {
+        let dir = TempDir::new().unwrap();
+        assert_eq!(count_subdirs(dir.path()), 0);
+    }
+
+    #[test]
+    fn test_string_field_returns_value() {
+        let json = serde_json::json!({ "name": "Spa" });
+        assert_eq!(string_field(&json, "name"), Some("Spa".to_string()));
+    }
+
+    #[test]
+    fn test_string_field_returns_none_for_empty() {
+        let json = serde_json::json!({ "name": "" });
+        assert_eq!(string_field(&json, "name"), None);
+    }
+
+    #[test]
+    fn test_string_field_returns_none_for_missing_key() {
+        let json = serde_json::json!({});
+        assert_eq!(string_field(&json, "name"), None);
+    }
+
+    #[test]
+    fn test_find_ui_json_flat() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("ui_car.json"), br#"{"name":"Test"}"#).unwrap();
+        let val = find_ui_json(dir.path(), "ui_car.json");
+        assert_eq!(string_field(&val, "name"), Some("Test".to_string()));
+    }
+
+    #[test]
+    fn test_find_ui_json_ui_subdir() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir(dir.path().join("ui")).unwrap();
+        fs::write(dir.path().join("ui/ui_car.json"), br#"{"name":"Sub"}"#).unwrap();
+        let val = find_ui_json(dir.path(), "ui_car.json");
+        assert_eq!(string_field(&val, "name"), Some("Sub".to_string()));
+    }
+
+    #[test]
+    fn test_count_layout_dirs_single_layout() {
+        let dir = TempDir::new().unwrap();
+        // No ui dir → 1 layout
+        assert_eq!(count_layout_dirs(dir.path()), 1);
+    }
+
+    #[test]
+    fn test_count_layout_dirs_multi_layout() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("ui/layout_a")).unwrap();
+        fs::create_dir_all(dir.path().join("ui/layout_b")).unwrap();
+        assert_eq!(count_layout_dirs(dir.path()), 2);
+    }
+
+    #[test]
+    fn test_count_texture_files() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.dds"), b"").unwrap();
+        fs::write(dir.path().join("b.png"), b"").unwrap();
+        fs::write(dir.path().join("c.txt"), b"").unwrap();
+        assert_eq!(count_texture_files(dir.path()), 2);
+    }
 }

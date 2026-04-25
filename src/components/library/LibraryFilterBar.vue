@@ -23,7 +23,12 @@ const SEGMENT_BTN =
 const SEGMENT_ACTIVE = 'bg-primary text-primary-foreground'
 const SEGMENT_IDLE = 'bg-transparent text-muted-foreground hover:text-foreground'
 
-defineExpose({ SearchIcon, SEGMENT_BTN, SEGMENT_ACTIVE, SEGMENT_IDLE, emit })
+function handleSortChange(e: Event) {
+  const value = (e.target as HTMLSelectElement).value
+  if (value === 'name' || value === 'textures') emit('update:sortBy', value)
+}
+
+defineExpose({ SearchIcon, SEGMENT_BTN, SEGMENT_ACTIVE, SEGMENT_IDLE, handleSortChange, emit })
 </script>
 
 <template>
@@ -98,7 +103,7 @@ defineExpose({ SearchIcon, SEGMENT_BTN, SEGMENT_ACTIVE, SEGMENT_IDLE, emit })
     <select
       :value="sortBy"
       class="text-[12px] h-7 px-2 pr-6 bg-card border border-border rounded-[7px] outline-none focus:border-primary transition-colors cursor-pointer appearance-none shrink-0"
-      @change="emit('update:sortBy', ($event.target as HTMLSelectElement).value as 'name' | 'textures')"
+      @change="handleSortChange"
     >
       <option value="name">Name A–Z</option>
       <option value="textures">Textures count</option>

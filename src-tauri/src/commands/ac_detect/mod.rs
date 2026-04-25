@@ -165,7 +165,13 @@ mod windows {
 
         for steam_root in &steam_roots {
             let vdf_path = std::path::Path::new(steam_root).join(VDF_LIBRARY_FOLDERS);
-            if let Ok(content) = std::fs::read_to_string(&vdf_path) {
+            let vdf_path_owned = vdf_path.to_path_buf();
+            let content =
+                tokio::task::spawn_blocking(move || std::fs::read_to_string(vdf_path_owned))
+                    .await
+                    .ok()
+                    .and_then(|r| r.ok());
+            if let Some(content) = content {
                 for lib_path in super::vdf::parse_library_paths(&content) {
                     static_candidates.push((
                         format!("{lib_path}\\{AC_SUBPATH}"),
@@ -175,16 +181,23 @@ mod windows {
             }
         }
 
-        for drive in b'C'..=b'Z' {
-            let letter = drive as char;
-            let drive_root = format!("{letter}:\\");
-            if std::path::Path::new(&drive_root).exists() {
-                static_candidates.push((
-                    format!("{letter}:\\SteamLibrary\\{AC_SUBPATH}"),
-                    format!("Drive {letter}:"),
-                ));
+        let drive_candidates = tokio::task::spawn_blocking(|| {
+            let mut candidates = Vec::new();
+            for drive in b'C'..=b'Z' {
+                let letter = drive as char;
+                let drive_root = format!("{letter}:\\");
+                if std::path::Path::new(&drive_root).exists() {
+                    candidates.push((
+                        format!("{letter}:\\SteamLibrary\\{AC_SUBPATH}"),
+                        format!("Drive {letter}:"),
+                    ));
+                }
             }
-        }
+            candidates
+        })
+        .await
+        .unwrap_or_default();
+        static_candidates.extend(drive_candidates);
 
         if let Some(path) =
             read_registry_string(HKEY_LOCAL_MACHINE, REG_AC_STANDALONE, "InstallPath")

@@ -98,7 +98,8 @@ function loadStoredAccent(): AccentKey {
     if (typeof window === 'undefined') return 'cobalt'
     const stored = localStorage.getItem(STORAGE_KEY)
     return stored && stored in ACCENTS ? (stored as AccentKey) : 'cobalt'
-  } catch {
+  } catch (error) {
+    console.warn('[useAccent] Failed to load accent from localStorage:', error)
     return 'cobalt'
   }
 }
@@ -122,8 +123,8 @@ function setAccent(key: AccentKey) {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(STORAGE_KEY, key)
-    } catch {
-      // storage unavailable
+    } catch (error) {
+      console.warn('[useAccent] Failed to persist accent to localStorage:', error)
     }
   }
   const { theme } = useTheme()

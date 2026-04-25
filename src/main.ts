@@ -13,11 +13,15 @@ const params = new URLSearchParams(window.location.search)
     createApp(App).mount('#app')
   }
 
-  await getCurrentWebviewWindow().show()
-
-  const splash = document.getElementById('splash')
-  if (splash) {
-    splash.style.opacity = '0'
-    splash.addEventListener('transitionend', () => splash.remove(), { once: true })
+  try {
+    await getCurrentWebviewWindow().show()
+  } catch (error) {
+    console.error('[main] Failed to show webview window:', error)
+  } finally {
+    const splash = document.getElementById('splash')
+    if (splash) {
+      splash.style.opacity = '0'
+      splash.addEventListener('transitionend', () => splash.remove(), { once: true })
+    }
   }
 })()

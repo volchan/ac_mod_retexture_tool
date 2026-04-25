@@ -73,6 +73,8 @@ describe('releaseUrlFor', () => {
     expect(releaseUrlFor('2.0.0-alpha.3')).toBe(`${RELEASES}/tag/v2.0.0-alpha.3`))
   it('returns /releases/tag/v for rc version', () =>
     expect(releaseUrlFor('1.1.0-rc.1')).toBe(`${RELEASES}/tag/v1.1.0-rc.1`))
+  it('strips leading v prefix to avoid double-v in tag URL', () =>
+    expect(releaseUrlFor('v1.0.0-beta.1')).toBe(`${RELEASES}/tag/v1.0.0-beta.1`))
 })
 
 // ─── isNewer unit tests ───────────────────────────────────────────────────────

@@ -92,7 +92,8 @@ export function isNewer(candidate: string, baseline: string): boolean {
 const RELEASE_BASE = `https://github.com/${REPO}/releases`
 
 export function releaseUrlFor(version: string): string {
-  if (isBetaVersion(version)) return `${RELEASE_BASE}/tag/v${version}`
+  const v = version.replace(/^v/i, '')
+  if (isBetaVersion(v)) return `${RELEASE_BASE}/tag/v${v}`
   return `${RELEASE_BASE}/latest`
 }
 
@@ -112,8 +113,8 @@ export function useUpdateCheck() {
       } else {
         await checkLatestStable(current)
       }
-    } catch {
-      // silent — no network or no release yet
+    } catch (error) {
+      console.debug('[useUpdateCheck] Update check skipped:', error)
     }
   })
 

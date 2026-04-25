@@ -1,4 +1,4 @@
-import { load } from '@tauri-apps/plugin-store'
+import { load, type Store } from '@tauri-apps/plugin-store'
 import { ref } from 'vue'
 import type { Mod, RecentMod } from '@/types/index'
 
@@ -6,17 +6,31 @@ const STORE_KEY = 'recent-mods'
 const MAX_RECENTS = 10
 
 const recentMods = ref<RecentMod[]>([])
+let storeInstance: Store | null = null
+
+async function getStore(): Promise<Store> {
+  if (!storeInstance) storeInstance = await load('settings.json')
+  return storeInstance
+}
 
 async function loadFromStore() {
-  const store = await load('settings.json')
-  const stored = await store.get<RecentMod[]>(STORE_KEY)
-  if (stored) recentMods.value = stored
+  try {
+    const store = await getStore()
+    const stored = await store.get<RecentMod[]>(STORE_KEY)
+    if (stored) recentMods.value = stored
+  } catch (error) {
+    console.error('[useLibrary] Failed to load recent mods:', error)
+  }
 }
 
 async function saveToStore() {
-  const store = await load('settings.json')
-  await store.set(STORE_KEY, recentMods.value)
-  await store.save()
+  try {
+    const store = await getStore()
+    await store.set(STORE_KEY, recentMods.value)
+    await store.save()
+  } catch (error) {
+    console.error('[useLibrary] Failed to save recent mods:', error)
+  }
 }
 
 export function useLibrary() {

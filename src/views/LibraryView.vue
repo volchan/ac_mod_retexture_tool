@@ -41,6 +41,21 @@ const filtered = computed(() =>
   getFiltered(query.value, typeFilter.value, sourceFilter.value, sortBy.value),
 )
 
+type ModTypeKey = 'car' | 'track'
+const groupedFiltered = computed(() => {
+  const result = {} as Record<
+    ModTypeKey,
+    { mods: typeof filtered.value; kunos: typeof filtered.value }
+  >
+  for (const t of ['car', 'track'] as ModTypeKey[]) {
+    result[t] = {
+      mods: filtered.value.filter((m) => m.modType === t && !m.isKunos),
+      kunos: filtered.value.filter((m) => m.modType === t && m.isKunos),
+    }
+  }
+  return result
+})
+
 const filteredRecent = computed(() =>
   recentMods.value.filter((m) => m.name.toLowerCase().includes(searchQuery.value.toLowerCase())),
 )
@@ -88,6 +103,7 @@ defineExpose({
   isScanning,
   scannedCount,
   filtered,
+  groupedFiltered,
   filteredRecent,
   typeFilter,
   sourceFilter,
@@ -303,20 +319,20 @@ defineExpose({
           </div>
         </template>
 
-        <template v-for="groupType in (['car', 'track'] as ModType[])" :key="groupType">
-          <template v-if="filtered.filter((m) => m.modType === groupType).length > 0">
-            <template
-              v-if="filtered.filter((m) => m.modType === groupType && !m.isKunos).length > 0"
-            >
+        <template v-for="groupType in (['car', 'track'] as ModTypeKey[])" :key="groupType">
+          <template
+            v-if="groupedFiltered[groupType].mods.length > 0 || groupedFiltered[groupType].kunos.length > 0"
+          >
+            <template v-if="groupedFiltered[groupType].mods.length > 0">
               <div
                 class="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--accent-text)] mb-2 mt-5 first:mt-0"
               >
                 {{ groupType === 'car' ? 'Cars' : 'Tracks' }} — Mods ·
-                {{ filtered.filter((m) => m.modType === groupType && !m.isKunos).length }}
+                {{ groupedFiltered[groupType].mods.length }}
               </div>
               <div class="grid gap-2.5 grid-cols-[repeat(auto-fill,minmax(260px,1fr))] mb-4">
                 <InstalledModCard
-                  v-for="entry in filtered.filter((m) => m.modType === groupType && !m.isKunos)"
+                  v-for="entry in groupedFiltered[groupType].mods"
                   :key="entry.id"
                   :entry="entry"
                   @open="handleOpen(entry.path, entry.modType)"
@@ -325,20 +341,17 @@ defineExpose({
             </template>
 
             <template
-              v-if="
-                sourceFilter !== 'mods' &&
-                filtered.filter((m) => m.modType === groupType && m.isKunos).length > 0
-              "
+              v-if="sourceFilter !== 'mods' && groupedFiltered[groupType].kunos.length > 0"
             >
               <div
                 class="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-2 mt-5 first:mt-0"
               >
                 {{ groupType === 'car' ? 'Cars' : 'Tracks' }} — Kunos ·
-                {{ filtered.filter((m) => m.modType === groupType && m.isKunos).length }}
+                {{ groupedFiltered[groupType].kunos.length }}
               </div>
               <div class="grid gap-2.5 grid-cols-[repeat(auto-fill,minmax(260px,1fr))] mb-4">
                 <InstalledModCard
-                  v-for="entry in filtered.filter((m) => m.modType === groupType && m.isKunos)"
+                  v-for="entry in groupedFiltered[groupType].kunos"
                   :key="entry.id"
                   :entry="entry"
                   @open="handleOpen(entry.path, entry.modType)"

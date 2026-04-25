@@ -209,7 +209,7 @@ watch(extractTick, () => {
 })
 
 watch(importPath, (path) => {
-  if (path) handleImport(path)
+  if (path) handleImport(path).catch((err) => console.error('[TexturePanel] Import failed:', err))
 })
 
 onMounted(async () => {

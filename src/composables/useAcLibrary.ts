@@ -3,12 +3,11 @@ import { listAcContent, onAcLibraryEntry } from '@/lib/tauri'
 import type { LibraryEntry, ModType } from '@/types/index'
 
 let activeScanId = 0
+const entries = ref<LibraryEntry[]>([])
+const isScanning = ref(false)
+const scannedCount = ref(0)
 
 export function useAcLibrary() {
-  const entries = ref<LibraryEntry[]>([])
-  const isScanning = ref(false)
-  const scannedCount = ref(0)
-
   async function scanLibrary(installPath: string): Promise<void> {
     const scanId = ++activeScanId
     isScanning.value = true
