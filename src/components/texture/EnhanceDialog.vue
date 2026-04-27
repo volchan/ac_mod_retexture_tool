@@ -180,10 +180,18 @@ defineExpose({
                 Anime
               </button>
             </div>
+            <p class="text-[11px] text-muted-foreground mt-1.5">
+              <template v-if="model === 'realesrgan-x4plus'">
+                Best for photorealistic textures — road surfaces, car bodies, terrain, and scanned materials.
+              </template>
+              <template v-else>
+                Best for illustrated or synthetic textures — liveries with flat colors, logos, hard edges, and hand-drawn art.
+              </template>
+            </p>
           </div>
 
           <p class="text-[11px] text-muted-foreground">
-            Upscales {{ scale }}× with AI, then downscales to original size. Output dimensions are unchanged.
+            Upscales {{ scale }}× with AI then downscales back — dimensions unchanged, detail improved.
           </p>
         </div>
 
