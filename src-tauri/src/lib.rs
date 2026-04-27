@@ -12,6 +12,7 @@ pub use commands::texture::Kn5Cache;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -31,6 +32,7 @@ pub fn run() {
             commands::texture::get_kn5_texture,
             commands::texture::get_skin_texture,
             commands::texture::clear_kn5_cache,
+            commands::enhance::enhance_texture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -137,3 +137,18 @@ export interface ImportScanResult {
   matched: MatchedTextureRaw[]
   unmatched: UnmatchedFile[]
 }
+
+export type EnhanceModel = 'realesrgan-x4plus' | 'realesrgan-x4plus-anime'
+export type EnhanceScale = 2 | 4
+
+export interface EnhanceOptions {
+  scale: EnhanceScale
+  model: EnhanceModel
+}
+
+export interface EnhanceResult {
+  outputPath: string
+  previewUrl: string
+  width: number
+  height: number
+}

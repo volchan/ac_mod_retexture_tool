@@ -6,3 +6,5 @@ src-tauri/gen/
 .env
 *.local
 .claude/
+src-tauri/resources/models/*.bin
+src-tauri/binaries/realesrgan-ncnn-vulkan-*
