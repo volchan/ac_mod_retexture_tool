@@ -32,7 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const scale = ref<EnhanceScale>(4)
-const model = ref<EnhanceModel>('realesrgan-x4plus')
+const model = ref<EnhanceModel>('RealESRGAN_General_x4_v3')
 const isEnhancing = ref(false)
 const currentLabel = ref('')
 const currentIndex = ref(0)
@@ -167,21 +167,21 @@ defineExpose({
             <div class="flex gap-2">
               <button
                 class="flex-1 text-sm py-1.5 rounded border transition-colors"
-                :class="model === 'realesrgan-x4plus' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'"
-                @click="model = 'realesrgan-x4plus'"
+                :class="model === 'RealESRGAN_General_x4_v3' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'"
+                @click="model = 'RealESRGAN_General_x4_v3'"
               >
                 Photo
               </button>
               <button
                 class="flex-1 text-sm py-1.5 rounded border transition-colors"
-                :class="model === 'realesrgan-x4plus-anime' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'"
-                @click="model = 'realesrgan-x4plus-anime'"
+                :class="model === 'realesr-animevideov3-x4' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'"
+                @click="model = 'realesr-animevideov3-x4'"
               >
                 Anime
               </button>
             </div>
             <p class="text-[11px] text-muted-foreground mt-1.5">
-              <template v-if="model === 'realesrgan-x4plus'">
+              <template v-if="model === 'RealESRGAN_General_x4_v3'">
                 Best for photorealistic textures — road surfaces, car bodies, terrain, and scanned materials.
               </template>
               <template v-else>

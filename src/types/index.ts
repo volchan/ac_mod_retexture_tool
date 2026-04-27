@@ -138,7 +138,7 @@ export interface ImportScanResult {
   unmatched: UnmatchedFile[]
 }
 
-export type EnhanceModel = 'realesrgan-x4plus' | 'realesrgan-x4plus-anime'
+export type EnhanceModel = 'RealESRGAN_General_x4_v3' | 'realesr-animevideov3-x4'
 export type EnhanceScale = 2 | 4
 
 export interface EnhanceOptions {

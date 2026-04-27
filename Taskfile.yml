@@ -109,11 +109,11 @@ tasks:
             ;;
         esac
         echo "Downloading models..."
-        MODELS_ZIP="realesrgan-ncnn-vulkan-v0.2.0-ubuntu.zip"
-        MODELS_URL="https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan/releases/download/v0.2.0/$MODELS_ZIP"
-        curl -fL "$MODELS_URL" -o "$TMP/$MODELS_ZIP"
-        unzip -o "$TMP/$MODELS_ZIP" -d "$TMP/models"
-        find "$TMP/models" \( -name "*.param" -o -name "*.bin" \) -exec cp {} "$RES/" \;
+        MODELS_BASE="https://raw.githubusercontent.com/upscayl/custom-models/main/models"
+        for MODEL in "RealESRGAN_General_x4_v3" "realesr-animevideov3-x4"; do
+          curl -fL "${MODELS_BASE}/${MODEL}.param" -o "$RES/${MODEL}.param"
+          curl -fL "${MODELS_BASE}/${MODEL}.bin" -o "$RES/${MODEL}.bin"
+        done
         rm -rf "$TMP"
         echo "upscayl-bin installed successfully."
 

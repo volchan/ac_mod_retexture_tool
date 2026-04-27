@@ -10,7 +10,7 @@ use crate::converters::dds::decode_to_image;
 use crate::parsers::kn5::Kn5File;
 
 const VALID_SCALES: [u8; 2] = [2, 4];
-const VALID_MODELS: [&str; 2] = ["realesrgan-x4plus", "realesrgan-x4plus-anime"];
+const VALID_MODELS: [&str; 2] = ["RealESRGAN_General_x4_v3", "realesr-animevideov3-x4"];
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
