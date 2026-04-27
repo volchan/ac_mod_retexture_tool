@@ -74,12 +74,10 @@ tasks:
   # --- Setup ---
 
   setup:enhance:
-    desc: Download upscayl-bin and models for the current platform
+    desc: Download latest upscayl-bin and models for the current platform
     vars:
       TRIPLE:
         sh: rustc -vV | awk '/^host:/ { print $2 }'
-      VERSION: 20251207-174704
-      BASE_URL: https://github.com/upscayl/upscayl-ncnn/releases/download/{{.VERSION}}
     cmds:
       - |
         case "$(uname -s)" in
@@ -88,13 +86,16 @@ tasks:
           MINGW*|MSYS*|CYGWIN*|Windows_NT) PLATFORM="windows" ;;
           *) echo "Unsupported OS" && exit 1 ;;
         esac
-        ZIP="upscayl-bin-{{.VERSION}}-${PLATFORM}.zip"
+        VERSION=$(curl -fsSIL "https://github.com/upscayl/upscayl-ncnn/releases/latest" | grep -i '^location:' | sed 's|.*/tag/||' | tr -d '[:space:]')
+        echo "Latest upscayl-ncnn: $VERSION"
+        ZIP="upscayl-bin-${VERSION}-${PLATFORM}.zip"
+        BASE_URL="https://github.com/upscayl/upscayl-ncnn/releases/download/${VERSION}"
         DEST={{.TAURI_DIR}}/binaries
         RES={{.TAURI_DIR}}/resources/models
         mkdir -p "$DEST" "$RES"
         TMP=$(mktemp -d)
         echo "Downloading $ZIP..."
-        curl -fL "{{.BASE_URL}}/$ZIP" -o "$TMP/$ZIP"
+        curl -fL "${BASE_URL}/$ZIP" -o "$TMP/$ZIP"
         unzip -o "$TMP/$ZIP" -d "$TMP/out"
         case "$(uname -s)" in
           Darwin|Linux)
