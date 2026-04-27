@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
+import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { enhanceTexture } from '@/lib/tauri'
 import type {
   EnhanceModel,
@@ -105,6 +106,7 @@ watch(dialogOpen, (val) => {
 
 defineExpose({
   SparklesIcon,
+  Spinner,
   Button,
   Dialog,
   DialogContent,
@@ -196,9 +198,12 @@ defineExpose({
         </div>
 
         <div v-if="isEnhancing || (done && textures.length > 0)">
-          <div class="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span class="truncate">{{ isEnhancing ? (currentLabel || 'Enhancing…') : 'Done' }}</span>
-            <span class="shrink-0 ml-2">{{ currentIndex }}/{{ textures.length }}</span>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <div class="flex items-center gap-1.5 text-muted-foreground min-w-0">
+              <Spinner v-if="isEnhancing" :size="11" />
+              <span class="truncate font-mono">{{ isEnhancing ? (currentLabel || 'Enhancing…') : 'Done' }}</span>
+            </div>
+            <span class="shrink-0 ml-2 text-foreground font-medium">{{ currentIndex }}/{{ textures.length }}</span>
           </div>
           <Progress :model-value="progressPercent" class="h-1.5" />
         </div>
