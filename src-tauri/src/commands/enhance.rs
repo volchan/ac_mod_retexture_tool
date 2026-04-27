@@ -34,7 +34,12 @@ pub fn read_dds_from_kn5(kn5_path: &str, texture_name: &str) -> Result<Vec<u8>, 
 pub fn read_dds_from_skin(file_path: &str, mod_path: &str) -> Result<Vec<u8>, String> {
     let canonical_mod =
         std::fs::canonicalize(mod_path).map_err(|e| format!("invalid mod path: {e}"))?;
-    let canonical_file = std::fs::canonicalize(file_path)
+    let resolved = if std::path::Path::new(file_path).is_absolute() {
+        std::path::PathBuf::from(file_path)
+    } else {
+        canonical_mod.join(file_path)
+    };
+    let canonical_file = std::fs::canonicalize(&resolved)
         .map_err(|_| format!("file not found: {file_path}"))?;
     if !canonical_file.starts_with(&canonical_mod) {
         return Err("path escapes mod directory".to_string());
@@ -230,13 +235,28 @@ mod tests {
     }
 
     #[test]
-    fn read_dds_from_skin_returns_file_data() {
+    fn read_dds_from_skin_returns_file_data_absolute() {
         let dds = make_solid_dds();
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("body.dds");
         std::fs::write(&path, &dds).unwrap();
         let result = read_dds_from_skin(
             path.to_str().unwrap(),
+            dir.path().to_str().unwrap(),
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dds);
+    }
+
+    #[test]
+    fn read_dds_from_skin_resolves_relative_path() {
+        let dds = make_solid_dds();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("ui")).unwrap();
+        let path = dir.path().join("ui").join("preview.png");
+        std::fs::write(&path, &dds).unwrap();
+        let result = read_dds_from_skin(
+            "ui/preview.png",
             dir.path().to_str().unwrap(),
         );
         assert!(result.is_ok());
