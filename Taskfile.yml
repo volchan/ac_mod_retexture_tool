@@ -73,45 +73,50 @@ tasks:
 
   # --- Setup ---
 
-  setup:realesrgan:
-    desc: Download Real-ESRGAN ncnn-Vulkan binary and models for the current platform
+  setup:enhance:
+    desc: Download upscayl-bin and models for the current platform
     vars:
       TRIPLE:
         sh: rustc -vV | awk '/^host:/ { print $2 }'
-      VERSION: v0.2.5.1
-      BASE_URL: https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan/releases/download/{{.VERSION}}
+      VERSION: 20251207-174704
+      BASE_URL: https://github.com/upscayl/upscayl-ncnn/releases/download/{{.VERSION}}
+      MODELS_URL: https://github.com/upscayl/upscayl-models/releases/download/v1.0.0
     cmds:
       - |
         case "$(uname -s)" in
-          Darwin)  ZIP="realesrgan-ncnn-vulkan-{{.VERSION}}-macos.zip" ;;
-          Linux)   ZIP="realesrgan-ncnn-vulkan-{{.VERSION}}-ubuntu.zip" ;;
-          MINGW*|MSYS*|CYGWIN*) ZIP="realesrgan-ncnn-vulkan-{{.VERSION}}-windows.zip" ;;
+          Darwin)  PLATFORM="macos" ;;
+          Linux)   PLATFORM="linux" ;;
+          MINGW*|MSYS*|CYGWIN*|Windows_NT) PLATFORM="windows" ;;
           *) echo "Unsupported OS" && exit 1 ;;
         esac
+        ZIP="upscayl-bin-{{.VERSION}}-${PLATFORM}.zip"
         DEST={{.TAURI_DIR}}/binaries
         RES={{.TAURI_DIR}}/resources/models
         mkdir -p "$DEST" "$RES"
         TMP=$(mktemp -d)
         echo "Downloading $ZIP..."
-        curl -L "{{.BASE_URL}}/$ZIP" -o "$TMP/$ZIP"
+        curl -fL "{{.BASE_URL}}/$ZIP" -o "$TMP/$ZIP"
         unzip -o "$TMP/$ZIP" -d "$TMP/out"
         case "$(uname -s)" in
-          Darwin)
-            cp "$TMP/out/realesrgan-ncnn-vulkan" "$DEST/realesrgan-ncnn-vulkan-{{.TRIPLE}}"
-            chmod +x "$DEST/realesrgan-ncnn-vulkan-{{.TRIPLE}}"
-            ;;
-          Linux)
-            cp "$TMP/out/realesrgan-ncnn-vulkan" "$DEST/realesrgan-ncnn-vulkan-{{.TRIPLE}}"
-            chmod +x "$DEST/realesrgan-ncnn-vulkan-{{.TRIPLE}}"
+          Darwin|Linux)
+            BIN=$(find "$TMP/out" -name "upscayl-bin" -not -name "*.exe" | head -1)
+            cp "$BIN" "$DEST/upscayl-bin-{{.TRIPLE}}"
+            chmod +x "$DEST/upscayl-bin-{{.TRIPLE}}"
             ;;
           *)
-            cp "$TMP/out/realesrgan-ncnn-vulkan.exe" "$DEST/realesrgan-ncnn-vulkan-{{.TRIPLE}}.exe"
+            BIN=$(find "$TMP/out" -name "upscayl-bin.exe" | head -1)
+            cp "$BIN" "$DEST/upscayl-bin-{{.TRIPLE}}.exe"
             ;;
         esac
-        cp "$TMP/out/"*.bin "$RES/" 2>/dev/null || true
-        cp "$TMP/out/"*.param "$RES/" 2>/dev/null || true
+        echo "Downloading models..."
+        for MODEL in realesrgan-x4plus realesrgan-x4plus-anime; do
+          curl -fL "{{.MODELS_URL}}/${MODEL}.param" -o "$RES/${MODEL}.param" 2>/dev/null || \
+            curl -fL "https://github.com/upscayl/upscayl-models/raw/main/models/${MODEL}.param" -o "$RES/${MODEL}.param"
+          curl -fL "{{.MODELS_URL}}/${MODEL}.bin" -o "$RES/${MODEL}.bin" 2>/dev/null || \
+            curl -fL "https://github.com/upscayl/upscayl-models/raw/main/models/${MODEL}.bin" -o "$RES/${MODEL}.bin"
+        done
         rm -rf "$TMP"
-        echo "Real-ESRGAN installed successfully."
+        echo "upscayl-bin installed successfully."
 
   # --- Utilities ---
 

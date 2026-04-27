@@ -7,4 +7,4 @@ src-tauri/gen/
 *.local
 .claude/
 src-tauri/resources/models/*.bin
-src-tauri/binaries/realesrgan-ncnn-vulkan-*
+src-tauri/binaries/upscayl-bin-*

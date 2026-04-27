@@ -111,7 +111,7 @@ pub async fn enhance_texture(
 
     let output = app
         .shell()
-        .sidecar("realesrgan-ncnn-vulkan")
+        .sidecar("upscayl-bin")
         .map_err(|e| e.to_string())?
         .args([
             "-i",

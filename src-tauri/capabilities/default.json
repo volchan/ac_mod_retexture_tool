@@ -15,7 +15,7 @@
     "opener:default",
     {
       "identifier": "shell:allow-execute",
-      "allow": [{ "name": "realesrgan-ncnn-vulkan", "sidecar": true }]
+      "allow": [{ "name": "upscayl-bin", "sidecar": true }]
     }
   ]
 }
