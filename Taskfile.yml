@@ -80,7 +80,6 @@ tasks:
         sh: rustc -vV | awk '/^host:/ { print $2 }'
       VERSION: 20251207-174704
       BASE_URL: https://github.com/upscayl/upscayl-ncnn/releases/download/{{.VERSION}}
-      MODELS_URL: https://github.com/upscayl/upscayl-models/releases/download/v1.0.0
     cmds:
       - |
         case "$(uname -s)" in
@@ -109,11 +108,10 @@ tasks:
             ;;
         esac
         echo "Downloading models..."
+        MODELS_BASE="https://media.githubusercontent.com/media/upscayl/upscayl-models/main/models"
         for MODEL in realesrgan-x4plus realesrgan-x4plus-anime; do
-          curl -fL "{{.MODELS_URL}}/${MODEL}.param" -o "$RES/${MODEL}.param" 2>/dev/null || \
-            curl -fL "https://github.com/upscayl/upscayl-models/raw/main/models/${MODEL}.param" -o "$RES/${MODEL}.param"
-          curl -fL "{{.MODELS_URL}}/${MODEL}.bin" -o "$RES/${MODEL}.bin" 2>/dev/null || \
-            curl -fL "https://github.com/upscayl/upscayl-models/raw/main/models/${MODEL}.bin" -o "$RES/${MODEL}.bin"
+          curl -fL "${MODELS_BASE}/${MODEL}.param" -o "$RES/${MODEL}.param"
+          curl -fL "${MODELS_BASE}/${MODEL}.bin"   -o "$RES/${MODEL}.bin"
         done
         rm -rf "$TMP"
         echo "upscayl-bin installed successfully."
