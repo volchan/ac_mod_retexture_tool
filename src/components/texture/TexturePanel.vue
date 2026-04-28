@@ -248,7 +248,7 @@ defineExpose({
         </button>
         <button
           v-if="extractTargets.length > 0"
-          class="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors disabled:opacity-50"
+          class="text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           :disabled="isDecoding"
           @click="extractDialogOpen = true"
         >

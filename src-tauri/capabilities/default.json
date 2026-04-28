@@ -12,10 +12,6 @@
     "core:webview:allow-create-webview-window",
     "store:default",
     "dialog:default",
-    "opener:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [{ "name": "upscayl-bin", "sidecar": true }]
-    }
+    "opener:default"
   ]
 }
