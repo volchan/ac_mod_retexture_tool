@@ -249,6 +249,15 @@ pub async fn enhance_extracted_textures(
             out_root, &mod_name, name, kn5_path, skin_folder,
         );
 
+        let _ = app.emit(
+            "enhance-progress",
+            serde_json::json!({
+                "current": i,
+                "total": total,
+                "label": name,
+            }),
+        );
+
         match enhance_png_in_place(&app, &png_path, scale, &model).await {
             Ok(hash) => {
                 if let Ok(rel) = png_path.strip_prefix(&mod_out) {
