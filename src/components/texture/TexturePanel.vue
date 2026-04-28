@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import CategoryTabs from '@/components/texture/CategoryTabs.vue'
-import EnhanceDialog from '@/components/texture/EnhanceDialog.vue'
 import ExtractDialog from '@/components/texture/ExtractDialog.vue'
 import ImportConfirmDialog from '@/components/texture/ImportConfirmDialog.vue'
 import ImportDropZone from '@/components/texture/ImportDropZone.vue'
@@ -60,7 +59,6 @@ const {
 
 const activeCategory = ref<TextureCategory>('all')
 const extractDialogOpen = ref(false)
-const enhanceDialogOpen = ref(false)
 const importDialogOpen = ref(false)
 const importMatched = ref<MatchedTexture[]>([])
 const importUnmatched = ref<UnmatchedFile[]>([])
@@ -187,7 +185,6 @@ const extractTargets = computed(() => textures.value.filter((t) => selected.valu
 
 defineExpose({
   CategoryTabs,
-  EnhanceDialog,
   ExtractDialog,
   ImportConfirmDialog,
   ImportDropZone,
@@ -195,7 +192,6 @@ defineExpose({
   Progress,
   handleOpenDetail,
   extractDialogOpen,
-  enhanceDialogOpen,
   importDialogOpen,
   importMatched,
   importUnmatched,
@@ -258,14 +254,6 @@ defineExpose({
         >
           Extract ({{ extractTargets.length }})
         </button>
-        <button
-          v-if="extractTargets.length > 0"
-          class="text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          :disabled="isDecoding"
-          @click="enhanceDialogOpen = true"
-        >
-          Enhance ({{ extractTargets.length }})
-        </button>
       </div>
     </div>
     <div class="flex-1 overflow-auto pb-20">
@@ -303,13 +291,6 @@ defineExpose({
       </div>
     </div>
   </div>
-
-  <EnhanceDialog
-    v-model:is-open="enhanceDialogOpen"
-    :textures="extractTargets"
-    :mod-path="mod.path"
-    @apply="handleApplyImport"
-  />
 
   <ImportConfirmDialog
     v-model:is-open="importDialogOpen"
