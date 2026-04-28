@@ -35,7 +35,7 @@
     ],
     "externalBin": ["binaries/upscayl-bin"],
     "resources": {
-      "resources/models/*": "models/"
+      "resources/models/": "models/"
     }
   }
 }
