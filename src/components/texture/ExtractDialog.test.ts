@@ -557,4 +557,243 @@ describe('ExtractDialog', () => {
 
     expect(wrapper.emitted('update:isOpen')).toBeFalsy()
   })
+
+  it('shows enhance toggle after folder selected', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    expect(document.body.querySelector('#enhance-toggle')).toBeNull()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    expect(toggle).not.toBeNull()
+    expect(toggle.checked).toBe(false)
+  })
+
+  it('shows enhance config when toggle is checked', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
+
+    expect(bodyText()).toContain('Textures to enhance')
+    expect(bodyText()).toContain('body.dds')
+    expect(bodyText()).toContain('livery.dds')
+  })
+
+  it('shows "Extract & Enhance" button when enhance is enabled with selections', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
+
+    expect(findButton('Extract & Enhance')).toBeDefined()
+  })
+
+  it('calls enhance_extracted_textures after extraction when enhance enabled', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => [])
+    const enhanceSpy = vi.fn(() => [])
+    mockInvokeHandler('enhance_extracted_textures', enhanceSpy)
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
+
+    findButton('Extract & Enhance')?.click()
+    await flush()
+
+    expect(enhanceSpy).toHaveBeenCalled()
+    expect(bodyText()).toContain('Extracted successfully')
+  })
+
+  it('combines enhance errors with extract errors', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => ['body.dds: failed'])
+    mockInvokeHandler('enhance_extracted_textures', () => ['livery.dds: enhance failed'])
+
+    mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
+
+    findButton('Extract & Enhance')?.click()
+    await flush()
+
+    expect(bodyText()).toContain('body.dds: failed')
+    expect(bodyText()).toContain('livery.dds: enhance failed')
+  })
+
+  it('does not call enhance_extracted_textures when no textures selected for enhance', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => [])
+    const enhanceSpy = vi.fn(() => [])
+    mockInvokeHandler('enhance_extracted_textures', enhanceSpy)
+
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
+
+    // Deselect all
+    wrapper.vm.enhanceSelectedIds = new Set()
+    await nextTick()
+
+    findButton('Extract')?.click()
+    await flush()
+
+    expect(enhanceSpy).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('handleClose guards against isEnhancing', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => [])
+
+    let resolveEnhance!: () => void
+    mockInvokeHandler(
+      'enhance_extracted_textures',
+      () =>
+        new Promise<string[]>((r) => {
+          resolveEnhance = () => r([])
+        }),
+    )
+
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
+
+    findButton('Extract & Enhance')?.click()
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+
+    expect(wrapper.vm.isEnhancing).toBe(true)
+    wrapper.vm.handleClose()
+    await nextTick()
+
+    expect(wrapper.emitted('update:isOpen')).toBeFalsy()
+
+    resolveEnhance()
+    await flush()
+    wrapper.unmount()
+  })
+
+  it('shows step phase label during enhance phase', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+    mockInvokeHandler('extract_textures', () => [])
+
+    let resolveEnhance!: () => void
+    mockInvokeHandler(
+      'enhance_extracted_textures',
+      () =>
+        new Promise<string[]>((r) => {
+          resolveEnhance = () => r([])
+        }),
+    )
+
+    const wrapper = mount(ExtractDialog, {
+      props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
+      attachTo: document.body,
+    })
+    await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
+
+    findButton('Extract & Enhance')?.click()
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+    await nextTick()
+
+    expect(wrapper.vm.isEnhancing).toBe(true)
+    expect(wrapper.vm.phaseLabel).toBe('Step 2/2 · Enhancing with AI')
+
+    resolveEnhance()
+    await flush()
+    wrapper.unmount()
+  })
 })

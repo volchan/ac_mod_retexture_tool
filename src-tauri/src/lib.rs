@@ -12,6 +12,8 @@ pub use commands::texture::Kn5Cache;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -26,11 +28,17 @@ pub fn run() {
             commands::track_hero::get_track_hero_image,
             commands::track_hero::extract_track_hero_image,
             commands::track_hero::preview_replacement_image,
+            commands::track_hero::load_replacement_full,
             commands::import::scan_import_folder,
             commands::repack::repack_mod,
             commands::texture::get_kn5_texture,
             commands::texture::get_skin_texture,
             commands::texture::clear_kn5_cache,
+            commands::enhance::enhance_texture,
+            commands::enhance::enhance_extracted_textures,
+            commands::ac_detect::detect_ac_install,
+            commands::ac_detect::validate_ac_folder,
+            commands::ac_detect::list_ac_content,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

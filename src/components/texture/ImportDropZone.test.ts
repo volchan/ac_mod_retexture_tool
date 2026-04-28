@@ -39,7 +39,7 @@ describe('ImportDropZone', () => {
   it('renders import label', () => {
     mockWebview()
     const wrapper = mount(ImportDropZone)
-    expect(wrapper.text()).toContain('Import replacement textures')
+    expect(wrapper.text()).toContain('Drop a folder of replacement textures')
   })
 
   it('emits import when folder selected via browse', async () => {
