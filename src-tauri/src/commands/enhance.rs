@@ -104,12 +104,6 @@ pub async fn enhance_texture(
     let output_path = enhance_dir.join(format!("{safe_name}_{scale}x.png"));
     let output_str = output_path.to_string_lossy().to_string();
 
-    let model_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("models");
-
     let output = app
         .shell()
         .sidecar("upscayl-bin")
@@ -124,7 +118,7 @@ pub async fn enhance_texture(
             "-n",
             &model,
             "-m",
-            &model_dir.to_string_lossy(),
+            "models",
         ])
         .output()
         .await
@@ -171,12 +165,6 @@ pub async fn enhance_png_in_place(
 
     img.save(&input_path).map_err(|e| e.to_string())?;
 
-    let model_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("models");
-
     let output = app
         .shell()
         .sidecar("upscayl-bin")
@@ -191,7 +179,7 @@ pub async fn enhance_png_in_place(
             "-n",
             model,
             "-m",
-            &model_dir.to_string_lossy(),
+            "models",
         ])
         .output()
         .await
