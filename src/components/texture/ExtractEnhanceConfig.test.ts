@@ -71,14 +71,16 @@ describe('ExtractEnhanceConfig', () => {
   it('emits update:scale when scale button clicked', async () => {
     const wrapper = mount(ExtractEnhanceConfig, { props: defaultProps() })
     const btn2x = wrapper.findAll('button').find((b) => b.text().trim() === '2×')
-    await btn2x?.trigger('click')
+    expect(btn2x).toBeDefined()
+    await btn2x!.trigger('click')
     expect(wrapper.emitted('update:scale')).toEqual([[2]])
   })
 
   it('emits update:model when Anime clicked', async () => {
     const wrapper = mount(ExtractEnhanceConfig, { props: defaultProps() })
     const animeBtn = wrapper.findAll('button').find((b) => b.text().trim() === 'Anime')
-    await animeBtn?.trigger('click')
+    expect(animeBtn).toBeDefined()
+    await animeBtn!.trigger('click')
     expect(wrapper.emitted('update:model')).toEqual([['realesr-animevideov3-x4']])
   })
 
@@ -119,8 +121,10 @@ describe('ExtractEnhanceConfig', () => {
   it('toggleTexture removes an id that is already selected', async () => {
     const wrapper = mount(ExtractEnhanceConfig, { props: defaultProps() })
     await wrapper.vm.toggleTexture('a')
+    await nextTick()
     const emitted = wrapper.emitted('update:selectedIds')
-    const last = emitted?.[emitted.length - 1][0] as Set<string>
+    expect(emitted).toBeDefined()
+    const last = emitted![emitted!.length - 1][0] as Set<string>
     expect(last.has('a')).toBe(false)
     expect(last.has('b')).toBe(true)
   })
@@ -130,8 +134,10 @@ describe('ExtractEnhanceConfig', () => {
       props: { ...defaultProps(), selectedIds: new Set<string>() },
     })
     await wrapper.vm.toggleTexture('b')
+    await nextTick()
     const emitted = wrapper.emitted('update:selectedIds')
-    const last = emitted?.[emitted.length - 1][0] as Set<string>
+    expect(emitted).toBeDefined()
+    const last = emitted![emitted!.length - 1][0] as Set<string>
     expect(last.has('b')).toBe(true)
   })
 

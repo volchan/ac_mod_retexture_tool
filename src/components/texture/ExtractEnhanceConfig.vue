@@ -15,7 +15,9 @@ const emit = defineEmits<{
   'update:selectedIds': [value: Set<string>]
 }>()
 
-const allSelected = computed(() => props.selectedIds.size === props.textures.length)
+const allSelected = computed(
+  () => props.textures.length > 0 && props.selectedIds.size === props.textures.length,
+)
 
 function toggleAll() {
   emit(

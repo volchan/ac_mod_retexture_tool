@@ -70,10 +70,16 @@ const enhanceProgressPercent = computed(() =>
     : 0,
 )
 
-const activeProgress = computed(() => (isEnhancing.value ? enhanceProgress.value : progress.value))
-const activePercent = computed(() =>
-  isEnhancing.value ? enhanceProgressPercent.value : progressPercent.value,
-)
+const activeProgress = computed(() => {
+  if (isEnhancing.value) return enhanceProgress.value
+  if (done.value && enhanceProgress.value.total > 0) return enhanceProgress.value
+  return progress.value
+})
+const activePercent = computed(() => {
+  if (isEnhancing.value) return enhanceProgressPercent.value
+  if (done.value && enhanceProgress.value.total > 0) return enhanceProgressPercent.value
+  return progressPercent.value
+})
 
 const phaseLabel = computed(() => {
   const hasEnhance = enhanceEnabled.value && enhanceSelectedIds.value.size > 0

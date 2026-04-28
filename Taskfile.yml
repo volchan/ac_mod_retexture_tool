@@ -87,6 +87,10 @@ tasks:
           *) echo "Unsupported OS" && exit 1 ;;
         esac
         VERSION=$(curl -fsSIL "https://github.com/upscayl/upscayl-ncnn/releases/latest" | grep -i '^location:' | sed 's|.*/tag/||' | tr -d '[:space:]')
+        if [ -z "$VERSION" ]; then
+          echo "error: failed to determine latest upscayl-ncnn version" >&2
+          exit 1
+        fi
         echo "Latest upscayl-ncnn: $VERSION"
         ZIP="upscayl-bin-${VERSION}-${PLATFORM}.zip"
         BASE_URL="https://github.com/upscayl/upscayl-ncnn/releases/download/${VERSION}"
@@ -100,11 +104,21 @@ tasks:
         case "$(uname -s)" in
           Darwin|Linux)
             BIN=$(find "$TMP/out" -name "upscayl-bin" -not -name "*.exe" | head -1)
+            if [ -z "$BIN" ]; then
+              echo "error: upscayl-bin not found in archive" >&2
+              rm -rf "$TMP"
+              exit 1
+            fi
             cp "$BIN" "$DEST/upscayl-bin-{{.TRIPLE}}"
             chmod +x "$DEST/upscayl-bin-{{.TRIPLE}}"
             ;;
           *)
             BIN=$(find "$TMP/out" -name "upscayl-bin.exe" | head -1)
+            if [ -z "$BIN" ]; then
+              echo "error: upscayl-bin.exe not found in archive" >&2
+              rm -rf "$TMP"
+              exit 1
+            fi
             cp "$BIN" "$DEST/upscayl-bin-{{.TRIPLE}}.exe"
             ;;
         esac

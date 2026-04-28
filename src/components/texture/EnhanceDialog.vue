@@ -49,6 +49,8 @@ const progressPercent = computed(() =>
   props.textures.length > 0 ? (currentIndex.value / props.textures.length) * 100 : 0,
 )
 
+const successCount = computed(() => currentIndex.value - errors.value.length)
+
 async function handleEnhance() {
   if (props.textures.length === 0) return
   isEnhancing.value = true
@@ -124,6 +126,7 @@ defineExpose({
   done,
   dialogOpen,
   progressPercent,
+  successCount,
   handleEnhance,
   handleClose,
   preventInteractOutside,
@@ -208,8 +211,8 @@ defineExpose({
           <Progress :model-value="progressPercent" class="h-1.5" />
         </div>
 
-        <div v-if="done && errors.length === 0 && !isEnhancing" class="text-xs text-green-600">
-          Enhanced {{ currentIndex }} texture{{ currentIndex !== 1 ? 's' : '' }} successfully.
+        <div v-if="done && successCount > 0 && !isEnhancing" class="text-xs text-green-600">
+          Enhanced {{ successCount }} texture{{ successCount !== 1 ? 's' : '' }} successfully.
         </div>
 
         <div v-if="errors.length > 0" class="space-y-1">

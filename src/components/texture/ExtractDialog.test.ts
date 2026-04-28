@@ -610,7 +610,8 @@ describe('ExtractDialog', () => {
   it('calls enhance_extracted_textures after extraction when enhance enabled', async () => {
     vi.mocked(open).mockResolvedValueOnce('/output')
     mockInvokeHandler('extract_textures', () => [])
-    mockInvokeHandler('enhance_extracted_textures', () => [])
+    const enhanceSpy = vi.fn(() => [])
+    mockInvokeHandler('enhance_extracted_textures', enhanceSpy)
 
     mount(ExtractDialog, {
       props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
@@ -630,6 +631,7 @@ describe('ExtractDialog', () => {
     findButton('Extract & Enhance')?.click()
     await flush()
 
+    expect(enhanceSpy).toHaveBeenCalled()
     expect(bodyText()).toContain('Extracted successfully')
   })
 
