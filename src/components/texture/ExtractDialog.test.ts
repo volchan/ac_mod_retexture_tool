@@ -558,12 +558,21 @@ describe('ExtractDialog', () => {
     expect(wrapper.emitted('update:isOpen')).toBeFalsy()
   })
 
-  it('shows enhance toggle in idle state', async () => {
+  it('shows enhance toggle after folder selected', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
     mount(ExtractDialog, {
       props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
       attachTo: document.body,
     })
     await nextTick()
+
+    expect(document.body.querySelector('#enhance-toggle')).toBeNull()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
 
     const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
     expect(toggle).not.toBeNull()
@@ -571,11 +580,18 @@ describe('ExtractDialog', () => {
   })
 
   it('shows enhance config when toggle is checked', async () => {
+    vi.mocked(open).mockResolvedValueOnce('/output')
+
     mount(ExtractDialog, {
       props: { isOpen: true, textures, modPath: '/mods/car', modName: 'car' },
       attachTo: document.body,
     })
     await nextTick()
+
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
 
     const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
     toggle.click()
@@ -595,14 +611,14 @@ describe('ExtractDialog', () => {
     })
     await nextTick()
 
-    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
-    toggle.click()
-    await nextTick()
-
     bodyButtons()
       .find((b) => b.textContent?.includes('Browse'))
       ?.click()
     await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
 
     expect(findButton('Extract & Enhance')).toBeDefined()
   })
@@ -619,14 +635,14 @@ describe('ExtractDialog', () => {
     })
     await nextTick()
 
-    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
-    toggle.click()
-    await nextTick()
-
     bodyButtons()
       .find((b) => b.textContent?.includes('Browse'))
       ?.click()
     await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
 
     findButton('Extract & Enhance')?.click()
     await flush()
@@ -646,14 +662,14 @@ describe('ExtractDialog', () => {
     })
     await nextTick()
 
-    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
-    toggle.click()
-    await nextTick()
-
     bodyButtons()
       .find((b) => b.textContent?.includes('Browse'))
       ?.click()
     await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
 
     findButton('Extract & Enhance')?.click()
     await flush()
@@ -674,6 +690,11 @@ describe('ExtractDialog', () => {
     })
     await nextTick()
 
+    bodyButtons()
+      .find((b) => b.textContent?.includes('Browse'))
+      ?.click()
+    await flush()
+
     const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
     toggle.click()
     await nextTick()
@@ -681,11 +702,6 @@ describe('ExtractDialog', () => {
     // Deselect all
     wrapper.vm.enhanceSelectedIds = new Set()
     await nextTick()
-
-    bodyButtons()
-      .find((b) => b.textContent?.includes('Browse'))
-      ?.click()
-    await flush()
 
     findButton('Extract')?.click()
     await flush()
@@ -713,14 +729,14 @@ describe('ExtractDialog', () => {
     })
     await nextTick()
 
-    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
-    toggle.click()
-    await nextTick()
-
     bodyButtons()
       .find((b) => b.textContent?.includes('Browse'))
       ?.click()
     await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
 
     findButton('Extract & Enhance')?.click()
     await new Promise((r) => setTimeout(r, 0))
@@ -758,14 +774,14 @@ describe('ExtractDialog', () => {
     })
     await nextTick()
 
-    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
-    toggle.click()
-    await nextTick()
-
     bodyButtons()
       .find((b) => b.textContent?.includes('Browse'))
       ?.click()
     await flush()
+
+    const toggle = document.body.querySelector('#enhance-toggle') as HTMLInputElement
+    toggle.click()
+    await nextTick()
 
     findButton('Extract & Enhance')?.click()
     await new Promise((r) => setTimeout(r, 0))

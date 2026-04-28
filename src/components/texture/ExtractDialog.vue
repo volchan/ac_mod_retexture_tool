@@ -286,7 +286,7 @@ defineExpose({
         </div>
 
         <!-- Enhance toggle -->
-        <div v-if="!isRunning && !done" class="flex items-center gap-2">
+        <div v-if="outputDir && !isRunning && !done" class="flex items-center gap-2">
           <input
             id="enhance-toggle"
             v-model="enhanceEnabled"
@@ -301,7 +301,7 @@ defineExpose({
 
         <!-- Enhance config -->
         <ExtractEnhanceConfig
-          v-if="enhanceEnabled && !isRunning && !done"
+          v-if="enhanceEnabled && outputDir && !isRunning && !done"
           :textures="textures"
           :scale="enhanceScale"
           :model="enhanceModel"
