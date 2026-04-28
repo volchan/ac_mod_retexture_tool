@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import CategoryTabs from '@/components/texture/CategoryTabs.vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import CategoryBar from '@/components/texture/CategoryBar.vue'
 import ExtractDialog from '@/components/texture/ExtractDialog.vue'
 import ImportConfirmDialog from '@/components/texture/ImportConfirmDialog.vue'
 import ImportDropZone from '@/components/texture/ImportDropZone.vue'
 import TextureCard from '@/components/texture/TextureCard.vue'
 import { Progress } from '@/components/ui/progress'
+import Spinner from '@/components/ui/spinner/Spinner.vue'
+import { useGlobalCommands } from '@/composables/useGlobalCommands'
+import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { openTexturePreviewWindow, scanImportFolder } from '@/lib/tauri'
 import type {
@@ -35,12 +38,15 @@ const TRACK_CATEGORIES: TextureCategory[] = [
   'preview',
 ]
 
+const DENSITY_TILE_WIDTH: Record<string, number> = { sm: 110, md: 150, lg: 200 }
+
 const props = defineProps<{
   mod: Mod
 }>()
 
 const emit = defineEmits<{
   'selection-change': [selected: Set<string>]
+  'focus-texture': [texture: Texture]
 }>()
 
 const {
@@ -49,6 +55,8 @@ const {
   decodeProgress,
   isDecoding,
   init,
+  restoreReplacements,
+  setImportFolder,
   toggleSelect,
   selectAll,
   deselectAll,
@@ -57,19 +65,28 @@ const {
   cleanup,
 } = useTextures()
 
-const activeCategory = ref<TextureCategory>('all')
+const { activeCategory, activeKn5Group, searchQuery, density } = useTextureFilter()
+
 const extractDialogOpen = ref(false)
 const importDialogOpen = ref(false)
 const importMatched = ref<MatchedTexture[]>([])
 const importUnmatched = ref<UnmatchedFile[]>([])
 const isScanning = ref(false)
+const collapsedGroups = ref<Set<string>>(new Set())
 
 const categories = computed<TextureCategory[]>(() =>
   props.mod.modType === 'car' ? CAR_CATEGORIES : TRACK_CATEGORIES,
 )
 
+const tileWidth = computed(() => DENSITY_TILE_WIDTH[density.value] ?? 150)
+
 const groupedTextures = computed<TextureGroup[]>(() => {
-  const list = filteredTextures(activeCategory.value)
+  const list = filteredTextures(activeCategory.value).filter((t) => {
+    const matchesKn5 = activeKn5Group.value === 'all' || t.kn5File === activeKn5Group.value
+    const matchesSearch =
+      searchQuery.value === '' || t.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+    return matchesKn5 && matchesSearch
+  })
 
   const heroTextures = list.filter((t) => t.category === 'preview')
   const normalTextures = list.filter((t) => t.category !== 'preview')
@@ -112,9 +129,16 @@ const progressPercent = computed(() => {
 })
 
 const selectedCount = computed(() => selected.value.size)
+const extractTargets = computed(() => textures.value.filter((t) => selected.value.has(t.id)))
 
-function handleCategoryChange(cat: TextureCategory) {
-  activeCategory.value = cat
+function toggleGroupCollapsed(key: string) {
+  const next = new Set(collapsedGroups.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  collapsedGroups.value = next
 }
 
 function handleToggleSelect(id: string) {
@@ -132,8 +156,13 @@ function handleDeselectAll() {
   emit('selection-change', selected.value)
 }
 
+function handleFocusTexture(texture: Texture) {
+  emit('focus-texture', texture)
+}
+
 async function handleImport(folderPath: string) {
   if (textures.value.length === 0) return
+  setImportFolder(folderPath)
   isScanning.value = true
   try {
     const result = await scanImportFolder(
@@ -173,18 +202,31 @@ async function handleOpenDetail(id: string) {
   if (texture) await openTexturePreviewWindow(texture, props.mod.path)
 }
 
-onMounted(() => {
-  init(props.mod)
+const { extractTick, importPath, importTick } = useGlobalCommands()
+
+watch(extractTick, () => {
+  if (textures.value.length > 0) extractDialogOpen.value = true
+})
+
+watch(importTick, () => {
+  const path = importPath.value
+  if (path) handleImport(path).catch((err) => console.error('[TexturePanel] Import failed:', err))
+})
+
+onMounted(async () => {
+  await init(props.mod)
+  // Yield to let any pending decode-texture IPC events flush before restoring
+  await nextTick()
+  await restoreReplacements(props.mod.path)
 })
 
 onUnmounted(async () => {
   await cleanup()
 })
 
-const extractTargets = computed(() => textures.value.filter((t) => selected.value.has(t.id)))
-
 defineExpose({
-  CategoryTabs,
+  Spinner,
+  CategoryBar,
   ExtractDialog,
   ImportConfirmDialog,
   ImportDropZone,
@@ -202,93 +244,99 @@ defineExpose({
   visibleTextureCount,
   progressPercent,
   selectedCount,
-  activeCategory,
   selected,
   isDecoding,
   decodeProgress,
-  handleCategoryChange,
+  tileWidth,
+  collapsedGroups,
+  toggleGroupCollapsed,
+  handleFocusTexture,
   handleToggleSelect,
   handleSelectAll,
   handleDeselectAll,
   handleImport,
   handleApplyImport,
+  restoreReplacements,
+  setImportFolder,
 })
 </script>
 
 <template>
   <div class="flex flex-col h-full relative">
-    <div v-if="isDecoding" class="px-3 py-1">
-      <div class="flex items-center justify-between text-xs text-muted-foreground mb-1">
-        <span>{{ decodeProgress.label || 'Decoding…' }}</span>
+    <!-- Decode progress -->
+    <div v-if="isDecoding" class="px-3 py-1.5 shrink-0">
+      <div class="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
+        <span class="flex items-center gap-1.5">
+          <Spinner :size="11" />
+          {{ decodeProgress.label || 'Decoding…' }}
+        </span>
         <span v-if="decodeProgress.total > 0">
           {{ decodeProgress.current }}/{{ decodeProgress.total }}
         </span>
       </div>
-      <Progress :model-value="progressPercent" class="h-1" />
+      <Progress :model-value="progressPercent" class="h-0.5" />
     </div>
-    <div class="flex items-center gap-2 px-3 py-2 border-b">
-      <CategoryTabs
-        :categories="categories"
-        :active="activeCategory"
-        @change="handleCategoryChange"
-      />
-      <div class="ml-auto flex items-center gap-1">
-        <span class="text-xs text-muted-foreground mr-1">{{ selectedCount }} selected</span>
-        <button
-          class="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors"
-          @click="handleSelectAll"
-        >
-          Select all
-        </button>
-        <button
-          class="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors"
-          @click="handleDeselectAll"
-        >
-          Deselect all
-        </button>
-        <button
-          v-if="extractTargets.length > 0"
-          class="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors disabled:opacity-50"
-          :disabled="isDecoding"
-          @click="extractDialogOpen = true"
-        >
-          Extract ({{ extractTargets.length }})
-        </button>
-      </div>
-    </div>
-    <div class="flex-1 overflow-auto pb-20">
+
+    <!-- Category / filter bar -->
+    <CategoryBar
+      :categories="categories"
+      :selected-count="selectedCount"
+      @select-all="handleSelectAll"
+      @deselect-all="handleDeselectAll"
+      @extract="extractDialogOpen = true"
+    />
+
+    <!-- Texture grid -->
+    <div class="flex-1 overflow-auto pb-4">
       <template v-for="group in groupedTextures" :key="group.key">
-        <div
-          class="sticky top-0 z-10 px-3 py-1.5 bg-background/95 backdrop-blur-sm border-b border-border/50 flex items-center gap-2"
+        <!-- Group header -->
+        <button
+          class="sticky top-0 z-10 w-full flex items-center gap-2 px-3.5 py-1.5 bg-background/95 backdrop-blur-sm border-b border-border/50 text-left"
+          @click="toggleGroupCollapsed(group.key)"
         >
-          <span class="text-xs font-medium text-muted-foreground truncate">{{ group.label }}</span>
+          <span class="text-[12px] font-medium text-muted-foreground font-mono truncate">{{ group.label }}</span>
           <span class="text-[10px] text-muted-foreground/60 shrink-0">{{ group.textures.length }}</span>
-        </div>
-        <div class="grid grid-cols-4 gap-2 p-3">
+          <span
+            v-if="group.textures.some((t) => t.replacement)"
+            class="text-[9.5px] font-medium px-1.5 py-px rounded bg-[var(--accent-muted)] text-[var(--accent-text)] border border-[var(--accent-border)] shrink-0"
+          >
+            {{ group.textures.filter((t) => t.replacement).length }} queued
+          </span>
+        </button>
+
+        <!-- Grid -->
+        <div
+          v-if="!collapsedGroups.has(group.key)"
+          class="p-3"
+          :style="`display: grid; grid-template-columns: repeat(auto-fill, minmax(${tileWidth}px, 1fr)); gap: 10px;`"
+        >
           <TextureCard
             v-for="texture in group.textures"
             :key="texture.id"
             :texture="texture"
             :is-selected="selected.has(texture.id)"
+            :density="density"
             @toggle-select="handleToggleSelect(texture.id)"
             @open-detail="handleOpenDetail(texture.id)"
+            @click.stop="handleFocusTexture(texture)"
           />
         </div>
       </template>
+
       <div
         v-if="!isDecoding && visibleTextureCount === 0"
-        class="flex items-center justify-center h-32 text-muted-foreground text-sm"
+        class="flex items-center justify-center h-32 text-muted-foreground text-[13px]"
       >
         No textures in this category
       </div>
     </div>
-    <div class="absolute bottom-0 left-0 right-0 px-3 pb-3 pt-6 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none">
-      <div class="pointer-events-auto">
-        <div v-if="isScanning" class="text-xs text-muted-foreground text-center py-2 rounded-lg border border-dashed border-border bg-background">
-          Scanning…
-        </div>
-        <ImportDropZone v-else-if="!isDecoding" @import="handleImport" />
+
+    <!-- Import drop zone (bottom) -->
+    <div class="shrink-0 pt-1 border-t">
+      <div v-if="isScanning" class="text-[12px] text-muted-foreground text-center py-2 mx-3.5 rounded-lg border border-dashed border-border">
+        Scanning…
       </div>
+      <ImportDropZone v-else-if="!isDecoding" @import="handleImport" />
     </div>
   </div>
 
@@ -305,5 +353,4 @@ defineExpose({
     :mod-path="mod.path"
     :mod-name="mod.meta.folderName"
   />
-
 </template>

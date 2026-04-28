@@ -1,44 +1,67 @@
 <script setup lang="ts">
 import AppHeader from '@/components/layout/AppHeader.vue'
-import StatusBar from '@/components/layout/StatusBar.vue'
+import Kn5Sidebar from '@/components/mod/Kn5Sidebar.vue'
+import ModInfoPanel from '@/components/repack/ModInfoPanel.vue'
+import InlinePreviewRail from '@/components/texture/InlinePreviewRail.vue'
+import TexturePanel from '@/components/texture/TexturePanel.vue'
+import type { Mod, Texture } from '@/types/index'
 
-defineProps<{
-  modName?: string
-  textureCount?: number
-  selectedCount?: number
+const props = defineProps<{
+  mod: Mod
+  textures: Texture[]
+  focusedTexture: Texture | null
 }>()
 
-defineExpose({ AppHeader, StatusBar })
+const emit = defineEmits<{
+  repack: []
+  close: []
+  'focus-texture': [texture: Texture]
+  'open-cmd': []
+  'extract-texture': [texture: Texture]
+  'replace-texture': [texture: Texture]
+}>()
+
+defineExpose({
+  AppHeader,
+  Kn5Sidebar,
+  ModInfoPanel,
+  InlinePreviewRail,
+  TexturePanel,
+  props,
+  emit,
+})
 </script>
 
 <template>
-  <div class="h-screen flex flex-col">
-    <AppHeader />
-    <main class="flex flex-1 overflow-hidden">
-      <aside class="w-[280px] flex flex-col border-r bg-muted shrink-0">
-        <div
-          class="px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b font-medium shrink-0"
-        >
-          MOD SOURCE
-        </div>
-        <div class="flex-1 overflow-auto p-3">
-          <slot name="left" />
-        </div>
+  <div class="h-full flex flex-col overflow-hidden">
+    <!-- Header -->
+    <AppHeader :mod="mod" @open-cmd="$emit('open-cmd')" />
+
+    <!-- Main 3-column body -->
+    <main class="flex flex-1 overflow-hidden min-h-0">
+      <!-- Left: KN5 sidebar (210px) -->
+      <aside class="w-[210px] shrink-0 border-r bg-card flex flex-col overflow-hidden">
+        <Kn5Sidebar :mod="mod" :textures="textures" @close="$emit('close')" />
       </aside>
-      <section class="flex-1 flex flex-col overflow-hidden bg-background">
-        <slot name="center" />
+
+      <!-- Center: texture grid + inline preview -->
+      <section class="flex-1 flex flex-col overflow-hidden min-w-0 bg-background">
+        <TexturePanel
+          :mod="mod"
+          @focus-texture="$emit('focus-texture', $event)"
+        />
+        <InlinePreviewRail
+          :texture="focusedTexture"
+          @extract="$emit('extract-texture', $event)"
+          @replace="$emit('replace-texture', $event)"
+        />
       </section>
-      <aside class="w-[320px] flex flex-col border-l bg-muted shrink-0">
-        <div
-          class="px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b font-medium shrink-0"
-        >
-          MOD INFO
-        </div>
-        <div class="flex-1 overflow-auto p-3">
-          <slot name="right" />
-        </div>
+
+      <!-- Right: mod info / queue (280px) -->
+      <aside class="w-[280px] shrink-0 border-l bg-card flex flex-col overflow-hidden">
+        <ModInfoPanel :mod="mod" @repack="$emit('repack')" />
       </aside>
     </main>
-    <StatusBar :mod-name="modName" :texture-count="textureCount" :selected-count="selectedCount" />
+
   </div>
 </template>

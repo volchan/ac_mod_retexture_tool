@@ -8,24 +8,29 @@ name = "ac_mod_toolkit_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2.10.3", features = [] }
 tauri-plugin-shell = "2"
-tauri-plugin-store = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-opener = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
-walkdir = "2"
-image = "0.25"
-image_dds = "0.6"
-base64 = "0.22"
-uuid = { version = "1", features = ["v4"] }
-zip = { version = "2", features = ["deflate"] }
-tempfile = "3"
+tauri-plugin-store = "2.4.2"
+tauri-plugin-dialog = "2.7.0"
+tauri-plugin-opener = "2.5.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+thiserror = "2.0.18"
+walkdir = "2.5.0"
+image = "0.25.10"
+image_dds = "0.7.2"
+base64 = "0.22.1"
+uuid = { version = "1.23.1", features = ["v4"] }
+zip = { version = "8.5.1", features = ["deflate"] }
+tempfile = "3.27.0"
+tauri-plugin-window-state = "2.4.1"
+tokio = { version = "1.52.1", features = ["rt", "time"] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt", "macros"] }
+tokio = { version = "1.52.1", features = ["rt", "macros"] }
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.5.6", features = [] }

@@ -53,7 +53,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./src/__mocks__/setup.ts'],
+    setupFiles: ['src/test-setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,vue}'],
     coverage: {
       provider: 'v8',

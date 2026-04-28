@@ -149,3 +149,40 @@ tasks:
       - task: format
       - task: lint
       - task: test
+
+  # --- Releases ---
+
+  release:create:
+    desc: "Create a GitHub release. Args: TAG (e.g. v1.2.0) BRANCH (default: main) PRERELEASE (true/false, default: false)"
+    vars:
+      TAG: '{{.TAG}}'
+      BRANCH: '{{default "main" .BRANCH}}'
+      PRERELEASE: '{{default "false" .PRERELEASE}}'
+    preconditions:
+      - sh: '[ -n "{{.TAG}}" ]'
+        msg: "TAG is required. Usage: task release:create TAG=v1.2.0 [BRANCH=main] [PRERELEASE=true]"
+    cmds:
+      - git tag {{.TAG}} origin/{{.BRANCH}}
+      - git push origin {{.TAG}}
+      - |
+        PRERELEASE_FLAG=""
+        if [ "{{.PRERELEASE}}" = "true" ]; then
+          PRERELEASE_FLAG="--prerelease"
+        fi
+        gh release create {{.TAG}} \
+          --title "{{.TAG}}" \
+          --target {{.BRANCH}} \
+          --generate-notes \
+          $PRERELEASE_FLAG
+        echo "Release {{.TAG}} created on branch {{.BRANCH}}"
+
+  release:delete:
+    desc: "Delete a GitHub release and its tag. Args: TAG (e.g. v1.2.0)"
+    vars:
+      TAG: '{{.TAG}}'
+    preconditions:
+      - sh: '[ -n "{{.TAG}}" ]'
+        msg: "TAG is required. Usage: task release:delete TAG=v1.2.0"
+    cmds:
+      - gh release delete {{.TAG}} --yes --cleanup-tag
+      - echo "Release and tag {{.TAG}} deleted"

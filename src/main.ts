@@ -1,3 +1,4 @@
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { createApp } from 'vue'
 import './assets/styles/globals.css'
 
@@ -12,9 +13,15 @@ const params = new URLSearchParams(window.location.search)
     createApp(App).mount('#app')
   }
 
-  const splash = document.getElementById('splash')
-  if (splash) {
-    splash.style.opacity = '0'
-    splash.addEventListener('transitionend', () => splash.remove(), { once: true })
+  try {
+    await getCurrentWebviewWindow().show()
+  } catch (error) {
+    console.error('[main] Failed to show webview window:', error)
+  } finally {
+    const splash = document.getElementById('splash')
+    if (splash) {
+      splash.style.opacity = '0'
+      setTimeout(() => splash.remove(), 250)
+    }
   }
 })()
