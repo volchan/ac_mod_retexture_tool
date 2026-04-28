@@ -40,8 +40,8 @@ pub fn read_dds_from_skin(file_path: &str, mod_path: &str) -> Result<Vec<u8>, St
     } else {
         canonical_mod.join(file_path)
     };
-    let canonical_file = std::fs::canonicalize(&resolved)
-        .map_err(|_| format!("file not found: {file_path}"))?;
+    let canonical_file =
+        std::fs::canonicalize(&resolved).map_err(|_| format!("file not found: {file_path}"))?;
     if !canonical_file.starts_with(&canonical_mod) {
         return Err("path escapes mod directory".to_string());
     }
@@ -228,8 +228,13 @@ pub async fn enhance_extracted_textures(
         return Err(format!("unsupported model: {model}"));
     }
 
-    if texture_kn5s.len() != texture_names.len() || texture_skin_folders.len() != texture_names.len() {
-        return Err("texture_names, texture_kn5s, and texture_skin_folders must have equal length".to_string());
+    if texture_kn5s.len() != texture_names.len()
+        || texture_skin_folders.len() != texture_names.len()
+    {
+        return Err(
+            "texture_names, texture_kn5s, and texture_skin_folders must have equal length"
+                .to_string(),
+        );
     }
 
     let out_root = Path::new(&output_dir);
@@ -250,9 +255,12 @@ pub async fn enhance_extracted_textures(
         .zip(texture_kn5s.iter().zip(texture_skin_folders.iter()))
         .enumerate()
     {
-
         let png_path = crate::commands::extract::build_output_path(
-            out_root, &mod_name, name, kn5_path, skin_folder,
+            out_root,
+            &mod_name,
+            name,
+            kn5_path,
+            skin_folder,
         );
 
         let _ = app.emit(
@@ -384,10 +392,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("body.dds");
         std::fs::write(&path, &dds).unwrap();
-        let result = read_dds_from_skin(
-            path.to_str().unwrap(),
-            dir.path().to_str().unwrap(),
-        );
+        let result = read_dds_from_skin(path.to_str().unwrap(), dir.path().to_str().unwrap());
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dds);
     }
@@ -399,10 +404,7 @@ mod tests {
         std::fs::create_dir(dir.path().join("ui")).unwrap();
         let path = dir.path().join("ui").join("preview.png");
         std::fs::write(&path, &dds).unwrap();
-        let result = read_dds_from_skin(
-            "ui/preview.png",
-            dir.path().to_str().unwrap(),
-        );
+        let result = read_dds_from_skin("ui/preview.png", dir.path().to_str().unwrap());
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dds);
     }
@@ -414,10 +416,7 @@ mod tests {
         std::fs::create_dir(&mod_dir).unwrap();
         let outside = root.path().join("secret.dds");
         std::fs::write(&outside, b"secret").unwrap();
-        let result = read_dds_from_skin(
-            outside.to_str().unwrap(),
-            mod_dir.to_str().unwrap(),
-        );
+        let result = read_dds_from_skin(outside.to_str().unwrap(), mod_dir.to_str().unwrap());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("escapes mod directory"));
     }
