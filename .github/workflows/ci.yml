@@ -55,6 +55,15 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
 
+      - name: Create sidecar stubs
+        run: |
+          mkdir -p src-tauri/binaries src-tauri/resources/models
+          touch src-tauri/binaries/upscayl-bin-x86_64-unknown-linux-gnu
+          touch src-tauri/resources/models/RealESRGAN_General_x4_v3.bin
+          touch src-tauri/resources/models/RealESRGAN_General_x4_v3.param
+          touch src-tauri/resources/models/realesr-animevideov3-x4.bin
+          touch src-tauri/resources/models/realesr-animevideov3-x4.param
+
       - name: Format check
         working-directory: src-tauri
         run: cargo fmt --check

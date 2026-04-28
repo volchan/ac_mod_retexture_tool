@@ -35,6 +35,29 @@ jobs:
         if: github.ref_type == 'tag'
         run: bun scripts/set-version.ts ${{ github.ref_name }}
 
+      - name: Download upscayl-bin and models
+        shell: pwsh
+        run: |
+          $version = (Invoke-RestMethod "https://api.github.com/repos/upscayl/upscayl-ncnn/releases/latest").tag_name
+          if (-not $version) { Write-Error "Failed to get upscayl-ncnn version"; exit 1 }
+          $zip = "upscayl-bin-$version-windows.zip"
+          $url = "https://github.com/upscayl/upscayl-ncnn/releases/download/$version/$zip"
+          $tmp = Join-Path $env:RUNNER_TEMP "upscayl-setup"
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+          Invoke-WebRequest $url -OutFile "$tmp\$zip"
+          Expand-Archive "$tmp\$zip" -DestinationPath "$tmp\out"
+          $bin = Get-ChildItem -Path "$tmp\out" -Filter "upscayl-bin.exe" -Recurse | Select-Object -First 1
+          if (-not $bin) { Write-Error "upscayl-bin.exe not found in archive"; exit 1 }
+          New-Item -ItemType Directory -Force -Path "src-tauri\binaries" | Out-Null
+          Copy-Item $bin.FullName "src-tauri\binaries\upscayl-bin-x86_64-pc-windows-msvc.exe"
+          New-Item -ItemType Directory -Force -Path "src-tauri\resources\models" | Out-Null
+          $modelsBase = "https://raw.githubusercontent.com/upscayl/custom-models/main/models"
+          foreach ($model in @("RealESRGAN_General_x4_v3", "realesr-animevideov3-x4")) {
+            Invoke-WebRequest "$modelsBase/$model.param" -OutFile "src-tauri\resources\models\$model.param"
+            Invoke-WebRequest "$modelsBase/$model.bin" -OutFile "src-tauri\resources\models\$model.bin"
+          }
+          Remove-Item -Recurse -Force $tmp
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:

@@ -1,5 +1,6 @@
 pub mod ac_detect;
 pub mod decode;
+pub mod enhance;
 pub mod extract;
 pub mod import;
 pub mod repack;

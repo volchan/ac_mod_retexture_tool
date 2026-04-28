@@ -138,6 +138,21 @@ export interface ImportScanResult {
   unmatched: UnmatchedFile[]
 }
 
+export type EnhanceModel = 'RealESRGAN_General_x4_v3' | 'realesr-animevideov3-x4'
+export type EnhanceScale = 2 | 4
+
+export interface EnhanceOptions {
+  scale: EnhanceScale
+  model: EnhanceModel
+}
+
+export interface EnhanceResult {
+  outputPath: string
+  previewUrl: string
+  width: number
+  height: number
+}
+
 export type TextureDensity = 'sm' | 'md' | 'lg'
 
 export type AccentKey = 'cobalt' | 'crimson' | 'papaya' | 'brg'
