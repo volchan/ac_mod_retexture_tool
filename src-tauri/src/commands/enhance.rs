@@ -1,7 +1,6 @@
 use base64::engine::general_purpose;
 use base64::Engine;
 use image::imageops::FilterType;
-use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::Path;
 use tauri::{Emitter, Manager};
@@ -155,7 +154,7 @@ pub async fn enhance_png_in_place(
     png_path: &Path,
     scale: u8,
     model: &str,
-) -> Result<u64, String> {
+) -> Result<(), String> {
     let img = image::open(png_path).map_err(|e| e.to_string())?;
     let (orig_w, orig_h) = (img.width(), img.height());
 
@@ -194,7 +193,7 @@ pub async fn enhance_png_in_place(
     let resized = enhanced.resize_exact(orig_w, orig_h, FilterType::Lanczos3);
     resized.save(png_path).map_err(|e| e.to_string())?;
 
-    Ok(crate::converters::dds::pixel_hash(&resized))
+    Ok(())
 }
 
 #[tauri::command]
@@ -230,14 +229,6 @@ pub async fn enhance_extracted_textures(
     let total = texture_names.len();
     let mut errors: Vec<String> = Vec::new();
 
-    let hash_path = mod_out.join(".retexture_hashes.json");
-    let mut hashes: HashMap<String, u64> = hash_path
-        .exists()
-        .then(|| std::fs::read_to_string(&hash_path).ok())
-        .flatten()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
-
     for (i, (name, (kn5_path, skin_folder))) in texture_names
         .iter()
         .zip(texture_kn5s.iter().zip(texture_skin_folders.iter()))
@@ -260,18 +251,8 @@ pub async fn enhance_extracted_textures(
             }),
         );
 
-        match enhance_png_in_place(&app, &png_path, scale, &model).await {
-            Ok(hash) => {
-                if let Ok(rel) = png_path.strip_prefix(&mod_out) {
-                    let key = rel
-                        .components()
-                        .map(|c| c.as_os_str().to_string_lossy().into_owned())
-                        .collect::<Vec<_>>()
-                        .join("/");
-                    hashes.insert(key, hash);
-                }
-            }
-            Err(e) => errors.push(format!("{name}: {e}")),
+        if let Err(e) = enhance_png_in_place(&app, &png_path, scale, &model).await {
+            errors.push(format!("{name}: {e}"));
         }
 
         let _ = app.emit(
@@ -284,12 +265,7 @@ pub async fn enhance_extracted_textures(
         );
     }
 
-    if !hashes.is_empty() {
-        if let Ok(json) = serde_json::to_string(&hashes) {
-            let _ = std::fs::write(&hash_path, json);
-        }
-    }
-
+    let _ = mod_out;
     Ok(errors)
 }
 
