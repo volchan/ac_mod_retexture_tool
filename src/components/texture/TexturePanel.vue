@@ -205,7 +205,7 @@ async function handleOpenDetail(id: string) {
 const { extractTick, importPath, importTick } = useGlobalCommands()
 
 watch(extractTick, () => {
-  if (textures.value.length > 0) extractDialogOpen.value = true
+  if (textures.value.length > 0 && !isDecoding.value) extractDialogOpen.value = true
 })
 
 watch(importTick, () => {
@@ -281,6 +281,7 @@ defineExpose({
     <CategoryBar
       :categories="categories"
       :selected-count="selectedCount"
+      :is-decoding="isDecoding"
       @select-all="handleSelectAll"
       @deselect-all="handleDeselectAll"
       @extract="extractDialogOpen = true"

@@ -6,6 +6,7 @@ import type { TextureCategory, TextureDensity } from '@/types/index'
 const props = defineProps<{
   categories: TextureCategory[]
   selectedCount: number
+  isDecoding: boolean
 }>()
 
 const emit = defineEmits<{
@@ -125,7 +126,8 @@ defineExpose({
     </button>
     <button
       v-if="selectedCount > 0"
-      class="flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-[7px] bg-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium"
+      class="flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-[7px] bg-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+      :disabled="isDecoding"
       @click="$emit('extract')"
     >
       <DownloadIcon :size="12" />
