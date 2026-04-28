@@ -33,6 +33,7 @@ pub fn run() {
             commands::texture::get_skin_texture,
             commands::texture::clear_kn5_cache,
             commands::enhance::enhance_texture,
+            commands::enhance::enhance_extracted_textures,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

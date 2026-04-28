@@ -138,6 +138,30 @@ export async function openTexturePreviewWindow(texture: Texture, modPath: string
   })
 }
 
+export async function onEnhanceProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
+  return listen('enhance-progress', (e) => cb(e.payload as ProgressInfo))
+}
+
+export async function enhanceExtractedTextures(
+  outputDir: string,
+  modName: string,
+  textureNames: string[],
+  textureKn5s: string[],
+  textureSkinFolders: string[],
+  scale: EnhanceOptions['scale'],
+  model: EnhanceOptions['model'],
+): Promise<string[]> {
+  return invoke('enhance_extracted_textures', {
+    outputDir,
+    modName,
+    textureNames,
+    textureKn5s,
+    textureSkinFolders,
+    scale,
+    model,
+  })
+}
+
 export async function enhanceTexture(
   texture: Texture,
   modPath: string,

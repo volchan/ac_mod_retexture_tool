@@ -1,9 +1,10 @@
 use base64::engine::general_purpose;
 use base64::Engine;
 use image::imageops::FilterType;
+use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::Path;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
 use crate::converters::dds::decode_to_image;
@@ -153,6 +154,132 @@ pub async fn enhance_texture(
         width: resized.width(),
         height: resized.height(),
     })
+}
+
+pub async fn enhance_png_in_place(
+    app: &tauri::AppHandle,
+    png_path: &Path,
+    scale: u8,
+    model: &str,
+) -> Result<u64, String> {
+    let img = image::open(png_path).map_err(|e| e.to_string())?;
+    let (orig_w, orig_h) = (img.width(), img.height());
+
+    let tmp_dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let input_path = tmp_dir.path().join("input.png");
+    let out_path = tmp_dir.path().join("out.png");
+
+    img.save(&input_path).map_err(|e| e.to_string())?;
+
+    let model_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("models");
+
+    let output = app
+        .shell()
+        .sidecar("upscayl-bin")
+        .map_err(|e| e.to_string())?
+        .args([
+            "-i",
+            &input_path.to_string_lossy(),
+            "-o",
+            &out_path.to_string_lossy(),
+            "-s",
+            &scale.to_string(),
+            "-n",
+            model,
+            "-m",
+            &model_dir.to_string_lossy(),
+        ])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("upscayl-bin failed: {stderr}"));
+    }
+
+    let enhanced = image::open(&out_path).map_err(|e| e.to_string())?;
+    let resized = enhanced.resize_exact(orig_w, orig_h, FilterType::Lanczos3);
+    resized.save(png_path).map_err(|e| e.to_string())?;
+
+    Ok(crate::converters::dds::pixel_hash(&resized))
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn enhance_extracted_textures(
+    app: tauri::AppHandle,
+    output_dir: String,
+    mod_name: String,
+    texture_names: Vec<String>,
+    texture_kn5s: Vec<String>,
+    texture_skin_folders: Vec<String>,
+    scale: u8,
+    model: String,
+) -> Result<Vec<String>, String> {
+    if !VALID_SCALES.contains(&scale) {
+        return Err(format!("scale must be 2 or 4, got {scale}"));
+    }
+    if !VALID_MODELS.contains(&model.as_str()) {
+        return Err(format!("unsupported model: {model}"));
+    }
+
+    let out_root = Path::new(&output_dir);
+    let mod_out = out_root.join(&mod_name);
+    let total = texture_names.len();
+    let mut errors: Vec<String> = Vec::new();
+
+    let hash_path = mod_out.join(".retexture_hashes.json");
+    let mut hashes: HashMap<String, u64> = hash_path
+        .exists()
+        .then(|| std::fs::read_to_string(&hash_path).ok())
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+
+    for (i, name) in texture_names.iter().enumerate() {
+        let kn5_path = &texture_kn5s[i];
+        let skin_folder = &texture_skin_folders[i];
+
+        let png_path = crate::commands::extract::build_output_path(
+            out_root, &mod_name, name, kn5_path, skin_folder,
+        );
+
+        match enhance_png_in_place(&app, &png_path, scale, &model).await {
+            Ok(hash) => {
+                if let Ok(rel) = png_path.strip_prefix(&mod_out) {
+                    let key = rel
+                        .components()
+                        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                        .join("/");
+                    hashes.insert(key, hash);
+                }
+            }
+            Err(e) => errors.push(format!("{name}: {e}")),
+        }
+
+        let _ = app.emit(
+            "enhance-progress",
+            serde_json::json!({
+                "current": i + 1,
+                "total": total,
+                "label": name,
+            }),
+        );
+    }
+
+    if !hashes.is_empty() {
+        if let Ok(json) = serde_json::to_string(&hashes) {
+            let _ = std::fs::write(&hash_path, json);
+        }
+    }
+
+    Ok(errors)
 }
 
 #[cfg(test)]
