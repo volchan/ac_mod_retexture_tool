@@ -98,6 +98,7 @@ tasks:
         RES={{.TAURI_DIR}}/resources/models
         mkdir -p "$DEST" "$RES"
         TMP=$(mktemp -d)
+        trap 'rm -rf "$TMP"' EXIT
         echo "Downloading $ZIP..."
         curl -fL "${BASE_URL}/$ZIP" -o "$TMP/$ZIP"
         unzip -o "$TMP/$ZIP" -d "$TMP/out"
@@ -125,8 +126,8 @@ tasks:
         echo "Downloading models..."
         MODELS_BASE="https://raw.githubusercontent.com/upscayl/custom-models/main/models"
         for MODEL in "RealESRGAN_General_x4_v3" "realesr-animevideov3-x4"; do
-          curl -fL "${MODELS_BASE}/${MODEL}.param" -o "$RES/${MODEL}.param"
-          curl -fL "${MODELS_BASE}/${MODEL}.bin" -o "$RES/${MODEL}.bin"
+          curl -fL "${MODELS_BASE}/${MODEL}.param" -o "$RES/${MODEL}.param" || { echo "error: failed to download ${MODEL}.param" >&2; exit 1; }
+          curl -fL "${MODELS_BASE}/${MODEL}.bin" -o "$RES/${MODEL}.bin" || { echo "error: failed to download ${MODEL}.bin" >&2; exit 1; }
         done
         rm -rf "$TMP"
         echo "upscayl-bin installed successfully."
