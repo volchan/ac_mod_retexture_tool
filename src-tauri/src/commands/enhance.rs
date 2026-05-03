@@ -95,7 +95,11 @@ pub async fn enhance_texture(
         .suffix(".png")
         .tempfile()
         .map_err(|e| e.to_string())?;
-    img.save(input_tmp.path()).map_err(|e| e.to_string())?;
+    // Strip alpha: upscayl-bin processes RGBA as a 4-channel signal and treats
+    // transparent pixels as black regions, producing all-black output.
+    image::DynamicImage::ImageRgb8(img.to_rgb8())
+        .save(input_tmp.path())
+        .map_err(|e| e.to_string())?;
     let input_path = input_tmp.path().to_string_lossy().to_string();
 
     let enhance_dir = app
@@ -168,7 +172,10 @@ pub async fn enhance_png_in_place(
     let input_path = tmp_dir.path().join("input.png");
     let out_path = tmp_dir.path().join("out.png");
 
-    img.save(&input_path).map_err(|e| e.to_string())?;
+    // Strip alpha before AI processing (same reason as enhance_texture).
+    image::DynamicImage::ImageRgb8(img.to_rgb8())
+        .save(&input_path)
+        .map_err(|e| e.to_string())?;
 
     let output = app
         .shell()
