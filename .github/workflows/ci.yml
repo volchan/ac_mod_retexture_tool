@@ -63,6 +63,12 @@ jobs:
           touch src-tauri/resources/models/RealESRGAN_General_x4_v3.param
           touch src-tauri/resources/models/realesr-animevideov3-x4.bin
           touch src-tauri/resources/models/realesr-animevideov3-x4.param
+          touch src-tauri/resources/models/4xLSDIRCompactC3.bin
+          touch src-tauri/resources/models/4xLSDIRCompactC3.param
+          touch src-tauri/resources/models/4xNomos8kSC.bin
+          touch src-tauri/resources/models/4xNomos8kSC.param
+          touch src-tauri/resources/models/4x_NMKD-Siax_200k.bin
+          touch src-tauri/resources/models/4x_NMKD-Siax_200k.param
 
       - name: Format check
         working-directory: src-tauri

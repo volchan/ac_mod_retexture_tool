@@ -54,7 +54,7 @@ jobs:
           Copy-Item $bin.FullName "src-tauri\binaries\upscayl-bin-x86_64-pc-windows-msvc.exe"
 
           New-Item -ItemType Directory -Force -Path "src-tauri\resources\models" | Out-Null
-          $models = @("RealESRGAN_General_x4_v3", "realesr-animevideov3-x4")
+          $models = @("RealESRGAN_General_x4_v3", "realesr-animevideov3-x4", "4xLSDIRCompactC3", "4xNomos8kSC", "4x_NMKD-Siax_200k")
           foreach ($model in $models) {
             $paramInZip = Get-ChildItem -Path "$tmp\out" -Filter "$model.param" -Recurse | Select-Object -First 1
             $binInZip   = Get-ChildItem -Path "$tmp\out" -Filter "$model.bin"   -Recurse | Select-Object -First 1

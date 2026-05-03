@@ -32,6 +32,36 @@ const emit = defineEmits<{
   apply: [results: MatchedTexture[]]
 }>()
 
+const MODELS: { id: EnhanceModel; label: string; description: string }[] = [
+  {
+    id: 'RealESRGAN_General_x4_v3',
+    label: 'General',
+    description:
+      'Good all-rounder for photorealistic textures — road surfaces, car bodies, terrain.',
+  },
+  {
+    id: 'realesr-animevideov3-x4',
+    label: 'Anime',
+    description:
+      'Illustrated or synthetic textures — liveries with flat colors, logos, hard edges.',
+  },
+  {
+    id: '4xLSDIRCompactC3',
+    label: 'LSDIR Compact',
+    description: 'Fast & sharp general-purpose alternative, often crisper than General.',
+  },
+  {
+    id: '4xNomos8kSC',
+    label: 'Nomos 8K',
+    description: 'High quality, slower. Best for clean, low-noise textures.',
+  },
+  {
+    id: '4x_NMKD-Siax_200k',
+    label: 'NMKD Siax',
+    description: 'Designed for compressed textures — good for heavily artifacted liveries.',
+  },
+]
+
 const scale = ref<EnhanceScale>(4)
 const model = ref<EnhanceModel>('RealESRGAN_General_x4_v3')
 const isEnhancing = ref(false)
@@ -107,6 +137,7 @@ watch(dialogOpen, (val) => {
 })
 
 defineExpose({
+  MODELS,
   SparklesIcon,
   Spinner,
   Button,
@@ -169,29 +200,19 @@ defineExpose({
 
           <div>
             <label class="block text-[11px] text-muted-foreground mb-1.5">Model</label>
-            <div class="flex gap-2">
+            <div class="grid grid-cols-3 gap-1.5">
               <button
-                class="flex-1 text-sm py-1.5 rounded border transition-colors"
-                :class="model === 'RealESRGAN_General_x4_v3' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'"
-                @click="model = 'RealESRGAN_General_x4_v3'"
+                v-for="m in MODELS"
+                :key="m.id"
+                class="text-[12px] py-1.5 rounded border transition-colors"
+                :class="model === m.id ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'"
+                @click="model = m.id"
               >
-                Photo
-              </button>
-              <button
-                class="flex-1 text-sm py-1.5 rounded border transition-colors"
-                :class="model === 'realesr-animevideov3-x4' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'"
-                @click="model = 'realesr-animevideov3-x4'"
-              >
-                Anime
+                {{ m.label }}
               </button>
             </div>
             <p class="text-[11px] text-muted-foreground mt-1.5">
-              <template v-if="model === 'RealESRGAN_General_x4_v3'">
-                Best for photorealistic textures — road surfaces, car bodies, terrain, and scanned materials.
-              </template>
-              <template v-else>
-                Best for illustrated or synthetic textures — liveries with flat colors, logos, hard edges, and hand-drawn art.
-              </template>
+              {{ MODELS.find((m) => m.id === model)?.description }}
             </p>
           </div>
 

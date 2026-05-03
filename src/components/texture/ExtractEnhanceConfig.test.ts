@@ -51,8 +51,11 @@ describe('ExtractEnhanceConfig', () => {
 
   it('renders model buttons', () => {
     const wrapper = mount(ExtractEnhanceConfig, { props: defaultProps() })
-    expect(wrapper.text()).toContain('Photo')
+    expect(wrapper.text()).toContain('General')
     expect(wrapper.text()).toContain('Anime')
+    expect(wrapper.text()).toContain('LSDIR Compact')
+    expect(wrapper.text()).toContain('Nomos 8K')
+    expect(wrapper.text()).toContain('NMKD Siax')
   })
 
   it('renders texture list with names and dimensions', () => {
@@ -93,7 +96,7 @@ describe('ExtractEnhanceConfig', () => {
     const wrapper = mount(ExtractEnhanceConfig, {
       props: { ...defaultProps(), model: 'realesr-animevideov3-x4' as const },
     })
-    expect(wrapper.text()).toContain('illustrated')
+    expect(wrapper.text()).toContain('Illustrated')
   })
 
   it('toggleAll deselects all when all selected', async () => {
