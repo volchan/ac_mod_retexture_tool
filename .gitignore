@@ -6,3 +6,6 @@ src-tauri/gen/
 .env
 *.local
 .claude/
+src-tauri/resources/models/*
+src-tauri/binaries/upscayl-bin-*
+.DS_Store

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { open } from '@tauri-apps/plugin-dialog'
-import { FolderInputIcon } from 'lucide-vue-next'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { UploadIcon } from 'lucide-vue-next'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+
+const isMac = computed(() => navigator.platform.toUpperCase().includes('MAC'))
 
 const emit = defineEmits<{
   import: [path: string]
@@ -35,29 +37,37 @@ async function handleClick() {
   if (dir && !Array.isArray(dir)) emit('import', dir)
 }
 
-defineExpose({
-  FolderInputIcon,
-  isDragOver,
-  handleClick,
-})
+defineExpose({ UploadIcon, isDragOver, isMac, handleClick })
 </script>
 
 <template>
   <div
-    class="flex items-center gap-3 px-4 py-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors bg-background/80 backdrop-blur-sm shadow-sm"
+    class="flex flex-col items-center justify-center gap-2 m-3.5 px-4 py-4 rounded-[10px] border-2 border-dashed cursor-pointer transition-all text-center"
     :class="
       isDragOver
-        ? 'border-primary bg-primary/10 text-primary'
-        : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+        ? 'border-primary bg-[var(--accent-muted)]'
+        : 'border-border hover:border-primary/50 hover:bg-muted/60'
     "
     @click="handleClick"
   >
-    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-muted shrink-0">
-      <FolderInputIcon :size="16" />
+    <!-- Icon box -->
+    <div
+      class="w-[34px] h-[34px] rounded-lg bg-card border border-border flex items-center justify-center shrink-0 text-primary"
+    >
+      <UploadIcon :size="16" />
     </div>
+
+    <!-- Text -->
     <div>
-      <p class="text-xs font-medium">Import replacement textures</p>
-      <p class="text-[11px]">Drop a folder of PNGs or click to browse</p>
+      <p class="text-[13px] font-medium text-foreground">Drop a folder of replacement textures</p>
+      <p class="text-[11.5px] text-muted-foreground mt-0.5">
+        Matched by filename · dimension mismatches flagged
+      </p>
     </div>
+
+    <!-- Keyboard hint -->
+    <kbd class="font-mono text-[10px] px-1.5 py-px rounded bg-muted text-muted-foreground border border-border font-medium">
+      {{ isMac ? '⌘I' : 'Ctrl+I' }}
+    </kbd>
   </div>
 </template>

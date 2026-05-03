@@ -35,6 +35,53 @@ jobs:
         if: github.ref_type == 'tag'
         run: bun scripts/set-version.ts ${{ github.ref_name }}
 
+      - name: Download upscayl-bin and models
+        shell: pwsh
+        run: |
+          $version = (Invoke-RestMethod "https://api.github.com/repos/upscayl/upscayl-ncnn/releases/latest").tag_name
+          if (-not $version) { Write-Error "Failed to get upscayl-ncnn version"; exit 1 }
+          $zip = "upscayl-bin-$version-windows.zip"
+          $url = "https://github.com/upscayl/upscayl-ncnn/releases/download/$version/$zip"
+          $tmp = Join-Path $env:RUNNER_TEMP "upscayl-setup"
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+          curl.exe -fL $url -o "$tmp\$zip"
+          if ($LASTEXITCODE -ne 0) { Write-Error "Failed to download $zip"; exit 1 }
+          Expand-Archive "$tmp\$zip" -DestinationPath "$tmp\out"
+
+          $bin = Get-ChildItem -Path "$tmp\out" -Filter "upscayl-bin.exe" -Recurse | Select-Object -First 1
+          if (-not $bin) { Write-Error "upscayl-bin.exe not found in archive"; exit 1 }
+          New-Item -ItemType Directory -Force -Path "src-tauri\binaries" | Out-Null
+          Copy-Item $bin.FullName "src-tauri\binaries\upscayl-bin-x86_64-pc-windows-msvc.exe"
+
+          New-Item -ItemType Directory -Force -Path "src-tauri\resources\models" | Out-Null
+          $models = @("RealESRGAN_General_x4_v3", "realesr-animevideov3-x4", "4xLSDIRCompactC3", "4xNomos8kSC", "4x_NMKD-Siax_200k")
+          foreach ($model in $models) {
+            $paramInZip = Get-ChildItem -Path "$tmp\out" -Filter "$model.param" -Recurse | Select-Object -First 1
+            $binInZip   = Get-ChildItem -Path "$tmp\out" -Filter "$model.bin"   -Recurse | Select-Object -First 1
+            if ($paramInZip -and $binInZip) {
+              Write-Host "Extracting $model from zip"
+              Copy-Item $paramInZip.FullName "src-tauri\resources\models\$model.param"
+              Copy-Item $binInZip.FullName   "src-tauri\resources\models\$model.bin"
+            } else {
+              Write-Host "Downloading $model from upscayl/custom-models"
+              $base = "https://raw.githubusercontent.com/upscayl/custom-models/main/models"
+              curl.exe -fL "$base/$model.param" -o "src-tauri\resources\models\$model.param"
+              if ($LASTEXITCODE -ne 0) { Write-Error "Failed to download $model.param"; exit 1 }
+              curl.exe -fL "$base/$model.bin" -o "src-tauri\resources\models\$model.bin"
+              if ($LASTEXITCODE -ne 0) { Write-Error "Failed to download $model.bin"; exit 1 }
+            }
+          }
+
+          foreach ($model in $models) {
+            $ps = (Get-Item "src-tauri\resources\models\$model.param").Length
+            $bs = (Get-Item "src-tauri\resources\models\$model.bin").Length
+            Write-Host "$model — param: $ps bytes, bin: $bs bytes"
+            if ($ps -lt 1000)   { Write-Error "$model.param too small ($ps bytes) — possible LFS pointer"; exit 1 }
+            if ($bs -lt 100000) { Write-Error "$model.bin too small ($bs bytes) — possible LFS pointer"; exit 1 }
+          }
+
+          Remove-Item -Recurse -Force $tmp
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -44,5 +91,5 @@ jobs:
           releaseName: AC Mod Retexture Tool ${{ github.ref_name }}
           releaseBody: See the assets below to download and install this version.
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
           args: ''
