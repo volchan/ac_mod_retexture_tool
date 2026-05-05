@@ -47,7 +47,7 @@ fn run(
     let acs_exe = ac_root.join("acs.exe");
 
     copy_dir_all(mod_root, &preview_path)?;
-    apply_replacements(&preview_path, mod_root, replacements)?;
+    apply_replacements(&preview_path, replacements)?;
 
     std::fs::create_dir_all(&cfg_dir)?;
     let race_ini_backup = if race_ini_path.exists() {
@@ -81,7 +81,6 @@ fn run(
 
 fn apply_replacements(
     preview_root: &Path,
-    mod_root: &Path,
     replacements: &[TextureReplacementOpt],
 ) -> Result<(), AppError> {
     let mut kn5_groups: HashMap<String, Vec<&TextureReplacementOpt>> = HashMap::new();
@@ -92,18 +91,24 @@ fn apply_replacements(
     }
 
     for (original_kn5_path, group) in &kn5_groups {
-        let kn5_file = Path::new(original_kn5_path);
-        let rel = kn5_file
-            .strip_prefix(mod_root)
-            .map(|r| r.to_path_buf())
-            .unwrap_or_else(|_| {
-                kn5_file
-                    .file_name()
-                    .map(std::path::Path::new)
-                    .unwrap_or(kn5_file)
-                    .to_path_buf()
-            });
-        patch_kn5(&preview_root.join(rel), group)?;
+        let kn5_filename = Path::new(original_kn5_path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let preview_kn5 = walkdir::WalkDir::new(preview_root)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .find(|e| {
+                e.file_type().is_file()
+                    && e.file_name()
+                        .to_string_lossy()
+                        .eq_ignore_ascii_case(&kn5_filename)
+            })
+            .map(|e| e.path().to_path_buf())
+            .ok_or_else(|| {
+                AppError::NotFound(format!("KN5 not found in preview folder: {kn5_filename}"))
+            })?;
+        patch_kn5(&preview_kn5, group)?;
     }
 
     for r in replacements {
@@ -195,12 +200,10 @@ mod tests {
     fn apply_replacements_is_noop_when_empty() {
         let tmp = TempDir::new().unwrap();
         let preview = tmp.path().join("preview");
-        let mod_root = tmp.path().join("mod");
         fs::create_dir_all(&preview).unwrap();
-        fs::create_dir_all(&mod_root).unwrap();
         fs::write(preview.join("track.txt"), b"data").unwrap();
 
-        apply_replacements(&preview, &mod_root, &[]).unwrap();
+        apply_replacements(&preview, &[]).unwrap();
 
         assert_eq!(
             fs::read_to_string(preview.join("track.txt")).unwrap(),

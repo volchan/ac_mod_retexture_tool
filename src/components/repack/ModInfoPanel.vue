@@ -195,7 +195,8 @@ defineExpose({
       <div class="mt-auto flex flex-col gap-2">
         <button
           v-if="mod.modType === 'track'"
-          class="w-full flex items-center justify-center gap-1.5 text-[12px] px-3 py-2 rounded-[7px] bg-muted border border-border hover:bg-accent transition-colors font-medium"
+          class="w-full flex items-center justify-center gap-1.5 text-[12px] px-3 py-2 rounded-[7px] bg-muted border border-border hover:bg-accent transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="replacementCount === 0"
           @click="$emit('test-in-game')"
         >
           <PlayIcon :size="12" />

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
+import { convertFileSrc } from '@/lib/tauri'
 import type { LibraryEntry } from '@/types/index'
 
 const props = defineProps<{
@@ -56,6 +57,7 @@ defineExpose({
   DialogTitle,
   Input,
   Spinner,
+  convertFileSrc,
   props,
   emit,
   query,
@@ -93,7 +95,7 @@ defineExpose({
           <li
             v-for="car in filtered"
             :key="car.id"
-            class="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors text-[12px]"
+            class="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer transition-colors text-[12px]"
             :class="
               selectedCarId === car.id
                 ? 'bg-[var(--accent-bg)] text-[var(--accent-text)]'
@@ -101,14 +103,27 @@ defineExpose({
             "
             @click="$emit('update:selectedCarId', car.id)"
           >
-            <span
-              v-if="car.isKunos"
-              class="inline-flex shrink-0 text-[9px] font-semibold px-1 py-px rounded border border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
-            >
-              KS
-            </span>
-            <span class="flex-1 truncate font-medium">{{ car.name }}</span>
-            <span class="text-muted-foreground font-mono text-[10px] shrink-0">{{ car.id }}</span>
+            <div class="w-9 h-9 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
+              <img
+                v-if="car.badgePath"
+                :src="convertFileSrc(car.badgePath)"
+                :alt="car.name"
+                class="w-full h-full object-contain"
+              />
+              <span v-else class="text-[9px] text-muted-foreground font-mono">{{ car.id.slice(0, 3) }}</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="font-medium truncate">{{ car.name }}</span>
+                <span
+                  v-if="car.isKunos"
+                  class="inline-flex shrink-0 text-[9px] font-semibold px-1 py-px rounded border border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+                >
+                  KS
+                </span>
+              </div>
+              <span class="text-muted-foreground font-mono text-[10px]">{{ car.id }}</span>
+            </div>
           </li>
         </ul>
       </div>
