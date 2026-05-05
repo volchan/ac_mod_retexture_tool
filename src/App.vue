@@ -183,19 +183,24 @@ async function handleReplaceTexture() {
   if (typeof path === 'string') triggerImport(path)
 }
 
-function handleLaunchTest() {
+async function handleLaunchTest() {
   const replacements = textures.value
     .filter((t) => t.replacement != null)
     .map((t) => ({
       textureId: t.id,
       sourcePath: t.replacement?.sourcePath ?? '',
-      kn5File: t.kn5File,
+      // Use full absolute path so strip_prefix works for nested KN5 subdirectories
+      kn5File: t.source === 'kn5' ? t.path : undefined,
       textureName: t.name,
       skinFolder: t.skinFolder,
       originalFormat: t.format,
       heroImagePath: t.category === 'preview' ? t.path : undefined,
     }))
-  launchTest(replacements)
+  try {
+    await launchTest(replacements)
+  } catch (e) {
+    toast.error(typeof e === 'string' ? e : String(e))
+  }
 }
 
 defineExpose({

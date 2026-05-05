@@ -52,6 +52,7 @@ export function useTestInGame() {
       await testInGame(acPath, modPath, carId, replacements)
     } catch (e) {
       error.value = typeof e === 'string' ? e : String(e)
+      throw e
     } finally {
       isTesting.value = false
     }
