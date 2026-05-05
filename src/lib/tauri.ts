@@ -17,6 +17,7 @@ import type {
   ProgressInfo,
   RepackOptions,
   Texture,
+  TextureReplacementOpt,
 } from '@/types/index'
 
 export interface AcDetectResult {
