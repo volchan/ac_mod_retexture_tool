@@ -42,6 +42,14 @@ export async function listAcContent(path: string): Promise<LibraryEntry[]> {
   return invoke('list_ac_content', { path })
 }
 
+export async function listAcCars(acPath: string): Promise<LibraryEntry[]> {
+  return invoke('list_ac_cars', { acPath })
+}
+
+export async function testInGame(acPath: string, modPath: string, carId: string): Promise<void> {
+  return invoke('test_in_game', { acPath, modPath, carId })
+}
+
 export async function onAcProbe(
   cb: (event: { path: string; label: string; status: string }) => void,
 ): Promise<() => void> {

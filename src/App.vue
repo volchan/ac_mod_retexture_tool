@@ -6,10 +6,13 @@ import CommandPalette from '@/components/CommandPalette.vue'
 import StatusBar from '@/components/layout/StatusBar.vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import RepackDialog from '@/components/repack/RepackDialog.vue'
+import CarPickerDialog from '@/components/test-in-game/CarPickerDialog.vue'
+import TestingOverlay from '@/components/test-in-game/TestingOverlay.vue'
 import Toaster from '@/components/ui/sonner/Toaster.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useLibrary } from '@/composables/useLibrary'
 import { useMod } from '@/composables/useMod'
+import { useTestInGame } from '@/composables/useTestInGame'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { useTheme } from '@/composables/useTheme'
@@ -23,6 +26,17 @@ const { init: initLibrary, addRecent, updateTextureCount } = useLibrary()
 const { reset: resetFilter } = useTextureFilter()
 const { triggerExtract, triggerImport, triggerQueue } = useGlobalCommands()
 const { cycleMode } = useTheme()
+const {
+  dialogOpen: testDialogOpen,
+  isTesting,
+  isLoadingCars,
+  cars,
+  selectedCarId,
+  openDialog: openTestDialog,
+  launch: launchTest,
+  closeDialog: closeTestDialog,
+  selectCar,
+} = useTestInGame()
 
 const focusedTexture = ref<Texture | null>(null)
 const cmdPaletteOpen = ref(false)
@@ -174,6 +188,8 @@ defineExpose({
   StatusBar,
   WorkspaceLayout,
   RepackDialog,
+  CarPickerDialog,
+  TestingOverlay,
   LibraryView,
   Toaster,
   mod,
@@ -187,6 +203,15 @@ defineExpose({
   repackOpen,
   repackOutputPath,
   repackReplacements,
+  testDialogOpen,
+  isTesting,
+  isLoadingCars,
+  cars,
+  selectedCarId,
+  selectCar,
+  closeTestDialog,
+  launchTest,
+  openTestDialog,
   queueCount,
   selectedCount,
   updateTextureCount,
@@ -224,6 +249,7 @@ defineExpose({
       @open-cmd="cmdPaletteOpen = true"
       @extract-texture="triggerExtract"
       @replace-texture="handleReplaceTexture"
+      @test-in-game="mod && openTestDialog(mod.path)"
     />
 
     <!-- Status bar (always visible) -->
@@ -254,6 +280,20 @@ defineExpose({
     :output-path="repackOutputPath"
     :replacements="repackReplacements"
   />
+
+  <!-- Car picker dialog -->
+  <CarPickerDialog
+    :open="testDialogOpen"
+    :cars="cars"
+    :is-loading="isLoadingCars"
+    :selected-car-id="selectedCarId"
+    @update:open="(v) => { if (!v) closeTestDialog() }"
+    @update:selected-car-id="selectCar"
+    @launch="launchTest"
+  />
+
+  <!-- Testing overlay (blocks app while AC is running) -->
+  <TestingOverlay v-if="isTesting" />
 
   <Toaster />
 </template>

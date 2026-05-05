@@ -52,6 +52,22 @@ pub async fn validate_ac_folder(path: String) -> Result<AcInstallInfo, String> {
 }
 
 #[tauri::command]
+pub async fn list_ac_cars(ac_path: String) -> Result<Vec<LibraryEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let cars_dir = std::path::PathBuf::from(&ac_path).join("content/cars");
+        if !cars_dir.is_dir() {
+            return Err("Missing: content/cars".to_string());
+        }
+        Ok(walk_content_dir(&cars_dir)
+            .into_iter()
+            .map(|(id, path)| build_car_entry(&id, &path))
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("Task failed: {e}"))?
+}
+
+#[tauri::command]
 pub async fn list_ac_content(
     app: tauri::AppHandle,
     path: String,

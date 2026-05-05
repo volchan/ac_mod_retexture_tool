@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArchiveIcon } from 'lucide-vue-next'
+import { ArchiveIcon, PlayIcon } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import QueueDrawer from '@/components/texture/QueueDrawer.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
@@ -13,6 +13,7 @@ defineProps<{
 
 const emit = defineEmits<{
   repack: []
+  'test-in-game': []
 }>()
 
 const { textures } = useTextures()
@@ -48,6 +49,7 @@ const mismatchCount = computed(
 
 defineExpose({
   ArchiveIcon,
+  PlayIcon,
   QueueDrawer,
   activeTab,
   replacementCount,
@@ -190,7 +192,15 @@ defineExpose({
         </p>
       </section>
 
-      <div class="mt-auto">
+      <div class="mt-auto flex flex-col gap-2">
+        <button
+          v-if="mod.modType === 'track'"
+          class="w-full flex items-center justify-center gap-1.5 text-[12px] px-3 py-2 rounded-[7px] bg-muted border border-border hover:bg-accent transition-colors font-medium"
+          @click="$emit('test-in-game')"
+        >
+          <PlayIcon :size="12" />
+          Test in Game
+        </button>
         <button
           class="w-full flex items-center justify-center gap-1.5 text-[12px] px-3 py-2 rounded-[7px] bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           :disabled="replacementCount === 0"
