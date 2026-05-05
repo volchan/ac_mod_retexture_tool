@@ -19,6 +19,13 @@ pub async fn test_in_game(
         .map_err(|e: AppError| e.to_string())
 }
 
+fn ac_documents_cfg() -> Result<std::path::PathBuf, AppError> {
+    // AC reads race.ini from Documents\Assetto Corsa\cfg, not the Steam install folder
+    let docs = dirs::document_dir()
+        .ok_or_else(|| AppError::NotFound("Cannot locate Documents folder".to_string()))?;
+    Ok(docs.join("Assetto Corsa").join("cfg"))
+}
+
 fn run(
     ac_path: &str,
     mod_path: &str,
@@ -35,12 +42,14 @@ fn run(
     let preview_name = format!("{folder_name}_preview");
 
     let preview_path = ac_root.join("content/tracks").join(&preview_name);
-    let race_ini_path = ac_root.join("cfg/race.ini");
+    let cfg_dir = ac_documents_cfg()?;
+    let race_ini_path = cfg_dir.join("race.ini");
     let acs_exe = ac_root.join("acs.exe");
 
     copy_dir_all(mod_root, &preview_path)?;
     apply_replacements(&preview_path, mod_root, replacements)?;
 
+    std::fs::create_dir_all(&cfg_dir)?;
     let race_ini_backup = if race_ini_path.exists() {
         Some(std::fs::read_to_string(&race_ini_path)?)
     } else {
@@ -125,8 +134,9 @@ fn apply_replacements(
 }
 
 fn build_race_ini(track: &str, car: &str) -> String {
+    // Format matches what CM writes: Documents\Assetto Corsa\cfg\race.ini
     format!(
-        "[RACE]\nMODEL={car}\nTRACK={track}\nCONFIG_TRACK=\nSKIN=default\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nTIME=120\nLAPS=0\nWAIT_TIME=60\n"
+        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN=default\nTRACK={track}\nCONFIG_TRACK=\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nTIME=120\nLAPS=0\nWAIT_TIME=60\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
     )
 }
 
