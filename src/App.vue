@@ -183,6 +183,21 @@ async function handleReplaceTexture() {
   if (typeof path === 'string') triggerImport(path)
 }
 
+function handleLaunchTest() {
+  const replacements = textures.value
+    .filter((t) => t.replacement != null)
+    .map((t) => ({
+      textureId: t.id,
+      sourcePath: t.replacement?.sourcePath ?? '',
+      kn5File: t.kn5File,
+      textureName: t.name,
+      skinFolder: t.skinFolder,
+      originalFormat: t.format,
+      heroImagePath: t.category === 'preview' ? t.path : undefined,
+    }))
+  launchTest(replacements)
+}
+
 defineExpose({
   CommandPalette,
   StatusBar,
@@ -223,6 +238,7 @@ defineExpose({
   handleRepack,
   handleCmdAction,
   handleReplaceTexture,
+  handleLaunchTest,
 })
 </script>
 
@@ -289,7 +305,7 @@ defineExpose({
     :selected-car-id="selectedCarId"
     @update:open="(v) => { if (!v) closeTestDialog() }"
     @update:selected-car-id="selectCar"
-    @launch="launchTest"
+    @launch="handleLaunchTest"
   />
 
   <!-- Testing overlay (blocks app while AC is running) -->

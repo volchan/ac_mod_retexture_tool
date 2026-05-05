@@ -1,16 +1,30 @@
+use std::collections::HashMap;
 use std::path::Path;
 
+use crate::commands::repack::patch_kn5;
+use crate::converters::dds;
 use crate::errors::AppError;
+use crate::models::repack::TextureReplacementOpt;
 
 #[tauri::command]
-pub async fn test_in_game(ac_path: String, mod_path: String, car_id: String) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || run(&ac_path, &mod_path, &car_id))
+pub async fn test_in_game(
+    ac_path: String,
+    mod_path: String,
+    car_id: String,
+    replacements: Vec<TextureReplacementOpt>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || run(&ac_path, &mod_path, &car_id, &replacements))
         .await
         .map_err(|e| format!("Task failed: {e}"))?
         .map_err(|e: AppError| e.to_string())
 }
 
-fn run(ac_path: &str, mod_path: &str, car_id: &str) -> Result<(), AppError> {
+fn run(
+    ac_path: &str,
+    mod_path: &str,
+    car_id: &str,
+    replacements: &[TextureReplacementOpt],
+) -> Result<(), AppError> {
     let ac_root = Path::new(ac_path);
     let mod_root = Path::new(mod_path);
 
@@ -25,6 +39,7 @@ fn run(ac_path: &str, mod_path: &str, car_id: &str) -> Result<(), AppError> {
     let acs_exe = ac_root.join("acs.exe");
 
     copy_dir_all(mod_root, &preview_path)?;
+    apply_replacements(&preview_path, mod_root, replacements)?;
 
     let race_ini_backup = if race_ini_path.exists() {
         Some(std::fs::read_to_string(&race_ini_path)?)
@@ -49,6 +64,60 @@ fn run(ac_path: &str, mod_path: &str, car_id: &str) -> Result<(), AppError> {
             if race_ini_path.exists() {
                 std::fs::remove_file(&race_ini_path)?;
             }
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_replacements(
+    preview_root: &Path,
+    mod_root: &Path,
+    replacements: &[TextureReplacementOpt],
+) -> Result<(), AppError> {
+    let mut kn5_groups: HashMap<String, Vec<&TextureReplacementOpt>> = HashMap::new();
+    for r in replacements {
+        if let Some(kn5) = &r.kn5_file {
+            kn5_groups.entry(kn5.clone()).or_default().push(r);
+        }
+    }
+
+    for (original_kn5_path, group) in &kn5_groups {
+        let kn5_file = Path::new(original_kn5_path);
+        let rel = kn5_file
+            .strip_prefix(mod_root)
+            .map(|r| r.to_path_buf())
+            .unwrap_or_else(|_| {
+                kn5_file
+                    .file_name()
+                    .map(std::path::Path::new)
+                    .unwrap_or(kn5_file)
+                    .to_path_buf()
+            });
+        patch_kn5(&preview_root.join(rel), group)?;
+    }
+
+    for r in replacements {
+        if let Some(skin_folder) = &r.skin_folder {
+            let dst = preview_root
+                .join("skins")
+                .join(skin_folder)
+                .join(&r.texture_name);
+            let png_data = std::fs::read(&r.source_path)?;
+            let img = image::load_from_memory(&png_data)
+                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+            let dds_data = dds::encode_from_image(&img, &r.original_format)?;
+            std::fs::write(&dst, dds_data)?;
+        }
+    }
+
+    for r in replacements {
+        if let Some(hero_path) = &r.hero_image_path {
+            let dst = preview_root.join(hero_path);
+            if let Some(parent) = dst.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::copy(&r.source_path, &dst)?;
         }
     }
 
@@ -109,6 +178,23 @@ mod tests {
         assert_eq!(
             fs::read_to_string(dst.join("sub/nested.txt")).unwrap(),
             "world"
+        );
+    }
+
+    #[test]
+    fn apply_replacements_is_noop_when_empty() {
+        let tmp = TempDir::new().unwrap();
+        let preview = tmp.path().join("preview");
+        let mod_root = tmp.path().join("mod");
+        fs::create_dir_all(&preview).unwrap();
+        fs::create_dir_all(&mod_root).unwrap();
+        fs::write(preview.join("track.txt"), b"data").unwrap();
+
+        apply_replacements(&preview, &mod_root, &[]).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(preview.join("track.txt")).unwrap(),
+            "data"
         );
     }
 }

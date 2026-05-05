@@ -1,7 +1,7 @@
 import { load } from '@tauri-apps/plugin-store'
 import { ref } from 'vue'
 import { listAcCars, testInGame } from '@/lib/tauri'
-import type { AcInstall, LibraryEntry } from '@/types/index'
+import type { AcInstall, LibraryEntry, TextureReplacementOpt } from '@/types/index'
 
 const STORE_KEY = 'ac-install'
 
@@ -38,7 +38,7 @@ export function useTestInGame() {
     }
   }
 
-  async function launch(): Promise<void> {
+  async function launch(replacements: TextureReplacementOpt[]): Promise<void> {
     if (!pendingAcPath || !pendingModPath || !selectedCarId.value) return
     const acPath = pendingAcPath
     const modPath = pendingModPath
@@ -49,7 +49,7 @@ export function useTestInGame() {
     error.value = null
 
     try {
-      await testInGame(acPath, modPath, carId)
+      await testInGame(acPath, modPath, carId, replacements)
     } catch (e) {
       error.value = typeof e === 'string' ? e : String(e)
     } finally {
