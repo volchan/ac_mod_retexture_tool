@@ -28,6 +28,12 @@ pub fn build_car_entry(folder_id: &str, folder_path: &Path) -> LibraryEntry {
     let texture_count = count_texture_files(folder_path);
     let is_kunos = is_kunos_folder(folder_id);
 
+    let badge_path = ["ui/badge.png", "ui/badge.jpg"]
+        .iter()
+        .map(|p| folder_path.join(p))
+        .find(|p| p.exists())
+        .map(|p| p.to_string_lossy().to_string());
+
     LibraryEntry {
         id: folder_id.to_string(),
         mod_type: MOD_TYPE_CAR.to_string(),
@@ -45,6 +51,7 @@ pub fn build_car_entry(folder_id: &str, folder_path: &Path) -> LibraryEntry {
         length: None,
         pitboxes: None,
         layouts: None,
+        badge_path,
     }
 }
 
@@ -82,6 +89,7 @@ pub fn build_track_entry(folder_id: &str, folder_path: &Path) -> LibraryEntry {
         length,
         pitboxes,
         layouts: Some(layouts),
+        badge_path: None,
     }
 }
 

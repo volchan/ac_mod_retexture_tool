@@ -17,6 +17,7 @@ import type {
   ProgressInfo,
   RepackOptions,
   Texture,
+  TextureReplacementOpt,
 } from '@/types/index'
 
 export interface AcDetectResult {
@@ -40,6 +41,19 @@ export async function validateAcFolder(path: string): Promise<AcInstallInfo> {
 
 export async function listAcContent(path: string): Promise<LibraryEntry[]> {
   return invoke('list_ac_content', { path })
+}
+
+export async function listAcCars(acPath: string): Promise<LibraryEntry[]> {
+  return invoke('list_ac_cars', { acPath })
+}
+
+export async function testInGame(
+  acPath: string,
+  modPath: string,
+  carId: string,
+  replacements: TextureReplacementOpt[],
+): Promise<void> {
+  return invoke('test_in_game', { acPath, modPath, carId, replacements })
 }
 
 export async function onAcProbe(

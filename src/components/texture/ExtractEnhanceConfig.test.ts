@@ -74,16 +74,16 @@ describe('ExtractEnhanceConfig', () => {
   it('emits update:scale when scale button clicked', async () => {
     const wrapper = mount(ExtractEnhanceConfig, { props: defaultProps() })
     const btn2x = wrapper.findAll('button').find((b) => b.text().trim() === '2×')
-    expect(btn2x).toBeDefined()
-    await btn2x!.trigger('click')
+    if (!btn2x) throw new Error('2× button not found')
+    await btn2x.trigger('click')
     expect(wrapper.emitted('update:scale')).toEqual([[2]])
   })
 
   it('emits update:model when Anime clicked', async () => {
     const wrapper = mount(ExtractEnhanceConfig, { props: defaultProps() })
     const animeBtn = wrapper.findAll('button').find((b) => b.text().trim() === 'Anime')
-    expect(animeBtn).toBeDefined()
-    await animeBtn!.trigger('click')
+    if (!animeBtn) throw new Error('Anime button not found')
+    await animeBtn.trigger('click')
     expect(wrapper.emitted('update:model')).toEqual([['realesr-animevideov3-x4']])
   })
 
@@ -104,8 +104,8 @@ describe('ExtractEnhanceConfig', () => {
     await wrapper.vm.toggleAll()
     await nextTick()
     const emitted = wrapper.emitted('update:selectedIds')
-    expect(emitted).toBeDefined()
-    const lastEmit = emitted?.[emitted.length - 1][0] as Set<string>
+    if (!emitted) throw new Error('update:selectedIds not emitted')
+    const lastEmit = emitted[emitted.length - 1][0] as Set<string>
     expect(lastEmit.size).toBe(0)
   })
 
@@ -116,8 +116,8 @@ describe('ExtractEnhanceConfig', () => {
     await wrapper.vm.toggleAll()
     await nextTick()
     const emitted = wrapper.emitted('update:selectedIds')
-    expect(emitted).toBeDefined()
-    const lastEmit = emitted?.[emitted.length - 1][0] as Set<string>
+    if (!emitted) throw new Error('update:selectedIds not emitted')
+    const lastEmit = emitted[emitted.length - 1][0] as Set<string>
     expect(lastEmit.size).toBe(2)
   })
 
@@ -126,8 +126,8 @@ describe('ExtractEnhanceConfig', () => {
     await wrapper.vm.toggleTexture('a')
     await nextTick()
     const emitted = wrapper.emitted('update:selectedIds')
-    expect(emitted).toBeDefined()
-    const last = emitted![emitted!.length - 1][0] as Set<string>
+    if (!emitted) throw new Error('update:selectedIds not emitted')
+    const last = emitted[emitted.length - 1][0] as Set<string>
     expect(last.has('a')).toBe(false)
     expect(last.has('b')).toBe(true)
   })
@@ -139,8 +139,8 @@ describe('ExtractEnhanceConfig', () => {
     await wrapper.vm.toggleTexture('b')
     await nextTick()
     const emitted = wrapper.emitted('update:selectedIds')
-    expect(emitted).toBeDefined()
-    const last = emitted![emitted!.length - 1][0] as Set<string>
+    if (!emitted) throw new Error('update:selectedIds not emitted')
+    const last = emitted[emitted.length - 1][0] as Set<string>
     expect(last.has('b')).toBe(true)
   })
 

@@ -101,7 +101,7 @@ fn find_and_update_json(dir: &Path, filename: &str, opts: &RepackOptions) -> Res
     Ok(())
 }
 
-fn patch_kn5(
+pub(crate) fn patch_kn5(
     copied_kn5_path: &Path,
     replacements: &[&TextureReplacementOpt],
 ) -> Result<(), AppError> {
