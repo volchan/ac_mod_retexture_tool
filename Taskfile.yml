@@ -132,6 +132,10 @@ tasks:
         rm -rf "$TMP"
         echo "upscayl-bin installed successfully."
 
+  setup:enhance:windows:
+    desc: Download upscayl-bin and models for Windows
+    cmd: powershell -ExecutionPolicy Bypass -File scripts/setup-enhance-windows.ps1
+
   # --- Utilities ---
 
   ui:add:
