@@ -46,7 +46,7 @@ const emit = defineEmits<{
 }>()
 
 const allSelected = computed(
-  () => props.textures.length > 0 && props.selectedIds.size === props.textures.length,
+  () => props.textures.length > 0 && props.textures.every((t) => props.selectedIds.has(t.id)),
 )
 
 function toggleAll() {

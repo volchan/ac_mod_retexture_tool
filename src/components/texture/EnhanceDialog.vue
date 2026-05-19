@@ -239,8 +239,8 @@ defineExpose({
         <div v-if="errors.length > 0" class="space-y-1">
           <p class="text-xs text-amber-600">{{ errors.length }} error{{ errors.length !== 1 ? 's' : '' }}:</p>
           <p
-            v-for="err in errors"
-            :key="err"
+            v-for="(err, idx) in errors"
+            :key="idx"
             class="text-[11px] font-mono text-destructive truncate"
           >
             {{ err }}

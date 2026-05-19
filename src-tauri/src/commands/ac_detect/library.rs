@@ -28,6 +28,14 @@ pub fn build_car_entry(folder_id: &str, folder_path: &Path) -> LibraryEntry {
     let texture_count = count_texture_files(folder_path);
     let is_kunos = is_kunos_folder(folder_id);
 
+    let badge_path = ["ui/badge.png", "ui/badge.jpg"]
+        .iter()
+        .map(|p| folder_path.join(p))
+        .find(|p| p.exists())
+        .map(|p| p.to_string_lossy().to_string());
+
+    let skin_preview_path = first_skin_preview(folder_path);
+
     LibraryEntry {
         id: folder_id.to_string(),
         mod_type: MOD_TYPE_CAR.to_string(),
@@ -45,6 +53,8 @@ pub fn build_car_entry(folder_id: &str, folder_path: &Path) -> LibraryEntry {
         length: None,
         pitboxes: None,
         layouts: None,
+        badge_path,
+        skin_preview_path,
     }
 }
 
@@ -82,7 +92,27 @@ pub fn build_track_entry(folder_id: &str, folder_path: &Path) -> LibraryEntry {
         length,
         pitboxes,
         layouts: Some(layouts),
+        badge_path: None,
+        skin_preview_path: None,
     }
+}
+
+fn first_skin_preview(folder_path: &Path) -> Option<String> {
+    let skins_dir = folder_path.join("skins");
+    let mut skin_dirs: Vec<_> = std::fs::read_dir(&skins_dir)
+        .ok()?
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .collect();
+    skin_dirs.sort_by_key(|e| e.file_name());
+    skin_dirs.into_iter().find_map(|e| {
+        let base = e.path();
+        ["preview.jpg", "preview.png", "preview"]
+            .iter()
+            .map(|name| base.join(name))
+            .find(|p| p.exists())
+            .map(|p| p.to_string_lossy().to_string())
+    })
 }
 
 fn is_kunos_folder(id: &str) -> bool {

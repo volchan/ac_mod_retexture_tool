@@ -52,4 +52,6 @@ pub struct LibraryEntry {
     pub length: Option<f64>,
     pub pitboxes: Option<i64>,
     pub layouts: Option<usize>,
+    pub badge_path: Option<String>,
+    pub skin_preview_path: Option<String>,
 }

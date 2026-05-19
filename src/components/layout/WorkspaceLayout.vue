@@ -19,6 +19,7 @@ const emit = defineEmits<{
   'open-cmd': []
   'extract-texture': [texture: Texture]
   'replace-texture': [texture: Texture]
+  'test-in-game': []
 }>()
 
 defineExpose({
@@ -59,7 +60,7 @@ defineExpose({
 
       <!-- Right: mod info / queue (280px) -->
       <aside class="w-[280px] shrink-0 border-l bg-card flex flex-col overflow-hidden">
-        <ModInfoPanel :mod="mod" @repack="$emit('repack')" />
+        <ModInfoPanel :mod="mod" @repack="$emit('repack')" @test-in-game="$emit('test-in-game')" />
       </aside>
     </main>
 

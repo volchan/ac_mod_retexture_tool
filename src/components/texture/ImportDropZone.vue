@@ -42,6 +42,8 @@ defineExpose({ UploadIcon, isDragOver, isMac, handleClick })
 
 <template>
   <div
+    role="button"
+    tabindex="0"
     class="flex flex-col items-center justify-center gap-2 m-3.5 px-4 py-4 rounded-[10px] border-2 border-dashed cursor-pointer transition-all text-center"
     :class="
       isDragOver
@@ -49,6 +51,8 @@ defineExpose({ UploadIcon, isDragOver, isMac, handleClick })
         : 'border-border hover:border-primary/50 hover:bg-muted/60'
     "
     @click="handleClick"
+    @keydown.enter="handleClick"
+    @keydown.space.prevent="handleClick"
   >
     <!-- Icon box -->
     <div

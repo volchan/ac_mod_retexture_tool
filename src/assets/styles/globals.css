@@ -71,6 +71,7 @@
   --accent-muted: #eff6ff;
   --accent-border: #bfdbfe;
   --accent-text: #1e3a8a;
+  --accent-bg: var(--accent-border);
 
   /* Semantic extras */
   --success: #15803d;
@@ -118,6 +119,7 @@
   --accent-muted: #172554;
   --accent-border: #1e3a8a;
   --accent-text: #93c5fd;
+  --accent-bg: var(--accent-border);
 
   --success: #4ade80;
   --success-bg: #14532d;

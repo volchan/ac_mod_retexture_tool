@@ -12,6 +12,9 @@ fn validate_relative_filename(filename: &str) -> Result<(), String> {
     if filename.contains('\\') {
         return Err("filename must not contain backslashes".to_string());
     }
+    if filename.starts_with('/') {
+        return Err("filename must be relative".to_string());
+    }
     let path = Path::new(filename);
     if path.is_absolute() {
         return Err("filename must be relative".to_string());
