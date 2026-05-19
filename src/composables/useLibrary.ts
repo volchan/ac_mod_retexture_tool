@@ -40,7 +40,7 @@ export function useLibrary() {
 
   async function addRecent(mod: Mod) {
     const entry: RecentMod = {
-      id: mod.meta.folderName,
+      id: mod.path,
       modType: mod.modType,
       name: mod.meta.name,
       folderName: mod.meta.folderName,

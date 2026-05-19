@@ -1,10 +1,13 @@
 import { readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
 
 try {
   const pkg = require('@biomejs/biome/package.json') as { version: string }
   const content = readFileSync('biome.json', 'utf8')
   const updated = content.replace(
-    /"\\$schema":\s*"[^"]*"/,
+    /"\$schema":\s*"[^"]*"/,
     `"$schema": "https://biomejs.dev/schemas/${pkg.version}/schema.json"`,
   )
   writeFileSync('biome.json', updated)

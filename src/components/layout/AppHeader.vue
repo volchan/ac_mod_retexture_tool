@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { SearchIcon } from 'lucide-vue-next'
+import { modKbd } from '@/lib/platform'
 import type { Mod } from '@/types/index'
 
 defineProps<{
@@ -10,7 +11,7 @@ const emit = defineEmits<{
   'open-cmd': []
 }>()
 
-defineExpose({ SearchIcon, emit })
+defineExpose({ SearchIcon, modKbd, emit })
 </script>
 
 <template>
@@ -41,7 +42,7 @@ defineExpose({ SearchIcon, emit })
       <SearchIcon :size="12" class="shrink-0" />
       <span class="flex-1 text-left">Search or run action…</span>
       <kbd class="font-mono text-[10px] px-1 py-px rounded bg-background text-muted-foreground border border-border font-medium">
-        ⌘K
+        {{ modKbd('K') }}
       </kbd>
     </button>
 

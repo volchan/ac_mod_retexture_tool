@@ -80,8 +80,8 @@ function Setup-Enhancement {
     Copy-Item -Path $exePath.FullName -Destination $destBinary -Force
     Write-Host "[OK] Binary installed: $destBinary" -ForegroundColor Green
     
-    # Download AI models
-    Write-Host "`nDownloading AI models..." -ForegroundColor Cyan
+    # Extract/download AI models — prefer files bundled in the zip, fall back to custom-models
+    Write-Host "`nExtracting/downloading AI models..." -ForegroundColor Cyan
     $modelsBase = "https://raw.githubusercontent.com/upscayl/custom-models/main/models"
     $models = @(
         "RealESRGAN_General_x4_v3",
@@ -90,22 +90,28 @@ function Setup-Enhancement {
         "4xNomos8kSC",
         "4x_NMKD-Siax_200k"
     )
-    
+
     foreach ($model in $models) {
-        Write-Host "  Downloading $model..." -ForegroundColor Gray
-        
-        $paramUrl = "$modelsBase/$model.param"
-        $binUrl = "$modelsBase/$model.bin"
         $paramDest = Join-Path $modelsDir "$model.param"
-        $binDest = Join-Path $modelsDir "$model.bin"
-        
-        try {
-            Invoke-WebRequest -Uri $paramUrl -OutFile $paramDest -UseBasicParsing
-            Invoke-WebRequest -Uri $binUrl -OutFile $binDest -UseBasicParsing
-            Write-Host "  [OK] $model" -ForegroundColor Green
-        } catch {
-            Write-Error "Failed to download ${model}: $_"
+        $binDest   = Join-Path $modelsDir "$model.bin"
+
+        $paramInZip = Get-ChildItem -Path $tempDir -Filter "$model.param" -Recurse | Select-Object -First 1
+        $binInZip   = Get-ChildItem -Path $tempDir -Filter "$model.bin"   -Recurse | Select-Object -First 1
+
+        if ($paramInZip -and $binInZip) {
+            Write-Host "  Extracting $model from zip" -ForegroundColor Gray
+            Copy-Item $paramInZip.FullName $paramDest -Force
+            Copy-Item $binInZip.FullName   $binDest   -Force
+        } else {
+            Write-Host "  Downloading $model from upscayl/custom-models" -ForegroundColor Gray
+            try {
+                Invoke-WebRequest -Uri "$modelsBase/$model.param" -OutFile $paramDest -UseBasicParsing
+                Invoke-WebRequest -Uri "$modelsBase/$model.bin"   -OutFile $binDest   -UseBasicParsing
+            } catch {
+                Write-Error "Failed to download ${model}: $_"
+            }
         }
+        Write-Host "  [OK] $model" -ForegroundColor Green
     }
     
     # Cleanup

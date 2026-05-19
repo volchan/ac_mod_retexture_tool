@@ -8,7 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "postinstall": "bun run scripts/post-install.ts"
+    "sync-biome-schema": "bun run scripts/post-install.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
