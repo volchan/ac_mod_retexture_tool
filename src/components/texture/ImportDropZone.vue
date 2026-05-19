@@ -2,9 +2,8 @@
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { open } from '@tauri-apps/plugin-dialog'
 import { UploadIcon } from 'lucide-vue-next'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-
-const isMac = computed(() => navigator.platform.toUpperCase().includes('MAC'))
+import { onMounted, onUnmounted, ref } from 'vue'
+import { modKbd } from '@/lib/platform'
 
 const emit = defineEmits<{
   import: [path: string]
@@ -37,7 +36,7 @@ async function handleClick() {
   if (dir && !Array.isArray(dir)) emit('import', dir)
 }
 
-defineExpose({ UploadIcon, isDragOver, isMac, handleClick })
+defineExpose({ UploadIcon, isDragOver, modKbd, handleClick })
 </script>
 
 <template>
@@ -71,7 +70,7 @@ defineExpose({ UploadIcon, isDragOver, isMac, handleClick })
 
     <!-- Keyboard hint -->
     <kbd class="font-mono text-[10px] px-1.5 py-px rounded bg-muted text-muted-foreground border border-border font-medium">
-      {{ isMac ? '⌘I' : 'Ctrl+I' }}
+      {{ modKbd('I') }}
     </kbd>
   </div>
 </template>

@@ -26,6 +26,16 @@ fn ac_documents_cfg() -> Result<std::path::PathBuf, AppError> {
     Ok(docs.join("Assetto Corsa").join("cfg"))
 }
 
+struct DirGuard(std::path::PathBuf);
+
+impl Drop for DirGuard {
+    fn drop(&mut self) {
+        if self.0.exists() {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+}
+
 fn run(
     ac_path: &str,
     mod_path: &str,
@@ -47,8 +57,10 @@ fn run(
     let acs_exe = ac_root.join("acs.exe");
 
     copy_dir_all(mod_root, &preview_path)?;
+    // Drop guard ensures cleanup even on panic or early return
+    let _preview_guard = DirGuard(preview_path.clone());
 
-    let result = run_session(
+    run_session(
         &preview_path,
         replacements,
         &cfg_dir,
@@ -57,13 +69,7 @@ fn run(
         ac_root,
         &preview_name,
         car_id,
-    );
-
-    if preview_path.exists() {
-        let _ = std::fs::remove_dir_all(&preview_path);
-    }
-
-    result
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -80,11 +86,13 @@ fn run_session(
     apply_replacements(preview_path, replacements)?;
 
     std::fs::create_dir_all(cfg_dir)?;
-    let race_ini_backup = if race_ini_path.exists() {
-        Some(std::fs::read_to_string(race_ini_path)?)
-    } else {
-        None
-    };
+
+    // Write backup to disk so it survives a Tauri process crash while AC is running
+    let bak_path = race_ini_path.with_extension("bak");
+    let had_original = race_ini_path.exists();
+    if had_original {
+        std::fs::copy(race_ini_path, &bak_path)?;
+    }
 
     std::fs::write(race_ini_path, build_race_ini(preview_name, car_id))?;
 
@@ -93,13 +101,13 @@ fn run_session(
         .spawn()?
         .wait()?;
 
-    match race_ini_backup {
-        Some(content) => std::fs::write(race_ini_path, content)?,
-        None => {
-            if race_ini_path.exists() {
-                std::fs::remove_file(race_ini_path)?;
-            }
+    if had_original {
+        std::fs::rename(&bak_path, race_ini_path)?;
+    } else {
+        if race_ini_path.exists() {
+            std::fs::remove_file(race_ini_path)?;
         }
+        let _ = std::fs::remove_file(&bak_path);
     }
 
     Ok(())

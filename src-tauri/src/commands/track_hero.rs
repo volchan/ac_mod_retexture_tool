@@ -170,8 +170,26 @@ fn mime_for_path(path: &str) -> &'static str {
     }
 }
 
+const ALLOWED_IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "dds"];
+const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
+
 #[tauri::command]
 pub fn load_replacement_full(image_path: String) -> Result<String, String> {
+    let path = Path::new(&image_path);
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !ALLOWED_IMAGE_EXTS.contains(&ext.as_str()) {
+        return Err(format!("unsupported file type: {ext}"));
+    }
+    let size = std::fs::metadata(&image_path)
+        .map_err(|e| e.to_string())?
+        .len();
+    if size > MAX_IMAGE_BYTES {
+        return Err(format!("file too large: {size} bytes (max 64 MB)"));
+    }
     let bytes = std::fs::read(&image_path).map_err(|e| e.to_string())?;
     let mime = mime_for_path(&image_path);
     let b64 = general_purpose::STANDARD.encode(&bytes);
@@ -355,6 +373,26 @@ mod tests {
     fn load_replacement_full_fails_for_missing_file() {
         let result = load_replacement_full("/nonexistent/path/image.png".to_string());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn load_replacement_full_rejects_disallowed_extension() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("secrets.txt");
+        std::fs::write(&file_path, b"secret").unwrap();
+        let result = load_replacement_full(file_path.to_string_lossy().to_string());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("unsupported file type"));
+    }
+
+    #[test]
+    fn load_replacement_full_rejects_no_extension() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("noext");
+        std::fs::write(&file_path, b"data").unwrap();
+        let result = load_replacement_full(file_path.to_string_lossy().to_string());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("unsupported file type"));
     }
 
     #[test]
