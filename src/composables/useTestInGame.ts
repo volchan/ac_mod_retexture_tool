@@ -29,8 +29,8 @@ export function useTestInGame() {
 
     try {
       cars.value = await listAcCars(install.path)
-    } catch (e) {
-      error.value = typeof e === 'string' ? e : String(e)
+    } catch {
+      // ignore — cars stays empty, user can retry by reopening
     } finally {
       isLoadingCars.value = false
     }
