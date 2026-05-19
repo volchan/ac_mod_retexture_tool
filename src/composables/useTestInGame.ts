@@ -11,7 +11,6 @@ export function useTestInGame() {
   const isLoadingCars = ref(false)
   const cars = ref<LibraryEntry[]>([])
   const selectedCarId = ref<string | null>(null)
-  const error = ref<string | null>(null)
 
   let pendingAcPath: string | null = null
   let pendingModPath: string | null = null
@@ -24,7 +23,6 @@ export function useTestInGame() {
     pendingAcPath = install.path
     pendingModPath = modPath
     selectedCarId.value = null
-    error.value = null
     cars.value = []
     dialogOpen.value = true
     isLoadingCars.value = true
@@ -46,13 +44,9 @@ export function useTestInGame() {
 
     dialogOpen.value = false
     isTesting.value = true
-    error.value = null
 
     try {
       await testInGame(acPath, modPath, carId, replacements)
-    } catch (e) {
-      error.value = typeof e === 'string' ? e : String(e)
-      throw e
     } finally {
       isTesting.value = false
     }
@@ -72,7 +66,6 @@ export function useTestInGame() {
     isLoadingCars,
     cars,
     selectedCarId,
-    error,
     openDialog,
     launch,
     closeDialog,

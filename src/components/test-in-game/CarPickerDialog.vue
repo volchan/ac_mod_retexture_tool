@@ -103,9 +103,15 @@ defineExpose({
             "
             @click="$emit('update:selectedCarId', car.id)"
           >
-            <div class="w-9 h-9 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
+            <div class="w-16 h-9 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
               <img
-                v-if="car.badgePath"
+                v-if="car.skinPreviewPath"
+                :src="convertFileSrc(car.skinPreviewPath)"
+                :alt="car.name"
+                class="w-full h-full object-cover"
+              />
+              <img
+                v-else-if="car.badgePath"
                 :src="convertFileSrc(car.badgePath)"
                 :alt="car.name"
                 class="w-full h-full object-contain"

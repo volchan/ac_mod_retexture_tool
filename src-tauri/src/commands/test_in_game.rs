@@ -47,31 +47,57 @@ fn run(
     let acs_exe = ac_root.join("acs.exe");
 
     copy_dir_all(mod_root, &preview_path)?;
-    apply_replacements(&preview_path, replacements)?;
 
-    std::fs::create_dir_all(&cfg_dir)?;
+    let result = run_session(
+        &preview_path,
+        replacements,
+        &cfg_dir,
+        &race_ini_path,
+        &acs_exe,
+        ac_root,
+        &preview_name,
+        car_id,
+    );
+
+    if preview_path.exists() {
+        let _ = std::fs::remove_dir_all(&preview_path);
+    }
+
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_session(
+    preview_path: &Path,
+    replacements: &[TextureReplacementOpt],
+    cfg_dir: &Path,
+    race_ini_path: &Path,
+    acs_exe: &Path,
+    ac_root: &Path,
+    preview_name: &str,
+    car_id: &str,
+) -> Result<(), AppError> {
+    apply_replacements(preview_path, replacements)?;
+
+    std::fs::create_dir_all(cfg_dir)?;
     let race_ini_backup = if race_ini_path.exists() {
-        Some(std::fs::read_to_string(&race_ini_path)?)
+        Some(std::fs::read_to_string(race_ini_path)?)
     } else {
         None
     };
 
-    std::fs::write(&race_ini_path, build_race_ini(&preview_name, car_id))?;
+    std::fs::write(race_ini_path, build_race_ini(preview_name, car_id))?;
 
-    let _status = std::process::Command::new(&acs_exe)
+    let _status = std::process::Command::new(acs_exe)
         .current_dir(ac_root)
         .spawn()?
         .wait()?;
 
-    if preview_path.exists() {
-        std::fs::remove_dir_all(&preview_path)?;
-    }
-
     match race_ini_backup {
-        Some(content) => std::fs::write(&race_ini_path, content)?,
+        Some(content) => std::fs::write(race_ini_path, content)?,
         None => {
             if race_ini_path.exists() {
-                std::fs::remove_file(&race_ini_path)?;
+                std::fs::remove_file(race_ini_path)?;
             }
         }
     }
@@ -139,9 +165,8 @@ fn apply_replacements(
 }
 
 fn build_race_ini(track: &str, car: &str) -> String {
-    // Format matches what CM writes: Documents\Assetto Corsa\cfg\race.ini
     format!(
-        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN=default\nTRACK={track}\nCONFIG_TRACK=\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nTIME=120\nLAPS=0\nWAIT_TIME=60\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
+        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN=default\nTRACK={track}\nCONFIG_TRACK=\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nDURATION_MINUTES=0\nLAPS=0\nWAIT_TIME=60\nSPAWN_SET=PIT\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
     )
 }
 
@@ -172,7 +197,7 @@ mod tests {
         assert!(ini.contains("TRACK=my_track_preview"));
         assert!(ini.contains("MODEL=ks_abarth500"));
         assert!(ini.contains("TYPE=1"));
-        assert!(ini.contains("TIME=120"));
+        assert!(ini.contains("SPAWN_SET=PIT"));
     }
 
     #[test]

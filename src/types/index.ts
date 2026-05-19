@@ -202,6 +202,7 @@ export interface LibraryEntry {
   pitboxes?: number
   layouts?: number
   badgePath?: string
+  skinPreviewPath?: string
 }
 
 export interface RecentMod {
