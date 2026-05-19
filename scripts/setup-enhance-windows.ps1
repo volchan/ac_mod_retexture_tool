@@ -42,9 +42,9 @@ function Setup-Enhancement {
     Write-Host "Detected Rust triple: $triple" -ForegroundColor Green
     
     # Directories
-    $tauriDir = Join-Path $PSScriptRoot ".." "src-tauri"
+    $tauriDir = Join-Path (Join-Path $PSScriptRoot "..") "src-tauri"
     $binDir = Join-Path $tauriDir "binaries"
-    $modelsDir = Join-Path $tauriDir "resources" "models"
+    $modelsDir = Join-Path (Join-Path $tauriDir "resources") "models"
     
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     New-Item -ItemType Directory -Force -Path $modelsDir | Out-Null
@@ -56,7 +56,8 @@ function Setup-Enhancement {
     # Download upscayl-bin
     $zipName = "upscayl-bin-$version-windows.zip"
     $zipUrl = "https://github.com/upscayl/upscayl-ncnn/releases/download/$version/$zipName"
-    $tempDir = New-TemporaryFile | ForEach-Object { Remove-Item $_; New-Item -ItemType Directory -Path $_ }
+    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+    New-Item -ItemType Directory -Path $tempDir | Out-Null
     $zipPath = Join-Path $tempDir $zipName
     
     Write-Host "Downloading $zipName..." -ForegroundColor Cyan
@@ -77,7 +78,7 @@ function Setup-Enhancement {
     
     $destBinary = Join-Path $binDir "upscayl-bin-$triple.exe"
     Copy-Item -Path $exePath.FullName -Destination $destBinary -Force
-    Write-Host "✓ Binary installed: $destBinary" -ForegroundColor Green
+    Write-Host "[OK] Binary installed: $destBinary" -ForegroundColor Green
     
     # Download AI models
     Write-Host "`nDownloading AI models..." -ForegroundColor Cyan
@@ -101,22 +102,22 @@ function Setup-Enhancement {
         try {
             Invoke-WebRequest -Uri $paramUrl -OutFile $paramDest -UseBasicParsing
             Invoke-WebRequest -Uri $binUrl -OutFile $binDest -UseBasicParsing
-            Write-Host "  ✓ $model" -ForegroundColor Green
+            Write-Host "  [OK] $model" -ForegroundColor Green
         } catch {
-            Write-Error "Failed to download $model: $_"
+            Write-Error "Failed to download ${model}: $_"
         }
     }
     
     # Cleanup
     Remove-Item -Path $tempDir -Recurse -Force
     
-    Write-Host "`n✓ Setup complete! Enhancement files installed successfully." -ForegroundColor Green
+    Write-Host "`n[OK] Setup complete! Enhancement files installed successfully." -ForegroundColor Green
 }
 
 # Run
 try {
     Setup-Enhancement
 } catch {
-    Write-Host "`n✗ Setup failed: $_" -ForegroundColor Red
+    Write-Host "`n[FAIL] Setup failed: $_" -ForegroundColor Red
     exit 1
 }
