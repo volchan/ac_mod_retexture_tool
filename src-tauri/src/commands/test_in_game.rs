@@ -57,7 +57,12 @@ struct RaceIniGuard {
 
 impl RaceIniGuard {
     fn new(race_ini: std::path::PathBuf, bak: std::path::PathBuf, had_original: bool) -> Self {
-        Self { race_ini, bak, had_original, finished: false }
+        Self {
+            race_ini,
+            bak,
+            had_original,
+            finished: false,
+        }
     }
 
     fn finish(mut self) -> Result<(), AppError> {
