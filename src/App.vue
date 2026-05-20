@@ -31,6 +31,7 @@ const {
   isTesting,
   isLoadingCars,
   cars,
+  acPath,
   selectedCarId,
   openDialog: openTestDialog,
   launch: launchTest,
@@ -227,6 +228,7 @@ defineExpose({
   isTesting,
   isLoadingCars,
   cars,
+  acPath,
   selectedCarId,
   selectCar,
   closeTestDialog,
@@ -306,6 +308,7 @@ defineExpose({
   <CarPickerDialog
     :open="testDialogOpen"
     :cars="cars"
+    :ac-path="acPath"
     :is-loading="isLoadingCars"
     :selected-car-id="selectedCarId"
     @update:open="(v) => { if (!v) closeTestDialog() }"

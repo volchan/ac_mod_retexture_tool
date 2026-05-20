@@ -11,12 +11,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
-import { convertFileSrc } from '@/lib/tauri'
+import { readCarPreview } from '@/lib/tauri'
 import type { LibraryEntry } from '@/types/index'
 
 const props = defineProps<{
   open: boolean
   cars: LibraryEntry[]
+  acPath: string | null
   isLoading: boolean
   selectedCarId: string | null
 }>()
@@ -28,11 +29,32 @@ const emit = defineEmits<{
 }>()
 
 const query = ref('')
+const carImages = ref<Record<string, string>>({})
 
 watch(
   () => props.open,
   (val) => {
     if (!val) query.value = ''
+  },
+)
+
+watch(
+  () => props.cars,
+  async (cars: LibraryEntry[]) => {
+    if (!props.acPath) return
+    const acPath = props.acPath
+    carImages.value = {}
+    await Promise.all(
+      cars.map(async (car: LibraryEntry) => {
+        const imgPath = car.skinPreviewPath ?? car.badgePath
+        if (!imgPath) return
+        try {
+          carImages.value[car.id] = await readCarPreview(imgPath, acPath)
+        } catch {
+          // leave entry absent — fallback renders the ID initials
+        }
+      }),
+    )
   },
 )
 
@@ -57,10 +79,10 @@ defineExpose({
   DialogTitle,
   Input,
   Spinner,
-  convertFileSrc,
   props,
   emit,
   query,
+  carImages,
   filtered,
 })
 </script>
@@ -105,16 +127,10 @@ defineExpose({
           >
             <div class="w-16 h-9 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
               <img
-                v-if="car.skinPreviewPath"
-                :src="convertFileSrc(car.skinPreviewPath)"
+                v-if="carImages[car.id]"
+                :src="carImages[car.id]"
                 :alt="car.name"
-                class="w-full h-full object-cover"
-              />
-              <img
-                v-else-if="car.badgePath"
-                :src="convertFileSrc(car.badgePath)"
-                :alt="car.name"
-                class="w-full h-full object-contain"
+                :class="car.skinPreviewPath ? 'w-full h-full object-cover' : 'w-full h-full object-contain'"
               />
               <span v-else class="text-[9px] text-muted-foreground font-mono">{{ car.id.slice(0, 3) }}</span>
             </div>

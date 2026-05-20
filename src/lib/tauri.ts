@@ -1,9 +1,7 @@
 import { getVersion } from '@tauri-apps/api/app'
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-
-export { convertFileSrc }
 
 import { save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -141,6 +139,10 @@ export async function previewReplacementImage(imagePath: string): Promise<string
 
 export async function loadReplacementFull(imagePath: string): Promise<string> {
   return invoke('load_replacement_full', { imagePath })
+}
+
+export async function readCarPreview(imagePath: string, acPath: string): Promise<string> {
+  return invoke('read_car_preview', { imagePath, acPath })
 }
 
 export async function getKn5Texture(kn5Path: string, textureName: string): Promise<string> {

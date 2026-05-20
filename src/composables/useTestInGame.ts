@@ -12,6 +12,7 @@ export function useTestInGame() {
   const cars = ref<LibraryEntry[]>([])
   const selectedCarId = ref<string | null>(null)
 
+  const acPath = ref<string | null>(null)
   let pendingAcPath: string | null = null
   let pendingModPath: string | null = null
 
@@ -21,6 +22,7 @@ export function useTestInGame() {
     if (!install?.path) return
 
     pendingAcPath = install.path
+    acPath.value = install.path
     pendingModPath = modPath
     selectedCarId.value = null
     cars.value = []
@@ -65,6 +67,7 @@ export function useTestInGame() {
     isTesting,
     isLoadingCars,
     cars,
+    acPath,
     selectedCarId,
     openDialog,
     launch,

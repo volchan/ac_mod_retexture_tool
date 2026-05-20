@@ -20,21 +20,7 @@
       }
     ],
     "security": {
-      "csp": null,
-      "assetProtocol": {
-        "enable": true,
-        "scope": [
-          "$HOME/**",
-          "$DOCUMENT/**",
-          "C:/Program Files (x86)/Steam/**",
-          "C:/Program Files/Steam/**",
-          "?:/SteamLibrary/**",
-          "?:/Steam/**",
-          "?:/Games/**",
-          "?:/AC/**",
-          "?:/AssettoCorsa/**"
-        ]
-      }
+      "csp": null
     }
   },
   "bundle": {

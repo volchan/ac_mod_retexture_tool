@@ -173,6 +173,44 @@ fn mime_for_path(path: &str) -> &'static str {
 const ALLOWED_IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "dds"];
 const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
 
+// AC skin preview files can have no extension (raw JPEG without `.jpg`)
+const ALLOWED_PREVIEW_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", ""];
+
+#[tauri::command]
+pub fn read_car_preview(image_path: String, ac_path: String) -> Result<String, String> {
+    let canonical_ac =
+        std::fs::canonicalize(&ac_path).map_err(|e| format!("invalid AC path: {e}"))?;
+    let canonical_img =
+        std::fs::canonicalize(&image_path).map_err(|_| format!("image not found: {image_path}"))?;
+    if !canonical_img.starts_with(&canonical_ac) {
+        return Err("path escapes AC directory".to_string());
+    }
+    let ext = canonical_img
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !ALLOWED_PREVIEW_EXTS.contains(&ext.as_str()) {
+        return Err(format!("unsupported file type: {ext}"));
+    }
+    let size = std::fs::metadata(&canonical_img)
+        .map_err(|e| e.to_string())?
+        .len();
+    if size > 10 * 1024 * 1024 {
+        return Err(format!("image too large: {size} bytes (max 10 MB)"));
+    }
+    let bytes = std::fs::read(&canonical_img).map_err(|e| e.to_string())?;
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" | "" => "image/jpeg",
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        _ => "image/jpeg",
+    };
+    let b64 = general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{b64}"))
+}
+
 #[tauri::command]
 pub fn load_replacement_full(image_path: String) -> Result<String, String> {
     let path = Path::new(&image_path);
