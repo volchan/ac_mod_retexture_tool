@@ -36,6 +36,44 @@ impl Drop for DirGuard {
     }
 }
 
+fn restore_race_ini(race_ini: &Path, bak: &Path, had_original: bool) -> Result<(), AppError> {
+    if had_original {
+        std::fs::rename(bak, race_ini)?;
+    } else {
+        if race_ini.exists() {
+            std::fs::remove_file(race_ini)?;
+        }
+        let _ = std::fs::remove_file(bak);
+    }
+    Ok(())
+}
+
+struct RaceIniGuard {
+    race_ini: std::path::PathBuf,
+    bak: std::path::PathBuf,
+    had_original: bool,
+    finished: bool,
+}
+
+impl RaceIniGuard {
+    fn new(race_ini: std::path::PathBuf, bak: std::path::PathBuf, had_original: bool) -> Self {
+        Self { race_ini, bak, had_original, finished: false }
+    }
+
+    fn finish(mut self) -> Result<(), AppError> {
+        self.finished = true;
+        restore_race_ini(&self.race_ini, &self.bak, self.had_original)
+    }
+}
+
+impl Drop for RaceIniGuard {
+    fn drop(&mut self) {
+        if !self.finished {
+            let _ = restore_race_ini(&self.race_ini, &self.bak, self.had_original);
+        }
+    }
+}
+
 fn run(
     ac_path: &str,
     mod_path: &str,
@@ -96,21 +134,14 @@ fn run_session(
 
     std::fs::write(race_ini_path, build_race_ini(preview_name, car_id))?;
 
+    let guard = RaceIniGuard::new(race_ini_path.to_path_buf(), bak_path, had_original);
+
     let _status = std::process::Command::new(acs_exe)
         .current_dir(ac_root)
         .spawn()?
         .wait()?;
 
-    if had_original {
-        std::fs::rename(&bak_path, race_ini_path)?;
-    } else {
-        if race_ini_path.exists() {
-            std::fs::remove_file(race_ini_path)?;
-        }
-        let _ = std::fs::remove_file(&bak_path);
-    }
-
-    Ok(())
+    guard.finish()
 }
 
 fn apply_replacements(

@@ -16,8 +16,11 @@ function Get-RustTriple {
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to detect Rust toolchain. Is Rust installed?"
     }
-    $triple = ($output | Select-String 'host:\s*(.+)').Matches.Groups[1].Value.Trim()
-    return $triple
+    $match = $output | Select-String 'host:\s*(.+)'
+    if (-not $match -or $match.Matches.Count -eq 0) {
+        Write-Error "Could not parse Rust target triple from rustc output:`n$output"
+    }
+    return $match.Matches.Groups[1].Value.Trim()
 }
 
 # Get latest release tag from GitHub

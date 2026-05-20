@@ -10,6 +10,7 @@ import {
 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
+import { normalizePath } from '@/lib/path'
 import type { Mod, ModFile, SkinFolder } from '@/types/index'
 import ModBadge from './ModBadge.vue'
 import ModTreeNodes from './ModTreeNodes.vue'
@@ -31,10 +32,6 @@ function handleClose() {
   emit('close')
 }
 
-function normalizePath(p: string): string {
-  return p.replace(/\\/g, '/')
-}
-
 function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[]): TreeNode[] {
   const base = normalizePath(modPath)
   const nodeMap = new Map<string, TreeNode>()
@@ -43,7 +40,8 @@ function buildTree(modPath: string, files: ModFile[], skinFolders: SkinFolder[])
     const existing = nodeMap.get(dirPath)
     if (existing) return existing
     const parentPath = dirPath.substring(0, dirPath.lastIndexOf('/'))
-    const name = dirPath.split('/').pop() as string
+    const parts = dirPath.split('/')
+    const name = parts[parts.length - 1] ?? ''
     const node: TreeNode = { name, path: dirPath, isDir: true, children: [] }
     nodeMap.set(dirPath, node)
     if (parentPath && parentPath !== base) {
