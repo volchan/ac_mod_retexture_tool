@@ -129,6 +129,10 @@ export function useTextures() {
     selected.value = new Set(textures.value.map((t) => t.id))
   }
 
+  function selectIds(ids: string[]) {
+    selected.value = new Set(ids)
+  }
+
   function deselectAll() {
     selected.value = new Set()
   }
@@ -184,6 +188,7 @@ export function useTextures() {
     setImportFolder,
     toggleSelect,
     selectAll,
+    selectIds,
     deselectAll,
     filteredTextures,
     applyReplacements,
