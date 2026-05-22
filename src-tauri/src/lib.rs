@@ -41,6 +41,7 @@ pub fn run() {
             commands::ac_detect::validate_ac_folder,
             commands::ac_detect::list_ac_content,
             commands::ac_detect::list_ac_cars,
+            commands::test_in_game::list_track_layouts,
             commands::test_in_game::test_in_game,
         ])
         .run(tauri::generate_context!())

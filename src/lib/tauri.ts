@@ -45,13 +45,18 @@ export async function listAcCars(acPath: string): Promise<LibraryEntry[]> {
   return invoke('list_ac_cars', { acPath })
 }
 
+export async function listTrackLayouts(modPath: string): Promise<string[]> {
+  return invoke('list_track_layouts', { modPath })
+}
+
 export async function testInGame(
   acPath: string,
   modPath: string,
   carId: string,
+  configTrack: string,
   replacements: TextureReplacementOpt[],
 ): Promise<void> {
-  return invoke('test_in_game', { acPath, modPath, carId, replacements })
+  return invoke('test_in_game', { acPath, modPath, carId, configTrack, replacements })
 }
 
 export async function onAcProbe(

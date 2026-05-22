@@ -20,11 +20,14 @@ const props = defineProps<{
   acPath: string | null
   isLoading: boolean
   selectedCarId: string | null
+  layouts: string[]
+  selectedLayout: string | null
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'update:selectedCarId': [value: string | null]
+  'update:selectedLayout': [value: string | null]
   launch: []
 }>()
 
@@ -69,6 +72,10 @@ const filtered = computed(() => {
   )
 })
 
+const canLaunch = computed(
+  () => !!props.selectedCarId && (props.layouts.length === 0 || !!props.selectedLayout),
+)
+
 defineExpose({
   PlayIcon,
   Button,
@@ -84,6 +91,7 @@ defineExpose({
   query,
   carImages,
   filtered,
+  canLaunch,
 })
 </script>
 
@@ -103,10 +111,30 @@ defineExpose({
         />
       </div>
 
+      <div v-if="layouts.length >= 1" class="px-4 py-2 border-b shrink-0 flex items-center gap-2">
+        <span class="text-[11px] text-muted-foreground shrink-0">Layout</span>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="layout in layouts"
+            :key="layout"
+            type="button"
+            class="text-[11px] px-2 py-0.5 rounded border transition-colors"
+            :class="
+              selectedLayout === layout
+                ? 'bg-[var(--accent-bg)] text-[var(--accent-text)] border-[var(--accent-bg)]'
+                : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground'
+            "
+            @click="$emit('update:selectedLayout', layout)"
+          >
+            {{ layout }}
+          </button>
+        </div>
+      </div>
+
       <div class="flex-1 overflow-y-auto min-h-0">
         <div v-if="isLoading" class="flex items-center justify-center py-10 gap-2 text-muted-foreground text-[12px]">
           <Spinner class="w-4 h-4" />
-          Loading cars…
+          Loading…
         </div>
 
         <div v-else-if="filtered.length === 0" class="flex items-center justify-center py-10 text-muted-foreground text-[12px]">
@@ -156,7 +184,7 @@ defineExpose({
         </Button>
         <Button
           class="text-[12px] h-8 gap-1.5"
-          :disabled="!selectedCarId"
+          :disabled="!canLaunch"
           @click="$emit('launch')"
         >
           <PlayIcon :size="11" />

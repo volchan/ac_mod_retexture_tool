@@ -7,16 +7,36 @@ use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
 
 #[tauri::command]
+pub async fn list_track_layouts(mod_path: String) -> Result<Vec<String>, String> {
+    let ui_dir = Path::new(&mod_path).join("ui");
+    if !ui_dir.is_dir() {
+        return Ok(vec![]);
+    }
+    let mut names: Vec<String> = std::fs::read_dir(&ui_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_dir())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|name| ui_dir.join(name).join("ui_track.json").exists())
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
+#[tauri::command]
 pub async fn test_in_game(
     ac_path: String,
     mod_path: String,
     car_id: String,
+    config_track: String,
     replacements: Vec<TextureReplacementOpt>,
 ) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || run(&ac_path, &mod_path, &car_id, &replacements))
-        .await
-        .map_err(|e| format!("Task failed: {e}"))?
-        .map_err(|e: AppError| e.to_string())
+    tokio::task::spawn_blocking(move || {
+        run(&ac_path, &mod_path, &car_id, &config_track, &replacements)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {e}"))?
+    .map_err(|e: AppError| e.to_string())
 }
 
 fn ac_documents_cfg() -> Result<std::path::PathBuf, AppError> {
@@ -83,6 +103,7 @@ fn run(
     ac_path: &str,
     mod_path: &str,
     car_id: &str,
+    config_track: &str,
     replacements: &[TextureReplacementOpt],
 ) -> Result<(), AppError> {
     let ac_root = Path::new(ac_path);
@@ -112,6 +133,7 @@ fn run(
         ac_root,
         &preview_name,
         car_id,
+        config_track,
     )
 }
 
@@ -125,6 +147,7 @@ fn run_session(
     ac_root: &Path,
     preview_name: &str,
     car_id: &str,
+    config_track: &str,
 ) -> Result<(), AppError> {
     apply_replacements(preview_path, replacements)?;
 
@@ -137,7 +160,7 @@ fn run_session(
         std::fs::copy(race_ini_path, &bak_path)?;
     }
 
-    std::fs::write(race_ini_path, build_race_ini(preview_name, car_id))?;
+    std::fs::write(race_ini_path, build_race_ini(preview_name, car_id, config_track))?;
 
     let guard = RaceIniGuard::new(race_ini_path.to_path_buf(), bak_path, had_original);
 
@@ -208,9 +231,9 @@ fn apply_replacements(
     Ok(())
 }
 
-fn build_race_ini(track: &str, car: &str) -> String {
+fn build_race_ini(track: &str, car: &str, config_track: &str) -> String {
     format!(
-        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN=default\nTRACK={track}\nCONFIG_TRACK=\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nDURATION_MINUTES=0\nLAPS=0\nWAIT_TIME=60\nSPAWN_SET=PIT\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
+        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN=default\nTRACK={track}\nCONFIG_TRACK={config_track}\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nDURATION_MINUTES=0\nLAPS=0\nWAIT_TIME=60\nSPAWN_SET=PIT\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
     )
 }
 
@@ -237,11 +260,74 @@ mod tests {
 
     #[test]
     fn build_race_ini_contains_track_and_car() {
-        let ini = build_race_ini("my_track_preview", "ks_abarth500");
+        let ini = build_race_ini("my_track_preview", "ks_abarth500", "");
         assert!(ini.contains("TRACK=my_track_preview"));
         assert!(ini.contains("MODEL=ks_abarth500"));
+        assert!(ini.contains("CONFIG_TRACK=\n"));
         assert!(ini.contains("TYPE=1"));
         assert!(ini.contains("SPAWN_SET=PIT"));
+    }
+
+    #[test]
+    fn build_race_ini_sets_config_track_when_layout_name_given() {
+        let ini = build_race_ini("my_track_preview", "ks_abarth500", "international");
+        assert!(ini.contains("CONFIG_TRACK=international\n"));
+    }
+
+    #[test]
+    fn list_track_layouts_returns_empty_when_no_ui_dir() {
+        let tmp = TempDir::new().unwrap();
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(list_track_layouts(tmp.path().to_str().unwrap().to_string()))
+            .unwrap();
+        assert_eq!(result, Vec::<String>::new());
+    }
+
+    #[test]
+    fn list_track_layouts_returns_sorted_names_for_subdirs_with_ui_track_json() {
+        let tmp = TempDir::new().unwrap();
+        let ui = tmp.path().join("ui");
+        fs::create_dir_all(ui.join("gp")).unwrap();
+        fs::write(ui.join("gp/ui_track.json"), b"{}").unwrap();
+        fs::create_dir_all(ui.join("national")).unwrap();
+        fs::write(ui.join("national/ui_track.json"), b"{}").unwrap();
+        fs::create_dir_all(ui.join("international")).unwrap();
+        fs::write(ui.join("international/ui_track.json"), b"{}").unwrap();
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(list_track_layouts(tmp.path().to_str().unwrap().to_string()))
+            .unwrap();
+        assert_eq!(result, vec!["gp", "international", "national"]);
+    }
+
+    #[test]
+    fn list_track_layouts_excludes_subdirs_without_ui_track_json() {
+        let tmp = TempDir::new().unwrap();
+        let ui = tmp.path().join("ui");
+        fs::create_dir_all(ui.join("gp")).unwrap();
+        fs::write(ui.join("gp/ui_track.json"), b"{}").unwrap();
+        // dir without ui_track.json should be ignored
+        fs::create_dir_all(ui.join("extra")).unwrap();
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(list_track_layouts(tmp.path().to_str().unwrap().to_string()))
+            .unwrap();
+        assert_eq!(result, vec!["gp"]);
+    }
+
+    #[test]
+    fn list_track_layouts_returns_empty_for_single_layout_track() {
+        let tmp = TempDir::new().unwrap();
+        // Single-layout track: ui/ui_track.json at root, no subdirs with ui_track.json
+        let ui = tmp.path().join("ui");
+        fs::create_dir_all(&ui).unwrap();
+        fs::write(ui.join("ui_track.json"), b"{}").unwrap();
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(list_track_layouts(tmp.path().to_str().unwrap().to_string()))
+            .unwrap();
+        assert_eq!(result, Vec::<String>::new());
     }
 
     #[test]
