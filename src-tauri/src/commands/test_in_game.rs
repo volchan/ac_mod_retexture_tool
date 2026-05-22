@@ -160,7 +160,10 @@ fn run_session(
         std::fs::copy(race_ini_path, &bak_path)?;
     }
 
-    std::fs::write(race_ini_path, build_race_ini(preview_name, car_id, config_track))?;
+    std::fs::write(
+        race_ini_path,
+        build_race_ini(preview_name, car_id, config_track),
+    )?;
 
     let guard = RaceIniGuard::new(race_ini_path.to_path_buf(), bak_path, had_original);
 
