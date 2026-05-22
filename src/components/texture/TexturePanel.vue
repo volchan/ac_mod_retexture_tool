@@ -46,7 +46,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'selection-change': [selected: Set<string>]
-  'focus-texture': [texture: Texture]
 }>()
 
 const {
@@ -58,7 +57,7 @@ const {
   restoreReplacements,
   setImportFolder,
   toggleSelect,
-  selectAll,
+  selectIds,
   deselectAll,
   filteredTextures,
   applyReplacements,
@@ -147,17 +146,14 @@ function handleToggleSelect(id: string) {
 }
 
 function handleSelectAll() {
-  selectAll()
+  const visibleIds = groupedTextures.value.flatMap((g) => g.textures.map((t) => t.id))
+  selectIds([...selected.value, ...visibleIds])
   emit('selection-change', selected.value)
 }
 
 function handleDeselectAll() {
   deselectAll()
   emit('selection-change', selected.value)
-}
-
-function handleFocusTexture(texture: Texture) {
-  emit('focus-texture', texture)
 }
 
 async function handleImport(folderPath: string) {
@@ -250,7 +246,6 @@ defineExpose({
   tileWidth,
   collapsedGroups,
   toggleGroupCollapsed,
-  handleFocusTexture,
   handleToggleSelect,
   handleSelectAll,
   handleDeselectAll,
@@ -319,7 +314,6 @@ defineExpose({
             :density="density"
             @toggle-select="handleToggleSelect(texture.id)"
             @open-detail="handleOpenDetail(texture.id)"
-            @click.stop="handleFocusTexture(texture)"
           />
         </div>
       </template>

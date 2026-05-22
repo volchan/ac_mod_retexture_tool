@@ -26,7 +26,6 @@ const globalStubs = {
   TexturePanel: { template: '<div data-testid="texture-panel" />' },
   Kn5Sidebar: { template: '<div data-testid="kn5-sidebar" />' },
   ModInfoPanel: { template: '<div data-testid="mod-info-panel" />' },
-  InlinePreviewRail: { template: '<div data-testid="inline-preview-rail" />' },
   AppHeader: { template: '<div data-testid="app-header" />' },
 }
 
@@ -43,7 +42,7 @@ beforeEach(() => {
 describe('WorkspaceLayout', () => {
   it('renders with required props without throwing', () => {
     const wrapper = mount(WorkspaceLayout, {
-      props: { mod: makeMod(), textures: [], focusedTexture: null },
+      props: { mod: makeMod(), textures: [] },
       global: { stubs: globalStubs },
     })
     expect(wrapper.exists()).toBe(true)
@@ -51,7 +50,7 @@ describe('WorkspaceLayout', () => {
 
   it('renders all 3 layout sections', () => {
     const wrapper = mount(WorkspaceLayout, {
-      props: { mod: makeMod(), textures: [], focusedTexture: null },
+      props: { mod: makeMod(), textures: [] },
       global: { stubs: globalStubs },
     })
     expect(wrapper.find('[data-testid="kn5-sidebar"]').exists()).toBe(true)

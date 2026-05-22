@@ -17,7 +17,7 @@ import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { useTheme } from '@/composables/useTheme'
 import { showSaveDialog } from '@/lib/tauri'
-import type { Texture, TextureReplacementOpt } from '@/types/index'
+import type { TextureReplacementOpt } from '@/types/index'
 import LibraryView from '@/views/LibraryView.vue'
 
 const { mod, loadMod, closeMod } = useMod()
@@ -33,13 +33,15 @@ const {
   cars,
   acPath,
   selectedCarId,
+  layouts,
+  selectedLayout,
   openDialog: openTestDialog,
   launch: launchTest,
   closeDialog: closeTestDialog,
   selectCar,
+  selectLayout,
 } = useTestInGame()
 
-const focusedTexture = ref<Texture | null>(null)
 const cmdPaletteOpen = ref(false)
 const repackOpen = ref(false)
 const repackOutputPath = ref('')
@@ -109,7 +111,6 @@ async function handleDrop(path: string) {
     return
   }
   await addRecent(mod.value)
-  focusedTexture.value = null
   resetFilter()
 }
 
@@ -127,10 +128,6 @@ async function handleBrowse() {
 
 async function handleOpenRecent(path: string) {
   await handleDrop(path)
-}
-
-function handleFocusTexture(texture: Texture) {
-  focusedTexture.value = texture
 }
 
 async function handleRepack() {
@@ -169,19 +166,9 @@ async function handleCmdAction(action: string) {
   if (action === 'switch-mod') {
     closeMod()
     resetFilter()
-    focusedTexture.value = null
   }
   if (action === 'toggle-theme') cycleMode()
   if (action === 'queue') triggerQueue()
-}
-
-async function handleReplaceTexture() {
-  const path = await open({
-    directory: true,
-    multiple: false,
-    defaultPath: lastImportFolder.value,
-  })
-  if (typeof path === 'string') triggerImport(path)
 }
 
 async function handleLaunchTest() {
@@ -219,7 +206,6 @@ defineExpose({
   textures,
   selected,
   lastImportFolder,
-  focusedTexture,
   cmdPaletteOpen,
   repackOpen,
   repackOutputPath,
@@ -231,6 +217,9 @@ defineExpose({
   acPath,
   selectedCarId,
   selectCar,
+  selectedLayout,
+  selectLayout,
+  layouts,
   closeTestDialog,
   launchTest,
   openTestDialog,
@@ -241,10 +230,8 @@ defineExpose({
   handleDrop,
   handleBrowse,
   handleOpenRecent,
-  handleFocusTexture,
   handleRepack,
   handleCmdAction,
-  handleReplaceTexture,
   handleLaunchTest,
 })
 </script>
@@ -265,13 +252,9 @@ defineExpose({
       class="flex-1 min-h-0"
       :mod="mod"
       :textures="textures"
-      :focused-texture="focusedTexture"
       @repack="handleRepack"
       @close="handleCmdAction('switch-mod')"
-      @focus-texture="handleFocusTexture"
       @open-cmd="cmdPaletteOpen = true"
-      @extract-texture="triggerExtract"
-      @replace-texture="handleReplaceTexture"
       @test-in-game="mod && openTestDialog(mod.path)"
     />
 
@@ -311,8 +294,11 @@ defineExpose({
     :ac-path="acPath"
     :is-loading="isLoadingCars"
     :selected-car-id="selectedCarId"
+    :layouts="layouts"
+    :selected-layout="selectedLayout"
     @update:open="(v) => { if (!v) closeTestDialog() }"
     @update:selected-car-id="selectCar"
+    @update:selected-layout="selectLayout"
     @launch="handleLaunchTest"
   />
 
