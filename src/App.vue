@@ -143,7 +143,7 @@ async function handleRepack() {
     .map((t) => ({
       textureId: t.id,
       sourcePath: t.replacement?.sourcePath ?? '',
-      kn5File: t.kn5File,
+      kn5File: t.source === 'kn5' ? t.path : undefined,
       textureName: t.name,
       skinFolder: t.skinFolder,
       originalFormat: t.format,
