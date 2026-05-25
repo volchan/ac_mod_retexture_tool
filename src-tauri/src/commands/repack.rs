@@ -210,11 +210,17 @@ pub fn repack_mod_inner(
             grand_total,
         );
 
-        let rel = Path::new(original_kn5_path)
-            .strip_prefix(mod_path)
-            .map(|r| r.to_path_buf())
-            .unwrap_or_else(|_| Path::new(&kn5_name).to_path_buf());
-        let copied_kn5_path = copy_dst.join(rel);
+        let copied_kn5_path = walkdir::WalkDir::new(&copy_dst)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .find(|e| {
+                e.file_type().is_file()
+                    && e.file_name()
+                        .to_string_lossy()
+                        .eq_ignore_ascii_case(&kn5_name)
+            })
+            .map(|e| e.path().to_path_buf())
+            .ok_or_else(|| AppError::NotFound(format!("KN5 not found in copy: {kn5_name}")))?;
         patch_kn5(&copied_kn5_path, replacements)?;
     }
 
