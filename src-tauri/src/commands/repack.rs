@@ -108,10 +108,14 @@ pub(crate) fn patch_kn5(
     let mut kn5 = Kn5File::open(copied_kn5_path)?;
     for r in replacements {
         let png_data = std::fs::read(&r.source_path)?;
-        let img =
-            image::load_from_memory(&png_data).map_err(|e| AppError::ImageDecode(e.to_string()))?;
-        let dds_data = dds::encode_from_image(&img, &r.original_format)?;
-        kn5.replace_texture_data(&r.texture_name, dds_data)?;
+        let texture_data = if r.original_format == "PNG" {
+            png_data
+        } else {
+            let img = image::load_from_memory(&png_data)
+                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+            dds::encode_from_image(&img, &r.original_format)?
+        };
+        kn5.replace_texture_data(&r.texture_name, texture_data)?;
     }
     kn5.save(copied_kn5_path)?;
     Ok(())
@@ -636,6 +640,60 @@ mod tests {
         assert_eq!(
             extracted_bytes, new_png,
             "hero image content should match replacement"
+        );
+    }
+
+    #[test]
+    fn test_patch_kn5_png_format_stored_verbatim() {
+        let mod_dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            mod_dir.path().join("ui_track.json"),
+            r#"{"name":"Track","author":"A","version":"1.0","description":""}"#,
+        )
+        .unwrap();
+
+        let png_bytes = make_tiny_png_bytes();
+        let kn5_bytes = build_minimal_kn5("overlay.png", &png_bytes);
+        let kn5_path = mod_dir.path().join("track.kn5");
+        std::fs::write(&kn5_path, &kn5_bytes).unwrap();
+
+        let new_png = make_tiny_png_bytes();
+        let src_dir = tempfile::tempdir().unwrap();
+        let src_path = src_dir.path().join("overlay.png");
+        std::fs::write(&src_path, &new_png).unwrap();
+
+        let out_dir = tempfile::tempdir().unwrap();
+        let out_path = out_dir.path().join("track.zip");
+
+        let opts = RepackOptions {
+            mod_path: mod_dir.path().to_string_lossy().to_string(),
+            output_path: out_path.to_string_lossy().to_string(),
+            meta: make_mod_meta("track_png"),
+            car_meta: None,
+            track_meta: None,
+            replacements: vec![TextureReplacementOpt {
+                texture_id: "tex_png".to_string(),
+                source_path: src_path.to_string_lossy().to_string(),
+                kn5_file: Some(kn5_path.to_string_lossy().to_string()),
+                texture_name: "overlay.png".to_string(),
+                skin_folder: None,
+                original_format: "PNG".to_string(),
+                hero_image_path: None,
+            }],
+        };
+
+        repack_mod_inner(&opts, &|_, _, _| {}).unwrap();
+
+        let extract_dir = tempfile::tempdir().unwrap();
+        extract_zip(&out_path, extract_dir.path());
+
+        let patched_kn5 = extract_dir.path().join("track_png").join("track.kn5");
+        assert!(patched_kn5.exists());
+        let kn5 = Kn5File::open(&patched_kn5).unwrap();
+        let tex_data = kn5.get_texture_data("overlay.png").unwrap();
+        assert!(
+            tex_data.starts_with(b"\x89PNG"),
+            "PNG texture should be stored as PNG, not re-encoded as DDS"
         );
     }
 
