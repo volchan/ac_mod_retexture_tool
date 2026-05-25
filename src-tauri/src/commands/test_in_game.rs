@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::commands::repack::patch_kn5;
+use crate::commands::repack::{find_kn5_in_copy, patch_kn5};
 use crate::converters::dds;
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
@@ -126,6 +126,7 @@ fn run(
 
     run_session(
         &preview_path,
+        mod_path,
         replacements,
         &cfg_dir,
         &race_ini_path,
@@ -140,6 +141,7 @@ fn run(
 #[allow(clippy::too_many_arguments)]
 fn run_session(
     preview_path: &Path,
+    mod_path: &str,
     replacements: &[TextureReplacementOpt],
     cfg_dir: &Path,
     race_ini_path: &Path,
@@ -149,7 +151,7 @@ fn run_session(
     car_id: &str,
     config_track: &str,
 ) -> Result<(), AppError> {
-    apply_replacements(preview_path, replacements)?;
+    apply_replacements(preview_path, mod_path, replacements)?;
 
     std::fs::create_dir_all(cfg_dir)?;
 
@@ -177,6 +179,7 @@ fn run_session(
 
 fn apply_replacements(
     preview_root: &Path,
+    mod_path: &str,
     replacements: &[TextureReplacementOpt],
 ) -> Result<(), AppError> {
     let mut kn5_groups: HashMap<String, Vec<&TextureReplacementOpt>> = HashMap::new();
@@ -187,23 +190,7 @@ fn apply_replacements(
     }
 
     for (original_kn5_path, group) in &kn5_groups {
-        let kn5_filename = Path::new(original_kn5_path)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-        let preview_kn5 = walkdir::WalkDir::new(preview_root)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .find(|e| {
-                e.file_type().is_file()
-                    && e.file_name()
-                        .to_string_lossy()
-                        .eq_ignore_ascii_case(&kn5_filename)
-            })
-            .map(|e| e.path().to_path_buf())
-            .ok_or_else(|| {
-                AppError::NotFound(format!("KN5 not found in preview folder: {kn5_filename}"))
-            })?;
+        let preview_kn5 = find_kn5_in_copy(preview_root, original_kn5_path, mod_path)?;
         patch_kn5(&preview_kn5, group)?;
     }
 
@@ -361,7 +348,7 @@ mod tests {
         fs::create_dir_all(&preview).unwrap();
         fs::write(preview.join("track.txt"), b"data").unwrap();
 
-        apply_replacements(&preview, &[]).unwrap();
+        apply_replacements(&preview, "", &[]).unwrap();
 
         assert_eq!(
             fs::read_to_string(preview.join("track.txt")).unwrap(),
