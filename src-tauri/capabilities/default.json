@@ -9,9 +9,14 @@
     "core:default",
     "core:window:allow-create",
     "core:window:allow-set-focus",
+    "core:window:allow-show",
     "core:webview:allow-create-webview-window",
     "store:default",
     "dialog:default",
-    "opener:default"
+    "opener:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [{ "name": "upscayl-bin", "sidecar": true }]
+    }
   ]
 }

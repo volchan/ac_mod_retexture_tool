@@ -12,6 +12,9 @@ fn validate_relative_filename(filename: &str) -> Result<(), String> {
     if filename.contains('\\') {
         return Err("filename must not contain backslashes".to_string());
     }
+    if filename.starts_with('/') {
+        return Err("filename must be relative".to_string());
+    }
     let path = Path::new(filename);
     if path.is_absolute() {
         return Err("filename must be relative".to_string());
@@ -152,6 +155,85 @@ pub fn preview_replacement_image(image_path: String) -> Result<String, String> {
     Ok(format!("data:image/png;base64,{b64}"))
 }
 
+fn mime_for_path(path: &str) -> &'static str {
+    let lower = path.to_lowercase();
+    if lower.ends_with(".png") {
+        "image/png"
+    } else if lower.ends_with(".gif") {
+        "image/gif"
+    } else if lower.ends_with(".webp") {
+        "image/webp"
+    } else if lower.ends_with(".bmp") {
+        "image/bmp"
+    } else {
+        "image/jpeg"
+    }
+}
+
+const ALLOWED_IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "dds"];
+const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
+
+// AC skin preview files can have no extension (raw JPEG without `.jpg`)
+const ALLOWED_PREVIEW_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", ""];
+
+#[tauri::command]
+pub fn read_car_preview(image_path: String, ac_path: String) -> Result<String, String> {
+    let canonical_ac =
+        std::fs::canonicalize(&ac_path).map_err(|e| format!("invalid AC path: {e}"))?;
+    let canonical_img =
+        std::fs::canonicalize(&image_path).map_err(|_| format!("image not found: {image_path}"))?;
+    if !canonical_img.starts_with(&canonical_ac) {
+        return Err("path escapes AC directory".to_string());
+    }
+    let ext = canonical_img
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !ALLOWED_PREVIEW_EXTS.contains(&ext.as_str()) {
+        return Err(format!("unsupported file type: {ext}"));
+    }
+    let size = std::fs::metadata(&canonical_img)
+        .map_err(|e| e.to_string())?
+        .len();
+    if size > 10 * 1024 * 1024 {
+        return Err(format!("image too large: {size} bytes (max 10 MB)"));
+    }
+    let bytes = std::fs::read(&canonical_img).map_err(|e| e.to_string())?;
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" | "" => "image/jpeg",
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        _ => "image/jpeg",
+    };
+    let b64 = general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{b64}"))
+}
+
+#[tauri::command]
+pub fn load_replacement_full(image_path: String) -> Result<String, String> {
+    let path = Path::new(&image_path);
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !ALLOWED_IMAGE_EXTS.contains(&ext.as_str()) {
+        return Err(format!("unsupported file type: {ext}"));
+    }
+    let size = std::fs::metadata(&image_path)
+        .map_err(|e| e.to_string())?
+        .len();
+    if size > MAX_IMAGE_BYTES {
+        return Err(format!("file too large: {size} bytes (max 64 MB)"));
+    }
+    let bytes = std::fs::read(&image_path).map_err(|e| e.to_string())?;
+    let mime = mime_for_path(&image_path);
+    let b64 = general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{b64}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,6 +356,81 @@ mod tests {
         assert!(result.is_ok());
         let url = result.unwrap();
         assert!(url.starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn mime_for_path_detects_png() {
+        assert_eq!(mime_for_path("image.PNG"), "image/png");
+        assert_eq!(mime_for_path("image.png"), "image/png");
+    }
+
+    #[test]
+    fn mime_for_path_detects_jpeg() {
+        assert_eq!(mime_for_path("image.jpg"), "image/jpeg");
+        assert_eq!(mime_for_path("image.jpeg"), "image/jpeg");
+        assert_eq!(mime_for_path("image.JPG"), "image/jpeg");
+    }
+
+    #[test]
+    fn mime_for_path_detects_gif_webp_bmp() {
+        assert_eq!(mime_for_path("image.gif"), "image/gif");
+        assert_eq!(mime_for_path("image.webp"), "image/webp");
+        assert_eq!(mime_for_path("image.bmp"), "image/bmp");
+    }
+
+    #[test]
+    fn mime_for_path_defaults_to_jpeg_for_unknown() {
+        assert_eq!(mime_for_path("image.tiff"), "image/jpeg");
+        assert_eq!(mime_for_path("image"), "image/jpeg");
+    }
+
+    #[test]
+    fn load_replacement_full_returns_png_data_url() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("test.png");
+        write_red_png(&file_path);
+
+        let result = load_replacement_full(file_path.to_string_lossy().to_string());
+        assert!(result.is_ok());
+        assert!(result.unwrap().starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn load_replacement_full_returns_jpeg_data_url_for_jpg() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("test.jpg");
+        let bytes = b"fake jpeg bytes";
+        std::fs::write(&file_path, bytes).unwrap();
+
+        let result = load_replacement_full(file_path.to_string_lossy().to_string());
+        assert!(result.is_ok());
+        assert!(result.unwrap().starts_with("data:image/jpeg;base64,"));
+    }
+
+    #[test]
+    fn load_replacement_full_fails_for_missing_file() {
+        let result = load_replacement_full("/nonexistent/path/image.png".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn load_replacement_full_rejects_disallowed_extension() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("secrets.txt");
+        std::fs::write(&file_path, b"secret").unwrap();
+        let result = load_replacement_full(file_path.to_string_lossy().to_string());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("unsupported file type"));
+    }
+
+    #[test]
+    fn load_replacement_full_rejects_no_extension() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("noext");
+        std::fs::write(&file_path, b"data").unwrap();
+        let result = load_replacement_full(file_path.to_string_lossy().to_string());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("unsupported file type"));
     }
 
     #[test]

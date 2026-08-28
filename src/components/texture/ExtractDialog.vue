@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { open } from '@tauri-apps/plugin-dialog'
-import { FileImageIcon, FolderIcon, FolderOpenIcon } from 'lucide-vue-next'
+import { FileImageIcon, FolderIcon, FolderOpenIcon, SparklesIcon } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,9 +12,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
+import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { useCancelConfirm } from '@/composables/useCancelConfirm'
-import { extractTextures, onExtractProgress } from '@/lib/tauri'
-import type { ProgressInfo, Texture } from '@/types/index'
+import {
+  enhanceExtractedTextures,
+  extractTextures,
+  onEnhanceProgress,
+  onExtractProgress,
+} from '@/lib/tauri'
+import type { EnhanceModel, EnhanceScale, ProgressInfo, Texture } from '@/types/index'
+import ExtractEnhanceConfig from './ExtractEnhanceConfig.vue'
 
 interface TreeFolder {
   name: string
@@ -35,9 +42,18 @@ const emit = defineEmits<{
 
 const outputDir = ref('')
 const isExtracting = ref(false)
+const isEnhancing = ref(false)
 const progress = ref<ProgressInfo>({ current: 0, total: 0, label: '' })
+const enhanceProgress = ref<ProgressInfo>({ current: 0, total: 0, label: '' })
 const errors = ref<string[]>([])
 const done = ref(false)
+
+const enhanceEnabled = ref(false)
+const enhanceScale = ref<EnhanceScale>(4)
+const enhanceModel = ref<EnhanceModel>('RealESRGAN_General_x4_v3')
+const enhanceSelectedIds = ref<Set<string>>(new Set(props.textures.map((t) => t.id)))
+
+const isRunning = computed(() => isExtracting.value || isEnhancing.value)
 
 const dialogOpen = computed({
   get: () => props.isOpen,
@@ -47,6 +63,29 @@ const dialogOpen = computed({
 const progressPercent = computed(() =>
   progress.value.total > 0 ? (progress.value.current / progress.value.total) * 100 : 0,
 )
+
+const enhanceProgressPercent = computed(() =>
+  enhanceProgress.value.total > 0
+    ? (enhanceProgress.value.current / enhanceProgress.value.total) * 100
+    : 0,
+)
+
+const activeProgress = computed(() => {
+  if (isEnhancing.value) return enhanceProgress.value
+  if (done.value && enhanceProgress.value.total > 0) return enhanceProgress.value
+  return progress.value
+})
+const activePercent = computed(() => {
+  if (isEnhancing.value) return enhanceProgressPercent.value
+  if (done.value && enhanceProgress.value.total > 0) return enhanceProgressPercent.value
+  return progressPercent.value
+})
+
+const phaseLabel = computed(() => {
+  const hasEnhance = enhanceEnabled.value && enhanceSelectedIds.value.size > 0
+  if (!hasEnhance) return null
+  return isExtracting.value ? 'Step 1/2 · Extracting' : 'Step 2/2 · Enhancing with AI'
+})
 
 const outputTree = computed<TreeFolder[]>(() => {
   const folderMap = new Map<string, string[]>()
@@ -69,9 +108,8 @@ const outputTree = computed<TreeFolder[]>(() => {
   return Array.from(folderMap.entries()).map(([name, files]) => ({ name, files }))
 })
 
-async function browsOutputDir() {
-  const dir = await open({ directory: true, multiple: false })
-  if (dir && !Array.isArray(dir)) outputDir.value = dir
+function textureKn5(t: Texture): string {
+  return t.source === 'kn5' ? t.path : t.skinFolder ? '' : t.path
 }
 
 async function handleExtract() {
@@ -88,25 +126,56 @@ async function handleExtract() {
     const errs = await extractTextures(
       props.modPath,
       props.textures.map((t) => t.name),
-      props.textures.map((t) => (t.source === 'kn5' ? t.path : t.skinFolder ? '' : t.path)),
+      props.textures.map(textureKn5),
       props.textures.map((t) => t.skinFolder ?? ''),
       props.textures.map((t) => t.id),
       outputDir.value,
     )
     errors.value = errs
-    done.value = true
   } finally {
     isExtracting.value = false
     unlisten()
   }
+
+  const toEnhance = enhanceEnabled.value
+    ? props.textures.filter((t) => enhanceSelectedIds.value.has(t.id))
+    : []
+
+  if (toEnhance.length > 0) {
+    isEnhancing.value = true
+    enhanceProgress.value = { current: 0, total: 0, label: '' }
+
+    const unlistenEnhance = await onEnhanceProgress((p) => {
+      enhanceProgress.value = p
+    })
+
+    try {
+      const enhanceErrors = await enhanceExtractedTextures(
+        outputDir.value,
+        props.modName,
+        toEnhance.map((t) => t.name),
+        toEnhance.map(textureKn5),
+        toEnhance.map((t) => t.skinFolder ?? ''),
+        enhanceScale.value,
+        enhanceModel.value,
+      )
+      errors.value = [...errors.value, ...enhanceErrors]
+    } finally {
+      isEnhancing.value = false
+      unlistenEnhance()
+    }
+  }
+
+  done.value = true
 }
 
 function handleClose() {
-  if (isExtracting.value) return
+  if (isRunning.value) return
   const wasDone = done.value
   done.value = false
   errors.value = []
   progress.value = { current: 0, total: 0, label: '' }
+  enhanceProgress.value = { current: 0, total: 0, label: '' }
   dialogOpen.value = false
   if (wasDone) emit('done')
 }
@@ -115,7 +184,12 @@ const cancelConfirm = useCancelConfirm(handleClose)
 
 function handleEscapeKey() {
   if (done.value) handleClose()
-  else if (!isExtracting.value) cancelConfirm.request()
+  else if (!isRunning.value) cancelConfirm.request()
+}
+
+async function browseOutputDir() {
+  const dir = await open({ directory: true, multiple: false })
+  if (dir && !Array.isArray(dir)) outputDir.value = dir
 }
 
 function preventInteractOutside(e: Event) {
@@ -126,10 +200,20 @@ watch(dialogOpen, (val) => {
   if (!val) cancelConfirm.reset()
 })
 
+watch(
+  () => props.textures,
+  (val) => {
+    enhanceSelectedIds.value = new Set(val.map((t) => t.id))
+  },
+)
+
 defineExpose({
   FileImageIcon,
   FolderIcon,
   FolderOpenIcon,
+  SparklesIcon,
+  Spinner,
+  ExtractEnhanceConfig,
   Button,
   Dialog,
   DialogContent,
@@ -141,12 +225,23 @@ defineExpose({
   dialogOpen,
   outputDir,
   isExtracting,
+  isEnhancing,
+  isRunning,
   progress,
+  enhanceProgress,
   errors,
   done,
+  enhanceEnabled,
+  enhanceScale,
+  enhanceModel,
+  enhanceSelectedIds,
   progressPercent,
+  enhanceProgressPercent,
+  activeProgress,
+  activePercent,
+  phaseLabel,
   outputTree,
-  browsOutputDir,
+  browseOutputDir,
   handleExtract,
   handleClose,
   handleEscapeKey,
@@ -169,6 +264,7 @@ defineExpose({
       </DialogHeader>
 
       <div class="space-y-4 py-2">
+        <!-- Output folder -->
         <div>
           <label class="block text-[11px] text-muted-foreground mb-1">Output folder</label>
           <div class="flex gap-2">
@@ -180,8 +276,8 @@ defineExpose({
             </div>
             <button
               class="flex items-center gap-1.5 text-xs px-3 py-2 rounded border hover:bg-accent transition-colors"
-              :disabled="isExtracting"
-              @click="browsOutputDir"
+              :disabled="isRunning"
+              @click="browseOutputDir"
             >
               <FolderOpenIcon :size="13" />
               Browse
@@ -189,9 +285,36 @@ defineExpose({
           </div>
         </div>
 
-        <div v-if="outputDir && !isExtracting && !done">
+        <!-- Enhance toggle -->
+        <div v-if="outputDir && !isRunning && !done" class="flex items-center gap-2">
+          <input
+            id="enhance-toggle"
+            v-model="enhanceEnabled"
+            type="checkbox"
+            class="accent-primary"
+          />
+          <label for="enhance-toggle" class="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+            <SparklesIcon :size="12" />
+            Enhance textures with AI after extraction
+          </label>
+        </div>
+
+        <!-- Enhance config -->
+        <ExtractEnhanceConfig
+          v-if="enhanceEnabled && outputDir && !isRunning && !done"
+          :textures="textures"
+          :scale="enhanceScale"
+          :model="enhanceModel"
+          :selected-ids="enhanceSelectedIds"
+          @update:scale="enhanceScale = $event"
+          @update:model="enhanceModel = $event"
+          @update:selected-ids="enhanceSelectedIds = $event"
+        />
+
+        <!-- Output tree -->
+        <div v-if="outputDir && !isRunning && !done">
           <label class="block text-[11px] text-muted-foreground mb-1">Output structure</label>
-          <div class="bg-muted rounded border overflow-y-auto max-h-48 py-1.5 px-2 space-y-0.5">
+          <div class="bg-muted rounded border overflow-y-auto max-h-40 py-1.5 px-2 space-y-0.5">
             <div v-for="folder in outputTree" :key="folder.name">
               <div class="flex items-center gap-1.5 text-[11px] font-medium py-0.5">
                 <FolderIcon :size="13" class="text-amber-500 shrink-0" />
@@ -209,17 +332,31 @@ defineExpose({
           </div>
         </div>
 
-        <div v-if="isExtracting || (done && progress.total > 0)">
-          <div class="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span>{{ isExtracting ? (progress.label || 'Extracting…') : 'Done' }}</span>
-            <span v-if="progress.total > 0">{{ progress.current }}/{{ progress.total }}</span>
+        <!-- Progress -->
+        <div v-if="isRunning || (done && (progress.total > 0 || enhanceProgress.total > 0))">
+          <p v-if="phaseLabel && isRunning" class="text-[11px] text-muted-foreground mb-1">
+            {{ phaseLabel }}
+          </p>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <div class="flex items-center gap-1.5 text-muted-foreground min-w-0">
+              <Spinner v-if="isRunning" :size="11" />
+              <span class="truncate font-mono">
+                {{ isRunning ? (activeProgress.label || 'Processing…') : 'Done' }}
+              </span>
+            </div>
+            <span v-if="activeProgress.total > 0" class="shrink-0 ml-2 text-foreground font-medium">
+              {{ activeProgress.current }}/{{ activeProgress.total }}
+            </span>
           </div>
-          <Progress :model-value="progressPercent" class="h-1.5" />
+          <Progress :model-value="activePercent" class="h-1.5" />
         </div>
 
+        <!-- Success -->
         <div v-if="done && errors.length === 0" class="text-xs text-green-600">
           Extracted successfully to {{ outputDir }}
         </div>
+
+        <!-- Errors -->
         <div v-if="errors.length > 0" class="space-y-1">
           <p class="text-xs text-amber-600">{{ errors.length }} error(s):</p>
           <p v-for="e in errors" :key="e" class="text-[11px] font-mono text-destructive">{{ e }}</p>
@@ -235,7 +372,7 @@ defineExpose({
           data-testid="cancel-btn"
           :variant="cancelConfirm.confirming.value ? 'destructive' : 'outline'"
           size="sm"
-          :disabled="isExtracting"
+          :disabled="isRunning"
           :aria-label="cancelConfirm.confirming.value ? 'Really cancel?' : 'Cancel'"
           class="relative overflow-hidden min-w-[8rem]"
           @click="cancelConfirm.request"
@@ -255,13 +392,13 @@ defineExpose({
         <Button
           v-if="!done"
           size="sm"
-          :disabled="!outputDir || isExtracting"
+          :disabled="!outputDir || isRunning"
           @click="handleExtract"
         >
-          Extract
+          <SparklesIcon v-if="enhanceEnabled && enhanceSelectedIds.size > 0" :size="13" class="mr-1.5" />
+          {{ enhanceEnabled && enhanceSelectedIds.size > 0 ? 'Extract & Enhance' : 'Extract' }}
         </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>
-

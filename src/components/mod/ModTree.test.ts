@@ -137,6 +137,49 @@ describe('ModTree', () => {
     expect(wrapper.text()).toContain('body.kn5')
   })
 
+  it('handles Windows backslash paths correctly', async () => {
+    const winMod: Mod = {
+      ...baseMod,
+      path: 'C:\\mods\\ferrari_488',
+      files: [
+        {
+          name: 'ferrari_488.kn5',
+          path: 'C:\\mods\\ferrari_488\\ferrari_488.kn5',
+          fileType: 'kn5',
+        },
+        {
+          name: 'ui_car.json',
+          path: 'C:\\mods\\ferrari_488\\ui\\ui_car.json',
+          fileType: 'json',
+        },
+      ],
+      kn5Files: ['C:\\mods\\ferrari_488\\ferrari_488.kn5'],
+      skinFolders: [
+        {
+          name: 'default',
+          path: 'C:\\mods\\ferrari_488\\skins\\default',
+          files: [
+            {
+              name: 'livery.dds',
+              path: 'C:\\mods\\ferrari_488\\skins\\default\\livery.dds',
+              fileType: 'dds',
+            },
+          ],
+        },
+      ],
+    }
+    const wrapper = mount(ModTree, { props: { mod: winMod } })
+    expect(wrapper.text()).toContain('ferrari_488.kn5')
+    const skinsButton = wrapper.findAll('button').find((b) => b.text().includes('skins'))
+    await skinsButton?.trigger('click')
+    await nextTick()
+    expect(wrapper.text()).toContain('default')
+    const uiButton = wrapper.findAll('button').find((b) => b.text().includes('ui'))
+    await uiButton?.trigger('click')
+    await nextTick()
+    expect(wrapper.text()).toContain('ui_car.json')
+  })
+
   it('shows all file type icons inside expanded folders', async () => {
     const mixedMod: Mod = {
       ...baseMod,

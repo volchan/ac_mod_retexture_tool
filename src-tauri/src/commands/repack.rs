@@ -7,6 +7,49 @@ use std::io::Write;
 use std::path::Path;
 use tauri::{AppHandle, Emitter};
 
+/// Locates a KN5 file inside `copy_root` that corresponds to `original_kn5_path`.
+///
+/// Tries relative-path matching first (correct when multiple KN5 files share
+/// the same filename across sub-directories), then falls back to a
+/// case-insensitive filename scan.
+pub(crate) fn find_kn5_in_copy(
+    copy_root: &Path,
+    original_kn5_path: &str,
+    original_mod_root: &str,
+) -> Result<std::path::PathBuf, AppError> {
+    let kn5_name = Path::new(original_kn5_path)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    let norm = |p: &str| p.to_lowercase().replace('\\', "/");
+    let mod_norm = norm(original_mod_root);
+    let mod_norm = mod_norm.trim_end_matches('/');
+    let orig_norm = norm(original_kn5_path);
+
+    if let Some(stripped) = orig_norm.strip_prefix(mod_norm) {
+        let rel = stripped.trim_matches('/');
+        let rel_path: std::path::PathBuf = rel.split('/').filter(|s| !s.is_empty()).collect();
+        let candidate = copy_root.join(&rel_path);
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+
+    walkdir::WalkDir::new(copy_root)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .find(|e| {
+            e.file_type().is_file()
+                && e.file_name()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(&kn5_name)
+        })
+        .map(|e| e.path().to_path_buf())
+        .ok_or_else(|| AppError::NotFound(format!("KN5 not found: {kn5_name}")))
+}
+
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), AppError> {
     std::fs::create_dir_all(dst)?;
     for entry in walkdir::WalkDir::new(src)
@@ -101,17 +144,21 @@ fn find_and_update_json(dir: &Path, filename: &str, opts: &RepackOptions) -> Res
     Ok(())
 }
 
-fn patch_kn5(
+pub(crate) fn patch_kn5(
     copied_kn5_path: &Path,
     replacements: &[&TextureReplacementOpt],
 ) -> Result<(), AppError> {
     let mut kn5 = Kn5File::open(copied_kn5_path)?;
     for r in replacements {
         let png_data = std::fs::read(&r.source_path)?;
-        let img =
-            image::load_from_memory(&png_data).map_err(|e| AppError::ImageDecode(e.to_string()))?;
-        let dds_data = dds::encode_from_image(&img, &r.original_format)?;
-        kn5.replace_texture_data(&r.texture_name, dds_data)?;
+        let texture_data = if r.original_format == "PNG" {
+            png_data
+        } else {
+            let img = image::load_from_memory(&png_data)
+                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+            dds::encode_from_image(&img, &r.original_format)?
+        };
+        kn5.replace_texture_data(&r.texture_name, texture_data)?;
     }
     kn5.save(copied_kn5_path)?;
     Ok(())
@@ -206,11 +253,7 @@ pub fn repack_mod_inner(
             grand_total,
         );
 
-        let rel = Path::new(original_kn5_path)
-            .strip_prefix(mod_path)
-            .map(|r| r.to_path_buf())
-            .unwrap_or_else(|_| Path::new(&kn5_name).to_path_buf());
-        let copied_kn5_path = copy_dst.join(rel);
+        let copied_kn5_path = find_kn5_in_copy(&copy_dst, original_kn5_path, &opts.mod_path)?;
         patch_kn5(&copied_kn5_path, replacements)?;
     }
 
@@ -345,6 +388,146 @@ mod tests {
             std::fs::read(target.join("sub").join("child.txt")).unwrap(),
             b"child"
         );
+    }
+
+    #[test]
+    fn test_find_kn5_in_copy_relative_path_match() {
+        let mod_dir = tempfile::tempdir().unwrap();
+        let copy_dir = tempfile::tempdir().unwrap();
+
+        std::fs::create_dir_all(mod_dir.path().join("sub")).unwrap();
+        std::fs::create_dir_all(copy_dir.path().join("sub")).unwrap();
+        std::fs::write(mod_dir.path().join("sub").join("track.kn5"), b"kn5a").unwrap();
+        std::fs::write(copy_dir.path().join("sub").join("track.kn5"), b"kn5b").unwrap();
+
+        let original_path = mod_dir.path().join("sub").join("track.kn5");
+        let result = find_kn5_in_copy(
+            copy_dir.path(),
+            original_path.to_str().unwrap(),
+            mod_dir.path().to_str().unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(result, copy_dir.path().join("sub").join("track.kn5"));
+    }
+
+    #[test]
+    fn test_find_kn5_in_copy_picks_correct_subdir_when_duplicate_filename() {
+        let mod_dir = tempfile::tempdir().unwrap();
+        let copy_dir = tempfile::tempdir().unwrap();
+
+        // Two subdirs each with a file named "cleanup.kn5"
+        std::fs::create_dir_all(mod_dir.path().join("ext1")).unwrap();
+        std::fs::create_dir_all(mod_dir.path().join("ext2")).unwrap();
+        std::fs::create_dir_all(copy_dir.path().join("ext1")).unwrap();
+        std::fs::create_dir_all(copy_dir.path().join("ext2")).unwrap();
+        std::fs::write(mod_dir.path().join("ext1").join("cleanup.kn5"), b"ext1").unwrap();
+        std::fs::write(mod_dir.path().join("ext2").join("cleanup.kn5"), b"ext2").unwrap();
+        std::fs::write(
+            copy_dir.path().join("ext1").join("cleanup.kn5"),
+            b"copy_ext1",
+        )
+        .unwrap();
+        std::fs::write(
+            copy_dir.path().join("ext2").join("cleanup.kn5"),
+            b"copy_ext2",
+        )
+        .unwrap();
+
+        // Should pick ext2/cleanup.kn5 (not ext1)
+        let original_path = mod_dir.path().join("ext2").join("cleanup.kn5");
+        let result = find_kn5_in_copy(
+            copy_dir.path(),
+            original_path.to_str().unwrap(),
+            mod_dir.path().to_str().unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(result, copy_dir.path().join("ext2").join("cleanup.kn5"));
+        let data = std::fs::read(&result).unwrap();
+        assert_eq!(data, b"copy_ext2");
+    }
+
+    #[test]
+    fn test_find_kn5_in_copy_fallback_when_path_mismatch() {
+        let mod_dir = tempfile::tempdir().unwrap();
+        let copy_dir = tempfile::tempdir().unwrap();
+
+        std::fs::write(copy_dir.path().join("track.kn5"), b"found").unwrap();
+
+        // original_mod_root doesn't match original_kn5_path prefix → fallback search
+        let result = find_kn5_in_copy(
+            copy_dir.path(),
+            "/completely/different/path/track.kn5",
+            mod_dir.path().to_str().unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(result, copy_dir.path().join("track.kn5"));
+    }
+
+    #[test]
+    fn test_repack_mod_inner_patches_correct_kn5_with_duplicate_names() {
+        let mod_dir = tempfile::tempdir().unwrap();
+        let dds_data = make_tiny_dds();
+
+        // Two subdirs each with a "track.kn5" — target is ext2
+        std::fs::create_dir_all(mod_dir.path().join("ext1")).unwrap();
+        std::fs::create_dir_all(mod_dir.path().join("ext2")).unwrap();
+        let kn5_ext1 = mod_dir.path().join("ext1").join("track.kn5");
+        let kn5_ext2 = mod_dir.path().join("ext2").join("track.kn5");
+        std::fs::write(&kn5_ext1, build_minimal_kn5("body.dds", &dds_data)).unwrap();
+        std::fs::write(&kn5_ext2, build_minimal_kn5("body.dds", &dds_data)).unwrap();
+
+        let png_dir = tempfile::tempdir().unwrap();
+        let png_path = png_dir.path().join("body.png");
+        std::fs::write(&png_path, make_tiny_png_bytes()).unwrap();
+
+        let out_dir = tempfile::tempdir().unwrap();
+        let out_path = out_dir.path().join("out.zip");
+
+        let opts = RepackOptions {
+            mod_path: mod_dir.path().to_string_lossy().to_string(),
+            output_path: out_path.to_string_lossy().to_string(),
+            meta: make_mod_meta("test_mod"),
+            car_meta: None,
+            track_meta: None,
+            replacements: vec![TextureReplacementOpt {
+                texture_id: "t1".to_string(),
+                source_path: png_path.to_string_lossy().to_string(),
+                kn5_file: Some(kn5_ext2.to_string_lossy().to_string()),
+                texture_name: "body.dds".to_string(),
+                skin_folder: None,
+                original_format: "BC1".to_string(),
+                hero_image_path: None,
+            }],
+        };
+
+        repack_mod_inner(&opts, &|_, _, _| {}).unwrap();
+
+        let extract_dir = tempfile::tempdir().unwrap();
+        extract_zip(&out_path, extract_dir.path());
+
+        // ext1 should be byte-identical (not patched)
+        let out_ext1 = extract_dir
+            .path()
+            .join("test_mod")
+            .join("ext1")
+            .join("track.kn5");
+        assert_eq!(
+            std::fs::read(&out_ext1).unwrap(),
+            build_minimal_kn5("body.dds", &dds_data)
+        );
+
+        // ext2 should differ (patched with new DDS)
+        let out_ext2 = extract_dir
+            .path()
+            .join("test_mod")
+            .join("ext2")
+            .join("track.kn5");
+        let kn5 = crate::parsers::kn5::Kn5File::open(&out_ext2).unwrap();
+        let tex = kn5.get_texture_data("body.dds").unwrap();
+        assert!(tex.starts_with(b"DDS "), "patched texture should be DDS");
     }
 
     #[test]
@@ -636,6 +819,60 @@ mod tests {
         assert_eq!(
             extracted_bytes, new_png,
             "hero image content should match replacement"
+        );
+    }
+
+    #[test]
+    fn test_patch_kn5_png_format_stored_verbatim() {
+        let mod_dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            mod_dir.path().join("ui_track.json"),
+            r#"{"name":"Track","author":"A","version":"1.0","description":""}"#,
+        )
+        .unwrap();
+
+        let png_bytes = make_tiny_png_bytes();
+        let kn5_bytes = build_minimal_kn5("overlay.png", &png_bytes);
+        let kn5_path = mod_dir.path().join("track.kn5");
+        std::fs::write(&kn5_path, &kn5_bytes).unwrap();
+
+        let new_png = make_tiny_png_bytes();
+        let src_dir = tempfile::tempdir().unwrap();
+        let src_path = src_dir.path().join("overlay.png");
+        std::fs::write(&src_path, &new_png).unwrap();
+
+        let out_dir = tempfile::tempdir().unwrap();
+        let out_path = out_dir.path().join("track.zip");
+
+        let opts = RepackOptions {
+            mod_path: mod_dir.path().to_string_lossy().to_string(),
+            output_path: out_path.to_string_lossy().to_string(),
+            meta: make_mod_meta("track_png"),
+            car_meta: None,
+            track_meta: None,
+            replacements: vec![TextureReplacementOpt {
+                texture_id: "tex_png".to_string(),
+                source_path: src_path.to_string_lossy().to_string(),
+                kn5_file: Some(kn5_path.to_string_lossy().to_string()),
+                texture_name: "overlay.png".to_string(),
+                skin_folder: None,
+                original_format: "PNG".to_string(),
+                hero_image_path: None,
+            }],
+        };
+
+        repack_mod_inner(&opts, &|_, _, _| {}).unwrap();
+
+        let extract_dir = tempfile::tempdir().unwrap();
+        extract_zip(&out_path, extract_dir.path());
+
+        let patched_kn5 = extract_dir.path().join("track_png").join("track.kn5");
+        assert!(patched_kn5.exists());
+        let kn5 = Kn5File::open(&patched_kn5).unwrap();
+        let tex_data = kn5.get_texture_data("overlay.png").unwrap();
+        assert!(
+            tex_data.starts_with(b"\x89PNG"),
+            "PNG texture should be stored as PNG, not re-encoded as DDS"
         );
     }
 

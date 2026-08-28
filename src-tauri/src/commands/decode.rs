@@ -150,6 +150,15 @@ pub async fn decode_mod_textures(
             .to_string_lossy()
             .to_string();
 
+        let _ = app.emit(
+            "decode-progress",
+            serde_json::json!({
+                "current": i + 1,
+                "total": total,
+                "label": kn5_name,
+            }),
+        );
+
         let kn5 = match Kn5File::open(kn5_path) {
             Ok(k) => k,
             Err(e) => {
@@ -190,15 +199,6 @@ pub async fn decode_mod_textures(
             };
             let _ = app.emit("decode-texture", &tex);
         }
-
-        let _ = app.emit(
-            "decode-progress",
-            serde_json::json!({
-                "current": i + 1,
-                "total": total,
-                "label": kn5_name,
-            }),
-        );
     }
 
     if cancel.0.load(Ordering::Relaxed) {

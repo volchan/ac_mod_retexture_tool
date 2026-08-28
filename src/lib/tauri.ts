@@ -1,13 +1,73 @@
 import { getVersion } from '@tauri-apps/api/app'
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
-export { convertFileSrc }
-
 import { save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import type { ImportScanResult, Mod, ProgressInfo, RepackOptions, Texture } from '@/types/index'
+import type {
+  AcInstallInfo,
+  EnhanceOptions,
+  EnhanceResult,
+  ImportScanResult,
+  LibraryEntry,
+  Mod,
+  ProgressInfo,
+  RepackOptions,
+  Texture,
+  TextureReplacementOpt,
+} from '@/types/index'
+
+export interface AcDetectResult {
+  candidates: Array<{
+    path: string
+    label: string
+    source: string
+    version?: string
+    carCount: number
+    trackCount: number
+  }>
+}
+
+export async function detectAcInstall(): Promise<AcDetectResult> {
+  return invoke('detect_ac_install')
+}
+
+export async function validateAcFolder(path: string): Promise<AcInstallInfo> {
+  return invoke('validate_ac_folder', { path })
+}
+
+export async function listAcContent(path: string): Promise<LibraryEntry[]> {
+  return invoke('list_ac_content', { path })
+}
+
+export async function listAcCars(acPath: string): Promise<LibraryEntry[]> {
+  return invoke('list_ac_cars', { acPath })
+}
+
+export async function listTrackLayouts(modPath: string): Promise<string[]> {
+  return invoke('list_track_layouts', { modPath })
+}
+
+export async function testInGame(
+  acPath: string,
+  modPath: string,
+  carId: string,
+  configTrack: string,
+  replacements: TextureReplacementOpt[],
+): Promise<void> {
+  return invoke('test_in_game', { acPath, modPath, carId, configTrack, replacements })
+}
+
+export async function onAcProbe(
+  cb: (event: { path: string; label: string; status: string }) => void,
+): Promise<() => void> {
+  return listen('ac-probe', (e) => cb(e.payload as { path: string; label: string; status: string }))
+}
+
+export async function onAcLibraryEntry(cb: (entry: LibraryEntry) => void): Promise<() => void> {
+  return listen('ac-library-entry', (e) => cb(e.payload as LibraryEntry))
+}
 
 export async function getAppVersion(): Promise<string> {
   return getVersion()
@@ -78,6 +138,18 @@ export async function clearKn5Cache(): Promise<void> {
   return invoke('clear_kn5_cache')
 }
 
+export async function previewReplacementImage(imagePath: string): Promise<string> {
+  return invoke('preview_replacement_image', { imagePath })
+}
+
+export async function loadReplacementFull(imagePath: string): Promise<string> {
+  return invoke('load_replacement_full', { imagePath })
+}
+
+export async function readCarPreview(imagePath: string, acPath: string): Promise<string> {
+  return invoke('read_car_preview', { imagePath, acPath })
+}
+
 export async function getKn5Texture(kn5Path: string, textureName: string): Promise<string> {
   return invoke('get_kn5_texture', { kn5Path, textureName })
 }
@@ -127,6 +199,45 @@ export async function openTexturePreviewWindow(texture: Texture, modPath: string
     minWidth: 640,
     minHeight: 480,
     resizable: true,
+  })
+}
+
+export async function onEnhanceProgress(cb: (info: ProgressInfo) => void): Promise<() => void> {
+  return listen('enhance-progress', (e) => cb(e.payload as ProgressInfo))
+}
+
+export async function enhanceExtractedTextures(
+  outputDir: string,
+  modName: string,
+  textureNames: string[],
+  textureKn5s: string[],
+  textureSkinFolders: string[],
+  scale: EnhanceOptions['scale'],
+  model: EnhanceOptions['model'],
+): Promise<string[]> {
+  return invoke('enhance_extracted_textures', {
+    outputDir,
+    modName,
+    textureNames,
+    textureKn5s,
+    textureSkinFolders,
+    scale,
+    model,
+  })
+}
+
+export async function enhanceTexture(
+  texture: Texture,
+  modPath: string,
+  opts: EnhanceOptions,
+): Promise<EnhanceResult> {
+  return invoke('enhance_texture', {
+    source: texture.source,
+    texturePath: texture.path,
+    textureName: texture.name,
+    modPath,
+    scale: opts.scale,
+    model: opts.model,
   })
 }
 

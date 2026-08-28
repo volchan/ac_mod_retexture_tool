@@ -433,4 +433,65 @@ describe('useTextureDetail', () => {
     result.close()
     unmount()
   })
+
+  it('track hero returns null sets loadError to preview image not found', async () => {
+    const tex = makeTexture({
+      id: 'tex1',
+      source: 'skin',
+      category: 'preview',
+      path: 'ui/boot/preview.png',
+      kn5File: undefined,
+    })
+    mockInvokeHandler('get_track_hero_image', () => null)
+
+    const { result, unmount } = await withSetup(() => useTextureDetail())
+    result.open('tex1', [tex], '/mods/spa')
+    await flushAll()
+
+    expect(result.loadError.value).toBe('Preview image not found')
+    expect(result.originalDataUrl.value).toBeNull()
+    result.close()
+    unmount()
+  })
+
+  it('track hero throws sets loadError from error message', async () => {
+    const tex = makeTexture({
+      id: 'tex1',
+      source: 'skin',
+      category: 'preview',
+      path: 'ui/boot/preview.png',
+      kn5File: undefined,
+    })
+    mockInvokeHandler('get_track_hero_image', () => {
+      throw new Error('hero load failed')
+    })
+
+    const { result, unmount } = await withSetup(() => useTextureDetail())
+    result.open('tex1', [tex], '/mods/spa')
+    await flushAll()
+
+    expect(result.loadError.value).toContain('hero load failed')
+    result.close()
+    unmount()
+  })
+
+  it('skin texture throws sets loadError from error message', async () => {
+    const tex = makeTexture({
+      id: 'tex1',
+      source: 'skin',
+      path: '/mods/car/skins/0_default/body.dds',
+      kn5File: undefined,
+    })
+    mockInvokeHandler('get_skin_texture', () => {
+      throw new Error('skin decode failed')
+    })
+
+    const { result, unmount } = await withSetup(() => useTextureDetail())
+    result.open('tex1', [tex], '/mods/car')
+    await flushAll()
+
+    expect(result.loadError.value).toContain('skin decode failed')
+    result.close()
+    unmount()
+  })
 })

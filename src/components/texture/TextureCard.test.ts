@@ -47,17 +47,17 @@ describe('TextureCard', () => {
     const wrapper = mount(TextureCard, {
       props: { texture: makeTexture(), isSelected: true },
     })
-    expect(wrapper.find('.bg-blue-500.rounded-full').exists()).toBe(true)
+    expect(wrapper.find('.bg-primary.rounded-\\[4px\\]').exists()).toBe(true)
   })
 
   it('does not show checkmark badge when not selected', () => {
     const wrapper = mount(TextureCard, {
       props: { texture: makeTexture(), isSelected: false },
     })
-    expect(wrapper.find('.bg-blue-500.rounded-full').exists()).toBe(false)
+    expect(wrapper.find('.bg-primary.rounded-\\[4px\\]').exists()).toBe(false)
   })
 
-  it('shows amber Replaced badge when texture has replacement', () => {
+  it('shows Replaced badge when texture has same-size replacement', () => {
     const texture = makeTexture({
       replacement: {
         sourcePath: '/new/tex.png',
@@ -70,14 +70,29 @@ describe('TextureCard', () => {
       props: { texture, isSelected: false },
     })
     expect(wrapper.text()).toContain('Replaced')
-    expect(wrapper.find('.bg-amber-500').exists()).toBe(true)
   })
 
-  it('does not show amber badge when no replacement', () => {
+  it('shows Size↕ badge when replacement has different dimensions', () => {
+    const texture = makeTexture({
+      replacement: {
+        sourcePath: '/new/tex.png',
+        previewUrl: 'data:image/png;base64,xyz',
+        width: 512,
+        height: 512,
+      },
+    })
+    const wrapper = mount(TextureCard, {
+      props: { texture, isSelected: false },
+    })
+    expect(wrapper.text()).toContain('Size↕')
+  })
+
+  it('does not show badge when no replacement', () => {
     const wrapper = mount(TextureCard, {
       props: { texture: makeTexture(), isSelected: false },
     })
-    expect(wrapper.find('.bg-amber-500').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Replaced')
+    expect(wrapper.text()).not.toContain('Size↕')
   })
 
   it('emits toggle-select when card is clicked', async () => {
@@ -107,15 +122,14 @@ describe('TextureCard', () => {
     expect(wrapper.emitted('toggle-select')).toBeFalsy()
   })
 
-  it('applies ring-2 ring-blue-500 class when selected', () => {
+  it('applies border-primary class when selected', () => {
     const wrapper = mount(TextureCard, {
       props: { texture: makeTexture(), isSelected: true },
     })
-    expect(wrapper.classes()).toContain('ring-2')
-    expect(wrapper.classes()).toContain('ring-blue-500')
+    expect(wrapper.classes()).toContain('border-primary')
   })
 
-  it('applies amber ring class when replaced', () => {
+  it('applies border-amber-400 when replacement has dimension mismatch', () => {
     const texture = makeTexture({
       replacement: {
         sourcePath: '/new/tex.png',
@@ -127,7 +141,7 @@ describe('TextureCard', () => {
     const wrapper = mount(TextureCard, {
       props: { texture, isSelected: false },
     })
-    expect(wrapper.classes()).toContain('ring-amber-500')
+    expect(wrapper.classes()).toContain('border-amber-400')
   })
 
   it('renders preview image when isDecoded and previewUrl is set', () => {
@@ -142,7 +156,6 @@ describe('TextureCard', () => {
     expect(img.attributes('src')).toBe('data:image/png;base64,test')
   })
 
-  // preview category (Content Manager preview.png thumbnails)
   it('preview card does not span 2 columns', () => {
     const wrapper = mount(TextureCard, {
       props: {
@@ -188,19 +201,17 @@ describe('TextureCard', () => {
     expect(wrapper.text()).toContain('Preview image (boot)')
   })
 
-  it('preview card uses aspect-square image area', () => {
+  it('sm density applies smaller thumbnail height', () => {
     const wrapper = mount(TextureCard, {
-      props: {
-        texture: makeTexture({
-          category: 'preview',
-          name: 'preview.png',
-          source: 'skin',
-          path: 'ui/preview.png',
-        }),
-        isSelected: false,
-      },
+      props: { texture: makeTexture(), isSelected: false, density: 'sm' },
     })
-    expect(wrapper.find('.aspect-square').exists()).toBe(true)
-    expect(wrapper.find('.aspect-video').exists()).toBe(false)
+    expect(wrapper.find('.h-\\[76px\\]').exists()).toBe(true)
+  })
+
+  it('lg density applies larger thumbnail height', () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture(), isSelected: false, density: 'lg' },
+    })
+    expect(wrapper.find('.h-\\[152px\\]').exists()).toBe(true)
   })
 })

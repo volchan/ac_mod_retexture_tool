@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick } from 'vue'
+import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useTextures } from '@/composables/useTextures'
 import type { Mod, Texture } from '@/types/index'
 import ModInfoPanel from './ModInfoPanel.vue'
@@ -380,5 +381,31 @@ describe('ModInfoPanel', () => {
     const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
     await nextTick()
     expect(wrapper.text()).toContain('other')
+  })
+
+  it('queueTick watch switches activeTab to queue', async () => {
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+
+    expect(wrapper.vm.activeTab).toBe('info')
+
+    const { triggerQueue } = useGlobalCommands()
+    triggerQueue()
+    await nextTick()
+
+    expect(wrapper.vm.activeTab).toBe('queue')
+    wrapper.unmount()
+  })
+
+  it('renders QueueDrawer when activeTab is queue', async () => {
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+
+    wrapper.vm.activeTab = 'queue'
+    await nextTick()
+
+    const queueDrawer = wrapper.findComponent({ name: 'QueueDrawer' })
+    expect(queueDrawer.exists()).toBe(true)
+    wrapper.unmount()
   })
 })

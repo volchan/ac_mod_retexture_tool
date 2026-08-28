@@ -119,8 +119,9 @@ describe('TextureDetailImage', () => {
     wrapper.unmount()
   })
 
-  it('shows replacement image tab when replacement exists', async () => {
+  it('shows compare slider labels when replacement exists', async () => {
     mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
+    mockInvokeHandler('load_replacement_full', () => 'data:image/png;base64,rep')
     const tex = makeTexture({
       id: 'tex1',
       replacement: {
@@ -131,27 +132,27 @@ describe('TextureDetailImage', () => {
       },
     })
     useTextureDetail().open(tex.id, [tex])
-    await nextTick()
+    await flushAll()
 
     const wrapper = mount(TextureDetailImage)
-    await nextTick()
+    await flushAll()
 
-    expect(wrapper.find('[data-testid="tab-strip"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('original')
-    expect(wrapper.text()).toContain('replacement')
+    expect(wrapper.text()).toContain('Original')
+    expect(wrapper.text()).toContain('Replacement')
     wrapper.unmount()
   })
 
-  it('hides tab strip when no replacement', async () => {
+  it('hides compare labels when no replacement', async () => {
     mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
     const tex = makeTexture({ id: 'tex1' })
     useTextureDetail().open(tex.id, [tex])
     await flushAll()
 
     const wrapper = mount(TextureDetailImage)
-    await nextTick()
+    await flushAll()
 
-    expect(wrapper.find('[data-testid="tab-strip"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Original')
+    expect(wrapper.text()).not.toContain('Replacement')
     wrapper.unmount()
   })
 
@@ -179,8 +180,9 @@ describe('TextureDetailImage', () => {
     wrapper.unmount()
   })
 
-  it('clicking Replacement tab shows replacement image', async () => {
+  it('shows both original and replacement images in compare mode', async () => {
     mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
+    mockInvokeHandler('load_replacement_full', () => 'data:image/png;base64,rep')
     const tex = makeTexture({
       id: 'tex1',
       replacement: {
@@ -194,16 +196,12 @@ describe('TextureDetailImage', () => {
     await flushAll()
 
     const wrapper = mount(TextureDetailImage)
-    await nextTick()
+    await flushAll()
 
-    const tabs = wrapper.findAll('button')
-    const repTab = tabs.find((b) => b.text() === 'replacement')
-    await repTab?.trigger('click')
-    await nextTick()
-
-    const img = wrapper.find('img')
-    expect(img.exists()).toBe(true)
-    expect(img.attributes('src')).toContain('/import/body.png')
+    const imgs = wrapper.findAll('img')
+    expect(imgs.length).toBe(2)
+    expect(imgs[0].attributes('src')).toBe('data:image/png;base64,orig')
+    expect(imgs[1].attributes('src')).toBe('data:image/png;base64,rep')
     wrapper.unmount()
   })
 
@@ -375,6 +373,152 @@ describe('TextureDetailImage', () => {
     wrapper.vm.onMouseMove(new MouseEvent('mousemove', { clientX: 200, clientY: 200 }))
     expect(wrapper.vm.offsetX).toBe(0)
     expect(wrapper.vm.offsetY).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('handleSliderKey ArrowLeft decreases sliderPct', async () => {
+    mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
+    mockInvokeHandler('load_replacement_full', () => 'data:image/png;base64,rep')
+    const tex = makeTexture({
+      id: 'tex1',
+      replacement: {
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,rep',
+        width: 1024,
+        height: 1024,
+      },
+    })
+    useTextureDetail().open(tex.id, [tex])
+    await flushAll()
+
+    const wrapper = mount(TextureDetailImage)
+    await flushAll()
+
+    wrapper.vm.sliderPct = 50
+    wrapper.vm.handleSliderKey(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
+    expect(wrapper.vm.sliderPct).toBe(49)
+    wrapper.unmount()
+  })
+
+  it('handleSliderKey ArrowRight increases sliderPct', async () => {
+    mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
+    mockInvokeHandler('load_replacement_full', () => 'data:image/png;base64,rep')
+    const tex = makeTexture({
+      id: 'tex1',
+      replacement: {
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,rep',
+        width: 1024,
+        height: 1024,
+      },
+    })
+    useTextureDetail().open(tex.id, [tex])
+    await flushAll()
+
+    const wrapper = mount(TextureDetailImage)
+    await flushAll()
+
+    wrapper.vm.sliderPct = 50
+    wrapper.vm.handleSliderKey(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    expect(wrapper.vm.sliderPct).toBe(51)
+    wrapper.unmount()
+  })
+
+  it('handleSliderKey Home sets sliderPct to 0', async () => {
+    mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
+    mockInvokeHandler('load_replacement_full', () => 'data:image/png;base64,rep')
+    const tex = makeTexture({
+      id: 'tex1',
+      replacement: {
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,rep',
+        width: 1024,
+        height: 1024,
+      },
+    })
+    useTextureDetail().open(tex.id, [tex])
+    await flushAll()
+
+    const wrapper = mount(TextureDetailImage)
+    await flushAll()
+
+    wrapper.vm.sliderPct = 50
+    wrapper.vm.handleSliderKey(new KeyboardEvent('keydown', { key: 'Home' }))
+    expect(wrapper.vm.sliderPct).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('handleSliderKey End sets sliderPct to 100', async () => {
+    mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
+    mockInvokeHandler('load_replacement_full', () => 'data:image/png;base64,rep')
+    const tex = makeTexture({
+      id: 'tex1',
+      replacement: {
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,rep',
+        width: 1024,
+        height: 1024,
+      },
+    })
+    useTextureDetail().open(tex.id, [tex])
+    await flushAll()
+
+    const wrapper = mount(TextureDetailImage)
+    await flushAll()
+
+    wrapper.vm.sliderPct = 50
+    wrapper.vm.handleSliderKey(new KeyboardEvent('keydown', { key: 'End' }))
+    expect(wrapper.vm.sliderPct).toBe(100)
+    wrapper.unmount()
+  })
+
+  it('handleSliderKey with shiftKey steps by 10', async () => {
+    mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
+    mockInvokeHandler('load_replacement_full', () => 'data:image/png;base64,rep')
+    const tex = makeTexture({
+      id: 'tex1',
+      replacement: {
+        sourcePath: '/import/body.png',
+        previewUrl: 'data:image/png;base64,rep',
+        width: 1024,
+        height: 1024,
+      },
+    })
+    useTextureDetail().open(tex.id, [tex])
+    await flushAll()
+
+    const wrapper = mount(TextureDetailImage)
+    await flushAll()
+
+    wrapper.vm.sliderPct = 50
+    wrapper.vm.handleSliderKey(new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true }))
+    expect(wrapper.vm.sliderPct).toBe(40)
+    wrapper.unmount()
+  })
+
+  it('shows replacement load error badge when replacement fails to load', async () => {
+    mockInvokeHandler('get_kn5_texture', () => 'data:image/png;base64,orig')
+    mockInvokeHandler('load_replacement_full', () => {
+      throw new Error('replacement load failed')
+    })
+    const tex = makeTexture({
+      id: 'tex1',
+      replacement: {
+        sourcePath: '/import/bad.png',
+        previewUrl: 'data:image/png;base64,rep',
+        width: 1024,
+        height: 1024,
+      },
+    })
+    useTextureDetail().open(tex.id, [tex])
+    await flushAll()
+
+    const wrapper = mount(TextureDetailImage)
+    await flushAll()
+
+    expect(wrapper.vm.replacementLoadError).toBeTruthy()
+    const alert = wrapper.find('[role="alert"]')
+    expect(alert.exists()).toBe(true)
     wrapper.unmount()
   })
 })
