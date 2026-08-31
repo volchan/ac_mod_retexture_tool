@@ -26,7 +26,15 @@ interface TextureGroup {
   textures: Texture[]
 }
 
-const CAR_CATEGORIES: TextureCategory[] = ['all', 'body', 'livery', 'interior', 'wheels', 'other']
+const CAR_CATEGORIES: TextureCategory[] = [
+  'all',
+  'body',
+  'livery',
+  'interior',
+  'wheels',
+  'other',
+  'preview',
+]
 const TRACK_CATEGORIES: TextureCategory[] = [
   'all',
   'road',

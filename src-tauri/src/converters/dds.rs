@@ -14,6 +14,7 @@ const DDS_PF_BITCOUNT_OFFSET: usize = 88;
 const DDS_DDPF_RGB: u32 = 0x40;
 const DDS_DDPF_ALPHAPIXELS: u32 = 0x01;
 const PNG_MAGIC: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+const JPEG_MAGIC: &[u8; 3] = b"\xff\xd8\xff";
 const PNG_WIDTH_OFFSET: usize = 16;
 const PNG_HEIGHT_OFFSET: usize = 20;
 
@@ -124,6 +125,9 @@ pub fn detect_format(data: &[u8]) -> String {
         if data.len() >= 8 && &data[0..8] == PNG_MAGIC {
             return "PNG".to_string();
         }
+        if data.len() >= 3 && &data[0..3] == JPEG_MAGIC {
+            return "JPEG".to_string();
+        }
         return "unknown".to_string();
     }
     if data.len() < DDS_HEADER_MIN_LEN {
@@ -209,6 +213,9 @@ pub fn parse_dds_dimensions(data: &[u8]) -> (u32, u32) {
             ]);
             return (width, height);
         }
+        if data.len() >= 3 && &data[0..3] == JPEG_MAGIC {
+            return parse_jpeg_dimensions(data).unwrap_or((0, 0));
+        }
         return (0, 0);
     }
     if data.len() < DDS_WIDTH_OFFSET + 4 {
@@ -227,6 +234,57 @@ pub fn parse_dds_dimensions(data: &[u8]) -> (u32, u32) {
         data[DDS_WIDTH_OFFSET + 3],
     ]);
     (width, height)
+}
+
+/// Walks the JPEG segment chain to the frame header, which is the only place
+/// the dimensions live — unlike PNG and DDS, they sit at no fixed offset.
+fn parse_jpeg_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    // Skip the SOI marker; every following segment starts with 0xFF.
+    let mut pos = 2usize;
+
+    while pos + 1 < data.len() {
+        if data[pos] != 0xFF {
+            pos += 1;
+            continue;
+        }
+        let marker = data[pos + 1];
+
+        // Padding, restart markers and SOI/EOI carry no length field.
+        if marker == 0xFF || marker == 0x01 || (0xD0..=0xD9).contains(&marker) {
+            pos += 2;
+            continue;
+        }
+
+        let length_at = pos + 2;
+        if length_at + 1 >= data.len() {
+            return None;
+        }
+        let length = u16::from_be_bytes([data[length_at], data[length_at + 1]]) as usize;
+        if length < 2 {
+            return None;
+        }
+
+        if is_start_of_frame(marker) {
+            // Segment payload: length(2) precision(1) height(2) width(2)
+            let height_at = length_at + 3;
+            if height_at + 3 >= data.len() {
+                return None;
+            }
+            let height = u16::from_be_bytes([data[height_at], data[height_at + 1]]) as u32;
+            let width = u16::from_be_bytes([data[height_at + 2], data[height_at + 3]]) as u32;
+            return Some((width, height));
+        }
+
+        pos = length_at + length;
+    }
+
+    None
+}
+
+/// SOF0 through SOF15, minus the three markers that reuse the range for
+/// Huffman tables, arithmetic coding and the reserved JPG marker.
+fn is_start_of_frame(marker: u8) -> bool {
+    (0xC0..=0xCF).contains(&marker) && !matches!(marker, 0xC4 | 0xC8 | 0xCC)
 }
 
 /// FNV-1a hash of the image's raw RGBA pixel bytes.
@@ -468,5 +526,61 @@ mod tests {
     fn test_detect_format_dxgi_bc2_unorm() {
         // DXGI 74 = BC2_UNORM — previously mapped to BC3 by mistake
         assert_eq!(detect_format(&build_dx10_header(74)), "BC2");
+    }
+
+    fn jpeg_with_dimensions(width: u16, height: u16) -> Vec<u8> {
+        let mut data = vec![0xFF, 0xD8];
+        // APP0 segment the parser must skip over to reach the frame header
+        data.extend_from_slice(&[0xFF, 0xE0, 0x00, 0x10]);
+        data.extend_from_slice(b"JFIF\0");
+        data.extend_from_slice(&[0u8; 9]);
+        // SOF0: length, precision, height, width
+        data.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x11, 0x08]);
+        data.extend_from_slice(&height.to_be_bytes());
+        data.extend_from_slice(&width.to_be_bytes());
+        data.extend_from_slice(&[0xFF, 0xD9]);
+        data
+    }
+
+    #[test]
+    fn detect_format_recognises_jpeg() {
+        assert_eq!(detect_format(&jpeg_with_dimensions(64, 64)), "JPEG");
+    }
+
+    #[test]
+    fn parse_dimensions_reads_jpeg_frame_header() {
+        let (w, h) = parse_dds_dimensions(&jpeg_with_dimensions(1024, 576));
+        assert_eq!((w, h), (1024, 576));
+    }
+
+    #[test]
+    fn parse_dimensions_skips_restart_markers_before_frame() {
+        let mut data = vec![0xFF, 0xD8, 0xFF, 0xD0, 0xFF, 0x01];
+        data.extend_from_slice(&[0xFF, 0xC2, 0x00, 0x11, 0x08]);
+        data.extend_from_slice(&200u16.to_be_bytes());
+        data.extend_from_slice(&300u16.to_be_bytes());
+        assert_eq!(parse_dds_dimensions(&data), (300, 200));
+    }
+
+    #[test]
+    fn parse_dimensions_returns_zero_for_truncated_jpeg() {
+        assert_eq!(parse_dds_dimensions(&[0xFF, 0xD8, 0xFF]), (0, 0));
+    }
+
+    #[test]
+    fn parse_dimensions_returns_zero_for_jpeg_without_frame_header() {
+        let data = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, 0xFF, 0xD9];
+        assert_eq!(parse_dds_dimensions(&data), (0, 0));
+    }
+
+    #[test]
+    fn start_of_frame_excludes_table_markers() {
+        assert!(is_start_of_frame(0xC0));
+        assert!(is_start_of_frame(0xC2));
+        assert!(is_start_of_frame(0xCF));
+        assert!(!is_start_of_frame(0xC4));
+        assert!(!is_start_of_frame(0xC8));
+        assert!(!is_start_of_frame(0xCC));
+        assert!(!is_start_of_frame(0xD8));
     }
 }
