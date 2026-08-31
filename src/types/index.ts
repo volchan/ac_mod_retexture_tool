@@ -33,6 +33,23 @@ export interface SkinFolder {
   files: ModFile[]
 }
 
+/**
+ * One skin folder of an installed car. AC makes no distinction between skins
+ * shipped with the car mod and skins installed separately afterwards.
+ */
+export interface SkinEntry {
+  /** Folder name — the id AC uses in race.ini SKIN=. */
+  name: string
+  path: string
+  /** `skinname` from ui_skin.json, when the skin declares one. */
+  displayName?: string
+  driverName?: string
+  team?: string
+  number?: string
+  previewUrl?: string
+  textureCount: number
+}
+
 export interface Mod {
   modType: ModType
   path: string

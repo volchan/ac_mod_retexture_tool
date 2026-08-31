@@ -14,6 +14,7 @@ import type {
   Mod,
   ProgressInfo,
   RepackOptions,
+  SkinEntry,
   Texture,
   TextureReplacementOpt,
 } from '@/types/index'
@@ -43,6 +44,10 @@ export async function listAcContent(path: string): Promise<LibraryEntry[]> {
 
 export async function listAcCars(acPath: string): Promise<LibraryEntry[]> {
   return invoke('list_ac_cars', { acPath })
+}
+
+export async function listCarSkins(carPath: string): Promise<SkinEntry[]> {
+  return invoke('list_car_skins', { carPath })
 }
 
 export async function listTrackLayouts(modPath: string): Promise<string[]> {

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { CarIcon, FolderIcon, ImageIcon, MapPinIcon, SearchIcon } from 'lucide-vue-next'
 import { computed, onMounted, ref, watch } from 'vue'
-import { toast } from 'vue-sonner'
 import AcInstallHeader from '@/components/library/AcInstallHeader.vue'
 import DetectingScreen from '@/components/library/DetectingScreen.vue'
 import InstalledModCard from '@/components/library/InstalledModCard.vue'
@@ -15,12 +14,13 @@ import type { ModType } from '@/types/index'
 
 const emit = defineEmits<{
   open: [path: string]
+  openCar: [path: string, name: string]
   browse: []
 }>()
 
-function handleOpen(path: string, modType: ModType) {
+function handleOpen(path: string, modType: ModType, name: string) {
   if (modType === 'car') {
-    toast.error('Car mods are coming soon.')
+    emit('openCar', path, name)
     return
   }
   emit('open', path)
@@ -193,7 +193,7 @@ defineExpose({
           v-for="m in filteredRecent"
           :key="m.id"
           class="bg-card border border-border rounded-[9px] p-3.5 text-left cursor-pointer hover:border-border/80 transition-all hover:shadow-sm"
-          @click="handleOpen(m.path, m.modType)"
+          @click="handleOpen(m.path, m.modType, m.name)"
         >
           <div class="flex items-center gap-2 mb-2.5">
             <span
@@ -303,7 +303,7 @@ defineExpose({
               v-for="m in recentMods.slice(0, 5)"
               :key="m.id"
               class="shrink-0 w-[220px] p-3 text-left bg-card border border-border rounded-[9px] cursor-pointer hover:border-[var(--accent-border)] transition-all"
-              @click="handleOpen(m.path, m.modType)"
+              @click="handleOpen(m.path, m.modType, m.name)"
             >
               <div class="flex items-center gap-1.5 mb-2">
                 <span
@@ -341,7 +341,7 @@ defineExpose({
                   v-for="entry in groupedFiltered[groupType].mods"
                   :key="entry.id"
                   :entry="entry"
-                  @open="handleOpen(entry.path, entry.modType)"
+                  @open="handleOpen(entry.path, entry.modType, entry.name)"
                 />
               </div>
             </template>
@@ -360,7 +360,7 @@ defineExpose({
                   v-for="entry in groupedFiltered[groupType].kunos"
                   :key="entry.id"
                   :entry="entry"
-                  @open="handleOpen(entry.path, entry.modType)"
+                  @open="handleOpen(entry.path, entry.modType, entry.name)"
                 />
               </div>
             </template>

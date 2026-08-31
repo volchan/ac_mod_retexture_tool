@@ -155,7 +155,7 @@ pub fn preview_replacement_image(image_path: String) -> Result<String, String> {
     Ok(format!("data:image/png;base64,{b64}"))
 }
 
-fn mime_for_path(path: &str) -> &'static str {
+pub(crate) fn mime_for_path(path: &str) -> &'static str {
     let lower = path.to_lowercase();
     if lower.ends_with(".png") {
         "image/png"

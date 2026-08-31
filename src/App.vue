@@ -6,21 +6,33 @@ import CommandPalette from '@/components/CommandPalette.vue'
 import StatusBar from '@/components/layout/StatusBar.vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import RepackDialog from '@/components/repack/RepackDialog.vue'
+import SkinPickerDialog from '@/components/skin/SkinPickerDialog.vue'
 import CarPickerDialog from '@/components/test-in-game/CarPickerDialog.vue'
 import TestingOverlay from '@/components/test-in-game/TestingOverlay.vue'
 import Toaster from '@/components/ui/sonner/Toaster.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useLibrary } from '@/composables/useLibrary'
 import { useMod } from '@/composables/useMod'
+import { useSkinPicker } from '@/composables/useSkinPicker'
 import { useTestInGame } from '@/composables/useTestInGame'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { useTheme } from '@/composables/useTheme'
 import { showSaveDialog } from '@/lib/tauri'
-import type { TextureReplacementOpt } from '@/types/index'
+import type { SkinEntry, TextureReplacementOpt } from '@/types/index'
 import LibraryView from '@/views/LibraryView.vue'
 
 const { mod, loadMod, closeMod } = useMod()
+const {
+  isOpen: skinPickerOpen,
+  isLoading: isLoadingSkins,
+  carPath: skinCarPath,
+  carName: skinCarName,
+  skins,
+  error: skinPickerError,
+  openForCar,
+  close: closeSkinPicker,
+} = useSkinPicker()
 const { textures, selected, selectAll, lastImportFolder } = useTextures()
 const { init: initLibrary, addRecent, updateTextureCount } = useLibrary()
 const { reset: resetFilter } = useTextureFilter()
@@ -102,7 +114,7 @@ async function handleDrop(path: string) {
   if (!mod.value) return
   if (mod.value.modType === 'car') {
     closeMod()
-    toast.error('Car mods are coming soon.')
+    toast.error('Open cars from the library to pick a skin.')
     return
   }
   if (mod.value.modType !== 'track') {
@@ -120,6 +132,25 @@ watch(
     if (mod.value) updateTextureCount(mod.value.meta.folderName, count)
   },
 )
+
+async function handleOpenCar(path: string, name: string) {
+  await openForCar(path, name)
+}
+
+async function handleSkinSelected(skin: SkinEntry) {
+  const carPath = skinCarPath.value
+  closeSkinPicker()
+
+  const result = await loadMod(carPath, skin)
+  if (result?.error) {
+    toast.error(result.error)
+    return
+  }
+  if (!mod.value) return
+
+  await addRecent(mod.value)
+  resetFilter()
+}
 
 async function handleBrowse() {
   const chosenPath = await open({ directory: true, multiple: false })
@@ -193,6 +224,7 @@ async function handleLaunchTest() {
 
 defineExpose({
   CommandPalette,
+  SkinPickerDialog,
   StatusBar,
   WorkspaceLayout,
   RepackDialog,
@@ -227,6 +259,14 @@ defineExpose({
   selectedCount,
   updateTextureCount,
   triggerQueue,
+  skinPickerOpen,
+  isLoadingSkins,
+  skinCarName,
+  skins,
+  skinPickerError,
+  closeSkinPicker,
+  handleOpenCar,
+  handleSkinSelected,
   handleDrop,
   handleBrowse,
   handleOpenRecent,
@@ -243,6 +283,7 @@ defineExpose({
       v-if="!mod"
       class="flex-1 min-h-0"
       @open="handleOpenRecent"
+      @open-car="handleOpenCar"
       @browse="handleBrowse"
     />
 
@@ -285,6 +326,17 @@ defineExpose({
     :mod="mod"
     :output-path="repackOutputPath"
     :replacements="repackReplacements"
+  />
+
+  <!-- Skin picker dialog (car opened from the library) -->
+  <SkinPickerDialog
+    :open="skinPickerOpen"
+    :car-name="skinCarName"
+    :skins="skins"
+    :is-loading="isLoadingSkins"
+    :error="skinPickerError"
+    @update:open="(v: boolean) => { if (!v) closeSkinPicker() }"
+    @select="handleSkinSelected"
   />
 
   <!-- Car picker dialog -->
