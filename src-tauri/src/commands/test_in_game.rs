@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::commands::repack::{find_kn5_in_copy, patch_kn5};
-use crate::converters::dds;
+use crate::commands::repack::{encode_replacement, find_kn5_in_copy, patch_kn5};
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
 
@@ -200,11 +199,7 @@ fn apply_replacements(
                 .join("skins")
                 .join(skin_folder)
                 .join(&r.texture_name);
-            let png_data = std::fs::read(&r.source_path)?;
-            let img = image::load_from_memory(&png_data)
-                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
-            let dds_data = dds::encode_from_image(&img, &r.original_format)?;
-            std::fs::write(&dst, dds_data)?;
+            std::fs::write(&dst, encode_replacement(r)?)?;
         }
     }
 

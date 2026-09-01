@@ -7,6 +7,9 @@ use std::io::Write;
 use std::path::Path;
 use tauri::{AppHandle, Emitter};
 
+// Formats Assetto Corsa loads directly, so replacements are copied byte for byte.
+const PASSTHROUGH_FORMATS: &[&str] = &["PNG", "JPEG"];
+
 /// Locates a KN5 file inside `copy_root` that corresponds to `original_kn5_path`.
 ///
 /// Tries relative-path matching first (correct when multiple KN5 files share
@@ -150,18 +153,23 @@ pub(crate) fn patch_kn5(
 ) -> Result<(), AppError> {
     let mut kn5 = Kn5File::open(copied_kn5_path)?;
     for r in replacements {
-        let png_data = std::fs::read(&r.source_path)?;
-        let texture_data = if r.original_format == "PNG" {
-            png_data
-        } else {
-            let img = image::load_from_memory(&png_data)
-                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
-            dds::encode_from_image(&img, &r.original_format)?
-        };
+        let texture_data = encode_replacement(r)?;
         kn5.replace_texture_data(&r.texture_name, texture_data)?;
     }
     kn5.save(copied_kn5_path)?;
     Ok(())
+}
+
+/// Mod authors ship loose PNG/JPEG textures that Assetto Corsa reads as-is, so
+/// re-encoding them would both fail and change the format the car expects.
+pub(crate) fn encode_replacement(r: &TextureReplacementOpt) -> Result<Vec<u8>, AppError> {
+    let source_data = std::fs::read(&r.source_path)?;
+    if PASSTHROUGH_FORMATS.contains(&r.original_format.as_str()) {
+        return Ok(source_data);
+    }
+    let img = image::load_from_memory(&source_data)
+        .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+    dds::encode_from_image(&img, &r.original_format)
 }
 
 fn create_zip_archive(
@@ -263,11 +271,7 @@ pub fn repack_mod_inner(
                 .join("skins")
                 .join(skin_folder)
                 .join(&r.texture_name);
-            let png_data = std::fs::read(&r.source_path)?;
-            let img = image::load_from_memory(&png_data)
-                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
-            let dds_data = dds::encode_from_image(&img, &r.original_format)?;
-            std::fs::write(&dst, dds_data)?;
+            std::fs::write(&dst, encode_replacement(r)?)?;
         }
     }
 
@@ -308,6 +312,44 @@ pub async fn repack_mod(app: AppHandle, opts: RepackOptions) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn replacement(source_path: &str, original_format: &str) -> TextureReplacementOpt {
+        TextureReplacementOpt {
+            texture_id: "tex".to_string(),
+            source_path: source_path.to_string(),
+            kn5_file: None,
+            texture_name: "EXT_Panels.png".to_string(),
+            skin_folder: Some("red".to_string()),
+            original_format: original_format.to_string(),
+            hero_image_path: None,
+        }
+    }
+
+    #[test]
+    fn encode_replacement_copies_png_sources_verbatim() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("new.png");
+        let png = image::RgbaImage::new(4, 4);
+        image::DynamicImage::ImageRgba8(png).save(&src).unwrap();
+        let expected = std::fs::read(&src).unwrap();
+
+        let out = encode_replacement(&replacement(src.to_str().unwrap(), "PNG")).unwrap();
+
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn encode_replacement_recompresses_dds_sources() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&src)
+            .unwrap();
+
+        let out = encode_replacement(&replacement(src.to_str().unwrap(), "BC1")).unwrap();
+
+        assert_eq!(&out[0..4], b"DDS ");
+    }
     use crate::models::mod_info::ModMeta;
     use image::{DynamicImage, ImageBuffer, Rgba};
     use image_dds::{dds_from_image, ImageFormat, Mipmaps, Quality};

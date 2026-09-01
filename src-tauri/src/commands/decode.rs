@@ -20,6 +20,9 @@ const SKIN_DISPLAY_FILENAMES: &[&str] = &[
     "livery.png",
 ];
 
+// RSS and other mod authors ship loose PNG/JPEG body textures next to the DDS ones.
+const SKIN_TEXTURE_EXTENSIONS: &[&str] = &["dds", "png", "jpg", "jpeg"];
+
 pub fn categorize(name: &str, mod_type: &ModType) -> TextureCategory {
     let lower = name.to_lowercase();
     match mod_type {
@@ -173,6 +176,22 @@ fn suffix_filename(filename: &str, suffix: &str) -> String {
     }
 }
 
+/// Skin folders hold textures the car loads plus `preview`/`livery` display
+/// images, which are already emitted separately as hero images.
+fn is_skin_texture(path: &Path) -> bool {
+    let Some(filename) = path.file_name().and_then(|s| s.to_str()) else {
+        return false;
+    };
+    let lower_name = filename.to_lowercase();
+    if SKIN_DISPLAY_FILENAMES.contains(&lower_name.as_str()) {
+        return false;
+    }
+    path.extension()
+        .and_then(|s| s.to_str())
+        .map(|ext| SKIN_TEXTURE_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub async fn cancel_decode(cancel: State<'_, DecodeCancel>) -> Result<(), String> {
     cancel.0.store(true, Ordering::Relaxed);
@@ -294,7 +313,7 @@ pub async fn decode_mod_textures(
                             return Ok(());
                         }
                         let fp = file_entry.path();
-                        if fp.extension().and_then(|s| s.to_str()) != Some("dds") {
+                        if !is_skin_texture(&fp) {
                             continue;
                         }
                         let tex_name = fp
@@ -646,6 +665,23 @@ mod tests {
 
         let (_, abs, _) = &collect_skin_display_entries(dir.path())[0];
         assert!(abs.is_file());
+    }
+
+    #[test]
+    fn is_skin_texture_accepts_loose_mod_textures() {
+        assert!(is_skin_texture(Path::new("/skins/red/EXT_Panels.png")));
+        assert!(is_skin_texture(Path::new("/skins/red/2025_Chassis_P.PNG")));
+        assert!(is_skin_texture(Path::new("/skins/red/Decals_EXT.dds")));
+        assert!(is_skin_texture(Path::new("/skins/red/banner.jpeg")));
+    }
+
+    #[test]
+    fn is_skin_texture_rejects_display_images_and_other_files() {
+        assert!(!is_skin_texture(Path::new("/skins/red/livery.png")));
+        assert!(!is_skin_texture(Path::new("/skins/red/preview.jpg")));
+        assert!(!is_skin_texture(Path::new("/skins/red/ui_skin.json")));
+        assert!(!is_skin_texture(Path::new("/skins/red/led_strip_1.kn5")));
+        assert!(!is_skin_texture(Path::new("/skins/red/skin.ini")));
     }
 
     #[test]
