@@ -8,6 +8,7 @@ import TextureCard from '@/components/texture/TextureCard.vue'
 import { Progress } from '@/components/ui/progress'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
+import { useMod } from '@/composables/useMod'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { openTexturePreviewWindow, scanImportFolder } from '@/lib/tauri'
@@ -72,6 +73,7 @@ const {
   cleanup,
 } = useTextures()
 
+const { activeSkin } = useMod()
 const { activeCategory, activeKn5Group, searchQuery, density } = useTextureFilter()
 
 const extractDialogOpen = ref(false)
@@ -218,7 +220,7 @@ watch(importTick, () => {
 })
 
 onMounted(async () => {
-  await init(props.mod)
+  await init(props.mod, activeSkin.value?.name)
   // Yield to let any pending decode-texture IPC events flush before restoring
   await nextTick()
   await restoreReplacements(props.mod.path)

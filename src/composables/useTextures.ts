@@ -47,7 +47,8 @@ export function useTextures() {
     }
   }
 
-  async function init(mod: Mod) {
+  /** `skinFolder` limits a car workspace to one skin; tracks pass nothing. */
+  async function init(mod: Mod, skinFolder?: string) {
     if (isDecoding.value) {
       await cancelDecode()
     }
@@ -69,7 +70,7 @@ export function useTextures() {
     }
 
     try {
-      await decodeModTextures(mod.path, mod.modType)
+      await decodeModTextures(mod.path, mod.modType, skinFolder)
     } finally {
       isDecoding.value = false
     }

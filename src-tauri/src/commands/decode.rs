@@ -123,23 +123,11 @@ fn collect_hero_png_entries(mod_path: &Path) -> Vec<(String, std::path::PathBuf,
 /// car skin shows in Content Manager: the big `preview` shot and the `livery`
 /// badge. They are ordinary files rather than KN5 slots, so they travel through
 /// the same verbatim-copy path as track loading screens.
-fn collect_skin_display_entries(mod_path: &Path) -> Vec<(String, std::path::PathBuf, String)> {
-    let skins_dir = mod_path.join("skins");
-    if !skins_dir.is_dir() {
-        return vec![];
-    }
-
-    let mut skin_dirs: Vec<std::path::PathBuf> = std::fs::read_dir(&skins_dir)
-        .map(|entries| {
-            entries
-                .flatten()
-                .map(|e| e.path())
-                .filter(|p| p.is_dir())
-                .collect()
-        })
-        .unwrap_or_default();
-    skin_dirs.sort();
-
+fn collect_skin_display_entries(
+    mod_path: &Path,
+    only_skin: Option<&str>,
+) -> Vec<(String, std::path::PathBuf, String)> {
+    let skin_dirs = skin_dirs_in(mod_path, only_skin);
     let single_skin = skin_dirs.len() == 1;
     let mut results = Vec::new();
 
@@ -165,6 +153,29 @@ fn collect_skin_display_entries(mod_path: &Path) -> Vec<(String, std::path::Path
     }
 
     results
+}
+
+/// Skin folders of a car, sorted, narrowed to `only_skin` when the workspace is
+/// scoped to one skin.
+fn skin_dirs_in(mod_path: &Path, only_skin: Option<&str>) -> Vec<std::path::PathBuf> {
+    let skins_dir = mod_path.join("skins");
+    if !skins_dir.is_dir() {
+        return vec![];
+    }
+    let Ok(entries) = std::fs::read_dir(&skins_dir) else {
+        return vec![];
+    };
+    let mut dirs: Vec<std::path::PathBuf> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .filter(|p| match only_skin {
+            Some(name) => p.file_name().and_then(|s| s.to_str()) == Some(name),
+            None => true,
+        })
+        .collect();
+    dirs.sort();
+    dirs
 }
 
 /// `preview.jpg` + `red_01` becomes `preview_red_01.jpg`, so tiles stay
@@ -204,6 +215,7 @@ pub async fn decode_mod_textures(
     cancel: State<'_, DecodeCancel>,
     mod_path: String,
     mod_type: String,
+    skin_folder: Option<String>,
 ) -> Result<(), String> {
     // Reset cancellation flag for this run
     cancel.0.store(false, Ordering::Relaxed);
@@ -290,67 +302,58 @@ pub async fn decode_mod_textures(
         return Ok(());
     }
 
-    let skins_path = path.join("skins");
-    if skins_path.is_dir() {
-        if let Ok(skin_dirs) = std::fs::read_dir(&skins_path) {
-            for skin_entry in skin_dirs.flatten() {
+    let only_skin = skin_folder.as_deref();
+    for skin_path in skin_dirs_in(path, only_skin) {
+        if cancel.0.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
+        let skin_name = skin_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        if let Ok(files) = std::fs::read_dir(&skin_path) {
+            for file_entry in files.flatten() {
                 if cancel.0.load(Ordering::Relaxed) {
                     return Ok(());
                 }
-
-                let skin_path = skin_entry.path();
-                if !skin_path.is_dir() {
+                let fp = file_entry.path();
+                if !is_skin_texture(&fp) {
                     continue;
                 }
-                let skin_name = skin_path
+                let tex_name = fp
                     .file_name()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string();
-                if let Ok(files) = std::fs::read_dir(&skin_path) {
-                    for file_entry in files.flatten() {
-                        if cancel.0.load(Ordering::Relaxed) {
-                            return Ok(());
-                        }
-                        let fp = file_entry.path();
-                        if !is_skin_texture(&fp) {
-                            continue;
-                        }
-                        let tex_name = fp
-                            .file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .to_string();
-                        if let Ok(data) = std::fs::read(&fp) {
-                            let preview_url =
-                                dds::generate_thumbnail(&data, 128).unwrap_or_default();
-                            let format = dds::detect_format(&data);
-                            let (width, height) = dds::parse_dds_dimensions(&data);
-                            let tex = TextureEntry {
-                                id: Uuid::new_v4().to_string(),
-                                name: tex_name,
-                                path: fp.to_string_lossy().to_string(),
-                                source: TextureSource::Skin,
-                                kn5_file: None,
-                                skin_folder: Some(skin_name.clone()),
-                                category: TextureCategory::Livery,
-                                width,
-                                height,
-                                format,
-                                preview_url,
-                                is_decoded: true,
-                                replacement: None,
-                            };
-                            let _ = app.emit("decode-texture", &tex);
-                        }
-                    }
+                if let Ok(data) = std::fs::read(&fp) {
+                    let preview_url = dds::generate_thumbnail(&data, 128).unwrap_or_default();
+                    let format = dds::detect_format(&data);
+                    let (width, height) = dds::parse_dds_dimensions(&data);
+                    let tex = TextureEntry {
+                        id: Uuid::new_v4().to_string(),
+                        name: tex_name,
+                        path: fp.to_string_lossy().to_string(),
+                        source: TextureSource::Skin,
+                        kn5_file: None,
+                        skin_folder: Some(skin_name.clone()),
+                        category: TextureCategory::Livery,
+                        width,
+                        height,
+                        format,
+                        preview_url,
+                        is_decoded: true,
+                        replacement: None,
+                    };
+                    let _ = app.emit("decode-texture", &tex);
                 }
             }
         }
     }
 
     if mt == ModType::Car {
-        for (name, abs_path, rel_path) in collect_skin_display_entries(path) {
+        for (name, abs_path, rel_path) in collect_skin_display_entries(path, only_skin) {
             if cancel.0.load(Ordering::Relaxed) {
                 return Ok(());
             }
@@ -609,16 +612,46 @@ mod tests {
     }
 
     #[test]
+    fn skin_dirs_narrow_to_the_scoped_skin() {
+        let dir = tempfile::TempDir::new().unwrap();
+        skin_with_files(&dir, "red_01", &["body.dds"]);
+        skin_with_files(&dir, "blue_02", &["body.dds"]);
+
+        let all = skin_dirs_in(dir.path(), None);
+        assert_eq!(all.len(), 2);
+
+        let scoped = skin_dirs_in(dir.path(), Some("blue_02"));
+        assert_eq!(scoped.len(), 1);
+        assert!(scoped[0].ends_with("blue_02"));
+
+        assert!(skin_dirs_in(dir.path(), Some("missing")).is_empty());
+    }
+
+    #[test]
+    fn skin_display_entries_drop_the_suffix_when_scoped_to_one_skin() {
+        let dir = tempfile::TempDir::new().unwrap();
+        skin_with_files(&dir, "red_01", &["preview.jpg", "livery.png"]);
+        skin_with_files(&dir, "blue_02", &["preview.jpg", "livery.png"]);
+
+        let names: Vec<String> = collect_skin_display_entries(dir.path(), Some("red_01"))
+            .into_iter()
+            .map(|(name, _, _)| name)
+            .collect();
+
+        assert_eq!(names, vec!["preview.jpg", "livery.png"]);
+    }
+
+    #[test]
     fn skin_display_entries_empty_without_skins_dir() {
         let dir = tempfile::TempDir::new().unwrap();
-        assert!(collect_skin_display_entries(dir.path()).is_empty());
+        assert!(collect_skin_display_entries(dir.path(), None).is_empty());
     }
 
     #[test]
     fn skin_display_entries_ignore_unrelated_files() {
         let dir = tempfile::TempDir::new().unwrap();
         skin_with_files(&dir, "red_01", &["livery.dds", "ui_skin.json"]);
-        assert!(collect_skin_display_entries(dir.path()).is_empty());
+        assert!(collect_skin_display_entries(dir.path(), None).is_empty());
     }
 
     #[test]
@@ -626,7 +659,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         skin_with_files(&dir, "red_01", &["preview.jpg", "livery.png"]);
 
-        let entries = collect_skin_display_entries(dir.path());
+        let entries = collect_skin_display_entries(dir.path(), None);
         let names: Vec<&str> = entries.iter().map(|(n, _, _)| n.as_str()).collect();
         assert_eq!(names, vec!["preview.jpg", "livery.png"]);
 
@@ -643,7 +676,7 @@ mod tests {
         skin_with_files(&dir, "blue_02", &["preview.jpg"]);
         skin_with_files(&dir, "red_01", &["preview.jpg"]);
 
-        let entries = collect_skin_display_entries(dir.path());
+        let entries = collect_skin_display_entries(dir.path(), None);
         let names: Vec<&str> = entries.iter().map(|(n, _, _)| n.as_str()).collect();
         assert_eq!(names, vec!["preview_blue_02.jpg", "preview_red_01.jpg"]);
     }
@@ -653,7 +686,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         skin_with_files(&dir, "red_01", &["preview"]);
 
-        let entries = collect_skin_display_entries(dir.path());
+        let entries = collect_skin_display_entries(dir.path(), None);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].2, "skins/red_01/preview");
     }
@@ -663,7 +696,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         skin_with_files(&dir, "red_01", &["preview.png"]);
 
-        let (_, abs, _) = &collect_skin_display_entries(dir.path())[0];
+        let (_, abs, _) = &collect_skin_display_entries(dir.path(), None)[0];
         assert!(abs.is_file());
     }
 
@@ -686,7 +719,10 @@ mod tests {
 
     #[test]
     fn suffix_filename_handles_missing_extension() {
-        assert_eq!(suffix_filename("preview.jpg", "red_01"), "preview_red_01.jpg");
+        assert_eq!(
+            suffix_filename("preview.jpg", "red_01"),
+            "preview_red_01.jpg"
+        );
         assert_eq!(suffix_filename("preview", "red_01"), "preview_red_01");
     }
 }

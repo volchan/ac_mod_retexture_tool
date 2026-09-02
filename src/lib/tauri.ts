@@ -86,8 +86,12 @@ export async function scanModFolder(path: string): Promise<Mod> {
   return invoke('scan_mod_folder', { path })
 }
 
-export async function decodeModTextures(modPath: string, modType: string): Promise<void> {
-  return invoke('decode_mod_textures', { modPath, modType })
+export async function decodeModTextures(
+  modPath: string,
+  modType: string,
+  skinFolder?: string,
+): Promise<void> {
+  return invoke('decode_mod_textures', { modPath, modType, skinFolder })
 }
 
 export async function cancelDecode(): Promise<void> {
