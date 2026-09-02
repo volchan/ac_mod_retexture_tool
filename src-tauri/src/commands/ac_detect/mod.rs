@@ -67,6 +67,23 @@ pub async fn list_ac_cars(ac_path: String) -> Result<Vec<LibraryEntry>, String> 
     .map_err(|e| format!("Task failed: {e}"))?
 }
 
+/// Tracks installed in AC, so a skin can be tried on one of them.
+#[tauri::command]
+pub async fn list_ac_tracks(ac_path: String) -> Result<Vec<LibraryEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let tracks_dir = std::path::PathBuf::from(&ac_path).join("content/tracks");
+        if !tracks_dir.is_dir() {
+            return Err("Missing: content/tracks".to_string());
+        }
+        Ok(walk_content_dir(&tracks_dir)
+            .into_iter()
+            .map(|(id, path)| build_track_entry(&id, &path))
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("Task failed: {e}"))?
+}
+
 #[tauri::command]
 pub async fn list_ac_content(
     app: tauri::AppHandle,

@@ -95,7 +95,8 @@ pub fn write_skin_meta(skin_dir: &Path, meta: &SkinMeta) -> Result<(), AppError>
         obj.insert(key.to_string(), Value::String(value.clone()));
     }
 
-    let text = serde_json::to_string_pretty(&json).map_err(|e| AppError::Serialize(e.to_string()))?;
+    let text =
+        serde_json::to_string_pretty(&json).map_err(|e| AppError::Serialize(e.to_string()))?;
     std::fs::write(&path, text)?;
     Ok(())
 }

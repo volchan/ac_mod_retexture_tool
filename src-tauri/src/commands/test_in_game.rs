@@ -38,14 +38,14 @@ pub async fn test_in_game(
     .map_err(|e: AppError| e.to_string())
 }
 
-fn ac_documents_cfg() -> Result<std::path::PathBuf, AppError> {
+pub(crate) fn ac_documents_cfg() -> Result<std::path::PathBuf, AppError> {
     // AC reads race.ini from Documents\Assetto Corsa\cfg, not the Steam install folder
     let docs = dirs::document_dir()
         .ok_or_else(|| AppError::NotFound("Cannot locate Documents folder".to_string()))?;
     Ok(docs.join("Assetto Corsa").join("cfg"))
 }
 
-struct DirGuard(std::path::PathBuf);
+pub(crate) struct DirGuard(pub std::path::PathBuf);
 
 impl Drop for DirGuard {
     fn drop(&mut self) {
@@ -55,7 +55,11 @@ impl Drop for DirGuard {
     }
 }
 
-fn restore_race_ini(race_ini: &Path, bak: &Path, had_original: bool) -> Result<(), AppError> {
+pub(crate) fn restore_race_ini(
+    race_ini: &Path,
+    bak: &Path,
+    had_original: bool,
+) -> Result<(), AppError> {
     if had_original {
         std::fs::rename(bak, race_ini)?;
     } else {
@@ -67,7 +71,7 @@ fn restore_race_ini(race_ini: &Path, bak: &Path, had_original: bool) -> Result<(
     Ok(())
 }
 
-struct RaceIniGuard {
+pub(crate) struct RaceIniGuard {
     race_ini: std::path::PathBuf,
     bak: std::path::PathBuf,
     had_original: bool,
@@ -75,7 +79,11 @@ struct RaceIniGuard {
 }
 
 impl RaceIniGuard {
-    fn new(race_ini: std::path::PathBuf, bak: std::path::PathBuf, had_original: bool) -> Self {
+    pub(crate) fn new(
+        race_ini: std::path::PathBuf,
+        bak: std::path::PathBuf,
+        had_original: bool,
+    ) -> Self {
         Self {
             race_ini,
             bak,
@@ -84,7 +92,7 @@ impl RaceIniGuard {
         }
     }
 
-    fn finish(mut self) -> Result<(), AppError> {
+    pub(crate) fn finish(mut self) -> Result<(), AppError> {
         self.finished = true;
         restore_race_ini(&self.race_ini, &self.bak, self.had_original)
     }
@@ -163,7 +171,7 @@ fn run_session(
 
     std::fs::write(
         race_ini_path,
-        build_race_ini(preview_name, car_id, config_track),
+        build_race_ini(preview_name, car_id, "default", config_track),
     )?;
 
     let guard = RaceIniGuard::new(race_ini_path.to_path_buf(), bak_path, had_original);
@@ -216,9 +224,9 @@ fn apply_replacements(
     Ok(())
 }
 
-fn build_race_ini(track: &str, car: &str, config_track: &str) -> String {
+pub(crate) fn build_race_ini(track: &str, car: &str, skin: &str, config_track: &str) -> String {
     format!(
-        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN=default\nTRACK={track}\nCONFIG_TRACK={config_track}\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nDURATION_MINUTES=0\nLAPS=0\nWAIT_TIME=60\nSPAWN_SET=PIT\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
+        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN={skin}\nTRACK={track}\nCONFIG_TRACK={config_track}\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nDURATION_MINUTES=0\nLAPS=0\nWAIT_TIME=60\nSPAWN_SET=PIT\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
     )
 }
 
@@ -245,7 +253,7 @@ mod tests {
 
     #[test]
     fn build_race_ini_contains_track_and_car() {
-        let ini = build_race_ini("my_track_preview", "ks_abarth500", "");
+        let ini = build_race_ini("my_track_preview", "ks_abarth500", "default", "");
         assert!(ini.contains("TRACK=my_track_preview"));
         assert!(ini.contains("MODEL=ks_abarth500"));
         assert!(ini.contains("CONFIG_TRACK=\n"));
@@ -255,7 +263,12 @@ mod tests {
 
     #[test]
     fn build_race_ini_sets_config_track_when_layout_name_given() {
-        let ini = build_race_ini("my_track_preview", "ks_abarth500", "international");
+        let ini = build_race_ini(
+            "my_track_preview",
+            "ks_abarth500",
+            "default",
+            "international",
+        );
         assert!(ini.contains("CONFIG_TRACK=international\n"));
     }
 
