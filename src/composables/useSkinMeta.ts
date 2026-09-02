@@ -3,6 +3,7 @@ import type { SkinEntry, SkinMeta } from '@/types/index'
 
 const meta = ref<SkinMeta | null>(null)
 const openedFolderName = ref('')
+const exportFull = ref(true)
 
 export function useSkinMeta() {
   /** Seeds the form from the skin the workspace just opened. */
@@ -21,6 +22,7 @@ export function useSkinMeta() {
   function reset(): void {
     meta.value = null
     openedFolderName.value = ''
+    exportFull.value = true
   }
 
   /** A renamed folder forks a new skin instead of updating the opened one. */
@@ -30,7 +32,20 @@ export function useSkinMeta() {
 
   const folderNameError = computed(() => validateFolderName(meta.value?.folderName ?? ''))
 
-  return { meta, openedFolderName, isFork, folderNameError, load, reset }
+  /** A partial export of a renamed skin ships a folder the recipient does not
+   * already have, so the files it leaves out are simply missing. */
+  const incompleteFork = computed(() => isFork.value && !exportFull.value)
+
+  return {
+    meta,
+    openedFolderName,
+    exportFull,
+    isFork,
+    incompleteFork,
+    folderNameError,
+    load,
+    reset,
+  }
 }
 
 // ------------------------------------------------------------------------------

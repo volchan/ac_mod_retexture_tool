@@ -15,6 +15,7 @@ import type {
   ProgressInfo,
   RepackOptions,
   SkinEntry,
+  SkinExportOptions,
   Texture,
   TextureReplacementOpt,
 } from '@/types/index'
@@ -92,6 +93,10 @@ export async function decodeModTextures(
   skinFolder?: string,
 ): Promise<void> {
   return invoke('decode_mod_textures', { modPath, modType, skinFolder })
+}
+
+export async function exportSkin(options: SkinExportOptions): Promise<void> {
+  return invoke('export_skin', { opts: options })
 }
 
 export async function cancelDecode(): Promise<void> {

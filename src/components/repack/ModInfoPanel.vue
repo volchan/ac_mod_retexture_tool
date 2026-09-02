@@ -15,6 +15,7 @@ defineProps<{
 const emit = defineEmits<{
   repack: []
   'test-in-game': []
+  'export-skin': []
 }>()
 
 const { textures } = useTextures()
@@ -98,7 +99,7 @@ defineExpose({
 
     <!-- Info tab -->
     <div v-else class="flex flex-col gap-4 p-3 pb-4 flex-1 overflow-auto">
-      <SkinMetaPanel />
+      <SkinMetaPanel @export-skin="$emit('export-skin')" />
 
       <section>
         <p class="text-[10.5px] uppercase tracking-widest text-muted-foreground font-semibold mb-2">

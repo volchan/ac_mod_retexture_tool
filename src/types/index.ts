@@ -54,6 +54,16 @@ export interface SkinEntry {
 /** The ui_skin.json fields the workspace lets an author edit, plus the folder
  * name the skin is written under. Keeping the same name updates the opened
  * skin; changing it forks a new one. */
+export interface SkinExportOptions {
+  carPath: string
+  skinFolder: string
+  outputPath: string
+  meta: SkinMeta
+  /** Ship every file of the skin, rather than only what changed. */
+  full: boolean
+  replacements: TextureReplacementOpt[]
+}
+
 export interface SkinMeta {
   folderName: string
   skinName: string

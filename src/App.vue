@@ -13,16 +13,18 @@ import Toaster from '@/components/ui/sonner/Toaster.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useLibrary } from '@/composables/useLibrary'
 import { useMod } from '@/composables/useMod'
+import { useSkinMeta } from '@/composables/useSkinMeta'
 import { useSkinPicker } from '@/composables/useSkinPicker'
 import { useTestInGame } from '@/composables/useTestInGame'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { useTheme } from '@/composables/useTheme'
-import { showSaveDialog } from '@/lib/tauri'
+import { exportSkin, showSaveDialog } from '@/lib/tauri'
 import type { SkinEntry, TextureReplacementOpt } from '@/types/index'
 import LibraryView from '@/views/LibraryView.vue'
 
-const { mod, loadMod, closeMod } = useMod()
+const { mod, activeSkin, loadMod, closeMod } = useMod()
+const { meta: skinMeta, exportFull } = useSkinMeta()
 const {
   isOpen: skinPickerOpen,
   isLoading: isLoadingSkins,
@@ -183,6 +185,35 @@ async function handleRepack() {
   repackOpen.value = true
 }
 
+async function handleExportSkin() {
+  if (!mod.value || !activeSkin.value || !skinMeta.value) return
+
+  const outputPath = await showSaveDialog(`${skinMeta.value.folderName}.zip`)
+  if (!outputPath) return
+
+  try {
+    await exportSkin({
+      carPath: mod.value.path,
+      skinFolder: activeSkin.value.name,
+      outputPath,
+      meta: skinMeta.value,
+      full: exportFull.value,
+      replacements: textures.value
+        .filter((t) => t.replacement != null)
+        .map((t) => ({
+          textureId: t.id,
+          sourcePath: t.replacement?.sourcePath ?? '',
+          textureName: t.name,
+          skinFolder: t.skinFolder,
+          originalFormat: t.format,
+        })),
+    })
+    toast.success(`Exported ${skinMeta.value.folderName}`)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : String(e))
+  }
+}
+
 async function handleCmdAction(action: string) {
   if (action === 'repack') handleRepack()
   if (action === 'extract') triggerExtract()
@@ -271,6 +302,7 @@ defineExpose({
   handleBrowse,
   handleOpenRecent,
   handleRepack,
+  handleExportSkin,
   handleCmdAction,
   handleLaunchTest,
 })
@@ -297,6 +329,7 @@ defineExpose({
       @close="handleCmdAction('switch-mod')"
       @open-cmd="cmdPaletteOpen = true"
       @test-in-game="mod && openTestDialog(mod.path)"
+      @export-skin="handleExportSkin"
     />
 
     <!-- Status bar (always visible) -->

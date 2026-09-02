@@ -167,12 +167,12 @@ pub(crate) fn encode_replacement(r: &TextureReplacementOpt) -> Result<Vec<u8>, A
     if PASSTHROUGH_FORMATS.contains(&r.original_format.as_str()) {
         return Ok(source_data);
     }
-    let img = image::load_from_memory(&source_data)
-        .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+    let img =
+        image::load_from_memory(&source_data).map_err(|e| AppError::ImageDecode(e.to_string()))?;
     dds::encode_from_image(&img, &r.original_format)
 }
 
-fn create_zip_archive(
+pub(crate) fn create_zip_archive(
     src_dir: &Path,
     output_path: &Path,
     progress_cb: &dyn Fn(&str, u32, u32),

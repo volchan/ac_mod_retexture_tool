@@ -4,7 +4,10 @@ import { useMod } from '@/composables/useMod'
 import { useSkinMeta } from '@/composables/useSkinMeta'
 
 const { activeSkin } = useMod()
-const { meta, openedFolderName, isFork, folderNameError, load, reset } = useSkinMeta()
+const { meta, openedFolderName, exportFull, isFork, incompleteFork, folderNameError, load, reset } =
+  useSkinMeta()
+
+const emit = defineEmits<{ 'export-skin': [] }>()
 
 watch(
   activeSkin,
@@ -23,7 +26,16 @@ const FIELDS = [
   { key: 'country', label: 'Country', placeholder: '' },
 ] as const
 
-defineExpose({ meta, openedFolderName, isFork, folderNameError, FIELDS })
+defineExpose({
+  meta,
+  openedFolderName,
+  exportFull,
+  isFork,
+  incompleteFork,
+  folderNameError,
+  FIELDS,
+  emit,
+})
 </script>
 
 <template>
@@ -58,5 +70,31 @@ defineExpose({ meta, openedFolderName, isFork, folderNameError, FIELDS })
         :aria-label="field.label"
       />
     </label>
+
+    <div class="mt-3 pt-3 border-t border-border">
+      <label class="flex items-center gap-2 text-[12px] mb-1">
+        <input v-model="exportFull" type="checkbox" aria-label="Ship the whole skin" />
+        Ship the whole skin
+      </label>
+      <p class="text-[10.5px] text-muted-foreground mb-2">
+        {{
+          exportFull
+            ? 'Every file, installs on its own.'
+            : 'Only what changed, layered onto a skin the player already has.'
+        }}
+      </p>
+
+      <p v-if="incompleteFork" class="text-[10.5px] text-destructive mb-2">
+        A renamed skin has nothing to layer onto — ship the whole skin instead.
+      </p>
+
+      <button
+        class="w-full py-1.5 text-[12px] font-medium rounded-[6px] bg-primary text-primary-foreground disabled:opacity-50"
+        :disabled="folderNameError != null"
+        @click="emit('export-skin')"
+      >
+        Export skin
+      </button>
+    </div>
   </section>
 </template>

@@ -101,6 +101,24 @@ describe('useSkinMeta', () => {
     unmount()
   })
 
+  it('a partial export of a renamed skin is flagged as incomplete', async () => {
+    const { result, unmount } = await withSetup(() => useSkinMeta())
+    result.load(skin())
+
+    result.exportFull.value = false
+    await nextTick()
+    expect(result.incompleteFork.value).toBe(false)
+
+    if (result.meta.value) result.meta.value.folderName = 'blue_02'
+    await nextTick()
+    expect(result.incompleteFork.value).toBe(true)
+
+    result.exportFull.value = true
+    await nextTick()
+    expect(result.incompleteFork.value).toBe(false)
+    unmount()
+  })
+
   it('reset clears the form', async () => {
     const { result, unmount } = await withSetup(() => useSkinMeta())
     result.load(skin())
