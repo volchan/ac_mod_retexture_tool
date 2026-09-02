@@ -5,7 +5,8 @@ use base64::Engine;
 use serde_json::Value;
 
 use crate::commands::track_hero::mime_for_path;
-use crate::models::skin::SkinEntry;
+use crate::errors::AppError;
+use crate::models::skin::{SkinEntry, SkinMeta};
 
 const SKINS_DIR: &str = "skins";
 const UI_SKIN_JSON: &str = "ui_skin.json";
@@ -61,6 +62,7 @@ fn build_skin_entry(skin_path: &Path) -> SkinEntry {
         driver_name: string_field(&json, "drivername"),
         team: string_field(&json, "team"),
         number: number_field(&json, "number"),
+        country: string_field(&json, "country"),
         preview_url: read_preview_data_url(skin_path),
         texture_count: count_dds_files(skin_path),
     }
@@ -70,7 +72,32 @@ fn read_ui_skin(skin_path: &Path) -> Value {
     std::fs::read_to_string(skin_path.join(UI_SKIN_JSON))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or(Value::Null)
+        .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+}
+
+/// Writes the author's edits into a skin folder's `ui_skin.json`, merging into
+/// whatever is already there so fields the workspace does not expose — CSP's
+/// `priority`, custom keys some mods add — survive the round trip.
+pub fn write_skin_meta(skin_dir: &Path, meta: &SkinMeta) -> Result<(), AppError> {
+    let path = skin_dir.join(UI_SKIN_JSON);
+    let mut json = read_ui_skin(skin_dir);
+    let obj = json
+        .as_object_mut()
+        .ok_or_else(|| AppError::Serialize(format!("{UI_SKIN_JSON} is not a JSON object")))?;
+
+    for (key, value) in [
+        ("skinname", &meta.skin_name),
+        ("drivername", &meta.driver_name),
+        ("team", &meta.team),
+        ("number", &meta.number),
+        ("country", &meta.country),
+    ] {
+        obj.insert(key.to_string(), Value::String(value.clone()));
+    }
+
+    let text = serde_json::to_string_pretty(&json).map_err(|e| AppError::Serialize(e.to_string()))?;
+    std::fs::write(&path, text)?;
+    Ok(())
 }
 
 fn string_field(json: &Value, key: &str) -> Option<String> {
@@ -128,6 +155,58 @@ mod tests {
     use std::fs;
 
     use tempfile::TempDir;
+
+    fn meta(folder: &str) -> SkinMeta {
+        SkinMeta {
+            folder_name: folder.to_string(),
+            skin_name: "Rosso Corsa".to_string(),
+            driver_name: "A Driver".to_string(),
+            team: "A Team".to_string(),
+            number: "27".to_string(),
+            country: "Italy".to_string(),
+        }
+    }
+
+    #[test]
+    fn write_skin_meta_keeps_fields_the_workspace_does_not_expose() {
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join(UI_SKIN_JSON),
+            r#"{"skinname":"Old","priority":3,"custom":{"a":1}}"#,
+        )
+        .unwrap();
+
+        write_skin_meta(dir.path(), &meta("red_01")).unwrap();
+
+        let written: Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join(UI_SKIN_JSON)).unwrap())
+                .unwrap();
+        assert_eq!(written["skinname"], "Rosso Corsa");
+        assert_eq!(written["number"], "27");
+        assert_eq!(written["priority"], 3);
+        assert_eq!(written["custom"]["a"], 1);
+    }
+
+    #[test]
+    fn write_skin_meta_creates_the_file_when_the_skin_has_none() {
+        let dir = TempDir::new().unwrap();
+
+        write_skin_meta(dir.path(), &meta("red_01")).unwrap();
+
+        let written: Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join(UI_SKIN_JSON)).unwrap())
+                .unwrap();
+        assert_eq!(written["team"], "A Team");
+        assert_eq!(written["country"], "Italy");
+    }
+
+    #[test]
+    fn write_skin_meta_rejects_a_ui_skin_that_is_not_an_object() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(UI_SKIN_JSON), "[1,2,3]").unwrap();
+
+        assert!(write_skin_meta(dir.path(), &meta("red_01")).is_err());
+    }
 
     use super::*;
 

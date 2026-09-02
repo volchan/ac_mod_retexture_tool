@@ -15,8 +15,23 @@ pub struct SkinEntry {
     pub driver_name: Option<String>,
     pub team: Option<String>,
     pub number: Option<String>,
+    pub country: Option<String>,
     pub preview_url: Option<String>,
     pub texture_count: usize,
+}
+
+/// The `ui_skin.json` fields the workspace lets an author edit, plus the folder
+/// name the skin is written under. Keeping the name here is what lets an author
+/// either update the skin they opened or fork it into a new one.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SkinMeta {
+    pub folder_name: String,
+    pub skin_name: String,
+    pub driver_name: String,
+    pub team: String,
+    pub number: String,
+    pub country: String,
 }
 
 #[cfg(test)]
@@ -32,6 +47,7 @@ mod tests {
             driver_name: Some("Driver".to_string()),
             team: Some("Team".to_string()),
             number: Some("27".to_string()),
+            country: Some("Italy".to_string()),
             preview_url: Some("data:image/jpeg;base64,abc".to_string()),
             texture_count: 4,
         };
@@ -49,6 +65,7 @@ mod tests {
             driver_name: None,
             team: None,
             number: None,
+            country: None,
             preview_url: None,
             texture_count: 0,
         };

@@ -46,8 +46,21 @@ export interface SkinEntry {
   driverName?: string
   team?: string
   number?: string
+  country?: string
   previewUrl?: string
   textureCount: number
+}
+
+/** The ui_skin.json fields the workspace lets an author edit, plus the folder
+ * name the skin is written under. Keeping the same name updates the opened
+ * skin; changing it forks a new one. */
+export interface SkinMeta {
+  folderName: string
+  skinName: string
+  driverName: string
+  team: string
+  number: string
+  country: string
 }
 
 export interface Mod {
