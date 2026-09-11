@@ -68,10 +68,27 @@ fn edits_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
 
 /// Texture keys carry path separators and extensions, none of which survive as a
 /// filename, so everything outside a safe alphabet collapses to an underscore.
+/// Builds the stem the edit's PNG and document share. The readable part is only
+/// there to make the folder browsable: two texture keys that differ solely by
+/// punctuation collapse onto the same characters, so the digest of the full key
+/// is what actually keeps them apart.
 fn sanitize(key: &str) -> String {
-    key.chars()
+    let readable: String = key
+        .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
+        .collect();
+    format!("{readable}_{:016x}", digest(key))
+}
+
+/// FNV-1a. Hand-rolled because the stem lands in a filename that must still match
+/// after a toolchain upgrade, and `DefaultHasher` makes no such promise.
+fn digest(key: &str) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in key.as_bytes() {
+        hash ^= *byte as u64;
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
 }
 
 fn strip_data_url(value: &str) -> &str {
@@ -87,15 +104,25 @@ mod tests {
 
     #[test]
     fn sanitize_replaces_path_separators_and_dots() {
-        assert_eq!(
-            sanitize("skins/red_01/livery.png"),
-            "skins_red_01_livery_png"
-        );
+        assert!(sanitize("skins/red_01/livery.png").starts_with("skins_red_01_livery_png_"));
     }
 
     #[test]
     fn sanitize_keeps_alphanumerics() {
-        assert_eq!(sanitize("abc123"), "abc123");
+        assert!(sanitize("abc123").starts_with("abc123_"));
+    }
+
+    #[test]
+    fn sanitize_separates_keys_that_differ_only_by_punctuation() {
+        assert_ne!(sanitize("foo-bar.dds"), sanitize("foo_bar.dds"));
+    }
+
+    #[test]
+    fn sanitize_is_stable_for_the_same_key() {
+        assert_eq!(
+            sanitize("skins/red_01/body.dds"),
+            sanitize("skins/red_01/body.dds")
+        );
     }
 
     #[test]
