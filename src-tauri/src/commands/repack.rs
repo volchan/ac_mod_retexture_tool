@@ -165,11 +165,40 @@ pub(crate) fn patch_kn5(
 pub(crate) fn encode_replacement(r: &TextureReplacementOpt) -> Result<Vec<u8>, AppError> {
     let source_data = std::fs::read(&r.source_path)?;
     if PASSTHROUGH_FORMATS.contains(&r.original_format.as_str()) {
-        return Ok(source_data);
+        // Copying byte for byte is only right when the bytes already are that
+        // format. The livery editor always writes PNG, so an edited JPEG texture
+        // would otherwise ship PNG data under a .jpg name.
+        if dds::detect_format(&source_data) == r.original_format {
+            return Ok(source_data);
+        }
+        let img = image::load_from_memory(&source_data)
+            .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+        return encode_plain_image(&img, &r.original_format);
     }
     let img =
         image::load_from_memory(&source_data).map_err(|e| AppError::ImageDecode(e.to_string()))?;
     dds::encode_from_image(&img, &r.original_format)
+}
+
+/// Re-encodes to one of the formats Assetto Corsa reads directly. JPEG carries no
+/// alpha channel, so the image drops to RGB rather than failing on a texture that
+/// happens to have transparency.
+fn encode_plain_image(img: &image::DynamicImage, format: &str) -> Result<Vec<u8>, AppError> {
+    let mut out = Vec::new();
+    let result = match format {
+        "PNG" => img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png),
+        "JPEG" => image::DynamicImage::ImageRgb8(img.to_rgb8()).write_to(
+            &mut std::io::Cursor::new(&mut out),
+            image::ImageFormat::Jpeg,
+        ),
+        other => {
+            return Err(AppError::ImageDecode(format!(
+                "unsupported passthrough format: {other}"
+            )))
+        }
+    };
+    result.map_err(|e| AppError::ImageDecode(e.to_string()))?;
+    Ok(out)
 }
 
 pub(crate) fn create_zip_archive(
@@ -312,6 +341,37 @@ pub async fn repack_mod(app: AppHandle, opts: RepackOptions) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn png_bytes() -> Vec<u8> {
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4));
+        let mut out = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .unwrap();
+        out
+    }
+
+    #[test]
+    fn png_replacing_a_jpeg_is_re_encoded_as_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("edit.png");
+        std::fs::write(&source, png_bytes()).unwrap();
+
+        let encoded = encode_replacement(&replacement(source.to_str().unwrap(), "JPEG")).unwrap();
+
+        assert_eq!(dds::detect_format(&encoded), "JPEG");
+    }
+
+    #[test]
+    fn a_png_replacing_a_png_is_copied_byte_for_byte() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("edit.png");
+        let bytes = png_bytes();
+        std::fs::write(&source, &bytes).unwrap();
+
+        let encoded = encode_replacement(&replacement(source.to_str().unwrap(), "PNG")).unwrap();
+
+        assert_eq!(encoded, bytes);
+    }
 
     fn replacement(source_path: &str, original_format: &str) -> TextureReplacementOpt {
         TextureReplacementOpt {
