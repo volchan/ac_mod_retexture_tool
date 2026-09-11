@@ -16,6 +16,7 @@ import EditorCanvas from '@/components/editor/EditorCanvas.vue'
 import EditorToolbar from '@/components/editor/EditorToolbar.vue'
 import LayerPanel from '@/components/editor/LayerPanel.vue'
 import { Button } from '@/components/ui/button'
+import { useBucketMasks } from '@/composables/useBucketMasks'
 import { useEditorTools } from '@/composables/useEditorTools'
 import { useEditorViewport } from '@/composables/useEditorViewport'
 import { useLiveryDocument } from '@/composables/useLiveryDocument'
@@ -26,6 +27,7 @@ const { texture, baseDataUrl, close } = useLiveryEditor()
 const { init, reset, canUndo, canRedo, undo, redo, selectedId, removeLayer } = useLiveryDocument()
 const { isSaving, restore, save } = useLiveryPersistence()
 const { addImageFromPath, isImagePath } = useEditorTools()
+const { clearMasks } = useBucketMasks()
 
 const canvasRef = ref<{ getStage: () => import('konva').default.Stage | null } | null>(null)
 const canvasHost = ref<HTMLElement | null>(null)
@@ -45,6 +47,9 @@ const { effectiveScale, stagePosition, zoomAt, panBy, resetView } = useEditorVie
 const baseImage = shallowRef<HTMLImageElement | null>(null)
 
 watch(texture, async (next) => {
+  // Masks belong to the texture they were filled on, and each one is as large as
+  // that texture, so nothing survives the switch.
+  clearMasks()
   if (!next) {
     reset()
     return

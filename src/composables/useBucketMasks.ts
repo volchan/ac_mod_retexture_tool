@@ -1,6 +1,11 @@
 import { floodFillMask, type Pixels, parseHexColor } from '@/lib/floodFill'
 import type { BucketLayer } from '@/types/index'
 
+/// A mask is as large as the texture it covers — 67 MB of canvas on a 4096²
+/// sheet — so the cache holds only the handful of most recent fills and the
+/// editor drops it outright when it opens another texture.
+const MASK_CACHE_LIMIT = 6
+
 const masks = new Map<string, HTMLCanvasElement>()
 const basePixels = new WeakMap<HTMLImageElement, Pixels>()
 
@@ -30,15 +35,29 @@ export function useBucketMasks() {
     context.putImageData(image, 0, 0)
 
     masks.set(key, canvas)
+    evictOldest()
     return canvas
   }
 
-  return { maskFor }
+  function clearMasks() {
+    masks.clear()
+  }
+
+  return { maskFor, clearMasks }
 }
 
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
+
+/// Insertion order is eviction order: the mask untouched for longest goes first.
+function evictOldest() {
+  while (masks.size > MASK_CACHE_LIMIT) {
+    const oldest = masks.keys().next()
+    if (oldest.done) return
+    masks.delete(oldest.value)
+  }
+}
 
 function maskKey(layer: BucketLayer) {
   return `${layer.id}:${Math.round(layer.x)}:${Math.round(layer.y)}:${layer.tolerance}:${layer.color}`
