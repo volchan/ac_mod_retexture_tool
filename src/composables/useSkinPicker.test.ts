@@ -115,6 +115,28 @@ describe('useSkinPicker', () => {
     expect(result.error.value).toBe('boom')
   })
 
+  it('ignores a listing that arrives after another car was opened', async () => {
+    const pending: Record<string, (skins: SkinEntry[]) => void> = {}
+    mockInvokeHandler('list_car_skins', (args) => {
+      const carPath = (args as { carPath: string }).carPath
+      return new Promise((resolve) => {
+        pending[carPath] = resolve as (skins: SkinEntry[]) => void
+      })
+    })
+
+    const { result } = await withSetup(() => useSkinPicker())
+    const first = result.openForCar('/ac/content/cars/ferrari', 'Ferrari')
+    const second = result.openForCar('/ac/content/cars/porsche', 'Porsche')
+
+    // The slower first car answers last, and must not overwrite the second.
+    pending['/ac/content/cars/porsche']([makeSkin({ name: 'porsche_white' })])
+    pending['/ac/content/cars/ferrari']([makeSkin({ name: 'ferrari_red' })])
+    await Promise.all([first, second])
+
+    expect(result.skins.value.map((s) => s.name)).toEqual(['porsche_white'])
+    expect(result.carName.value).toBe('Porsche')
+  })
+
   it('close hides the dialog but keeps the loaded car', async () => {
     mockInvokeHandler('list_car_skins', () => [makeSkin()])
     const { result } = await withSetup(() => useSkinPicker())
