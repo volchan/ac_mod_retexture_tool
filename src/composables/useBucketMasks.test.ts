@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useBucketMasks } from './useBucketMasks'
 import type { BucketLayer } from '@/types/index'
+import { useBucketMasks } from './useBucketMasks'
 
 function bucket(id: string, over: Partial<BucketLayer> = {}): BucketLayer {
   return {
