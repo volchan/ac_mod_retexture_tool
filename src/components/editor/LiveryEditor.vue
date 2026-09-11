@@ -23,9 +23,10 @@ import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import { useLiveryEditor } from '@/composables/useLiveryEditor'
 import { useLiveryPersistence } from '@/composables/useLiveryPersistence'
 
-const { texture, baseDataUrl, close } = useLiveryEditor()
-const { init, reset, canUndo, canRedo, undo, redo, selectedId, removeLayer } = useLiveryDocument()
-const { isSaving, restore, save } = useLiveryPersistence()
+const { texture, baseDataUrl, restoredDocument, close } = useLiveryEditor()
+const { document, init, reset, canUndo, canRedo, undo, redo, selectedId, removeLayer } =
+  useLiveryDocument()
+const { isSaving, save } = useLiveryPersistence()
 const { addImageFromPath, isImagePath } = useEditorTools()
 const { clearMasks } = useBucketMasks()
 
@@ -46,7 +47,7 @@ const { effectiveScale, stagePosition, zoomAt, panBy, resetView } = useEditorVie
 
 const baseImage = shallowRef<HTMLImageElement | null>(null)
 
-watch(texture, async (next) => {
+watch(texture, (next) => {
   // Masks belong to the texture they were filled on, and each one is as large as
   // that texture, so nothing survives the switch.
   clearMasks()
@@ -54,16 +55,18 @@ watch(texture, async (next) => {
     reset()
     return
   }
-  const restored = await restore(next)
-  // Guard against the editor closing or moving on while the stored stack loaded.
-  if (texture.value?.id !== next.id) return
-  init(next, restored)
+  init(next, restoredDocument.value ?? undefined)
   resetView()
 })
 
+/// Saving flattens the stage and serialises the document, so both have to exist
+/// first. Without this the button is live during the frames the base texture is
+/// still decoding, and a fast click writes an empty edit over a real texture.
+const canSave = computed(() => document.value !== null && baseImage.value !== null)
+
 async function handleSave() {
   const stage = canvasRef.value?.getStage()
-  if (!stage || !texture.value) return
+  if (!stage || !texture.value || !canSave.value) return
   try {
     await save(stage, texture.value)
     toast.success(`Saved ${texture.value.name}`)
@@ -184,6 +187,7 @@ defineExpose({
   handleWheel,
   panBy,
   zoomFromButton,
+  canSave,
   handleSave,
   isSaving,
   canvasRef,
@@ -220,7 +224,7 @@ defineExpose({
         <Button variant="ghost" size="icon" title="Fit to window" @click="resetView">
           <MaximizeIcon class="size-4" />
         </Button>
-        <Button size="sm" :disabled="isSaving" @click="handleSave">
+        <Button size="sm" :disabled="isSaving || !canSave" @click="handleSave">
           <CheckIcon class="size-4" />
           Save as replacement
         </Button>
