@@ -49,6 +49,11 @@ function handleToggleSelect() {
   emit('toggle-select')
 }
 
+function handleEdit(e: MouseEvent) {
+  e.stopPropagation()
+  emit('edit')
+}
+
 function handleOpenDetail(e: MouseEvent) {
   e.stopPropagation()
   emit('open-detail')
@@ -65,6 +70,7 @@ defineExpose({
   imgHeight,
   nameSize,
   handleToggleSelect,
+  handleEdit,
   handleOpenDetail,
   previewLabel,
 })
@@ -139,7 +145,7 @@ defineExpose({
           title="Edit livery"
           aria-label="Edit livery"
           :disabled="!props.texture.isDecoded"
-          @click="emit('edit')"
+          @click="handleEdit"
         >
           <PenToolIcon :size="14" />
         </button>

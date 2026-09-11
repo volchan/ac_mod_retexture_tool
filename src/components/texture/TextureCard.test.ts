@@ -222,6 +222,7 @@ describe('TextureCard', () => {
     await wrapper.get('[aria-label="Edit livery"]').trigger('click')
     expect(wrapper.emitted('edit')).toHaveLength(1)
     expect(wrapper.emitted('open-detail')).toBeUndefined()
+    expect(wrapper.emitted('toggle-select')).toBeUndefined()
   })
 
   it('offers no editing until the texture has finished decoding', () => {
