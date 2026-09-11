@@ -1,6 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 import { save } from '@tauri-apps/plugin-dialog'
@@ -11,6 +11,7 @@ import type {
   EnhanceResult,
   ImportScanResult,
   LibraryEntry,
+  LiveryEditSave,
   Mod,
   ProgressInfo,
   RepackOptions,
@@ -275,4 +276,20 @@ export async function scanImportFolder(
     textureKn5s,
     textureSkinFolders,
   })
+}
+
+export async function saveLiveryEdit(opts: LiveryEditSave): Promise<string> {
+  return invoke('save_livery_edit', { opts })
+}
+
+export async function loadLiveryDocument(textureKey: string): Promise<string | null> {
+  return invoke('load_livery_document', { textureKey })
+}
+
+export async function requestLiveryEditor(textureId: string): Promise<void> {
+  return emit('open-livery-editor', { textureId })
+}
+
+export async function onLiveryEditorRequest(cb: (textureId: string) => void): Promise<() => void> {
+  return listen('open-livery-editor', (e) => cb((e.payload as { textureId: string }).textureId))
 }

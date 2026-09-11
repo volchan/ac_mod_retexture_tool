@@ -3,6 +3,7 @@ pub mod decode;
 pub mod enhance;
 pub mod extract;
 pub mod import;
+pub mod livery_edit;
 pub mod repack;
 pub mod scan;
 pub mod skin;
@@ -17,6 +18,7 @@ pub use ac_detect::{
 pub use decode::{cancel_decode, decode_mod_textures};
 pub use extract::extract_textures;
 pub use import::scan_import_folder;
+pub use livery_edit::{load_livery_document, save_livery_edit};
 pub use repack::repack_mod;
 pub use scan::scan_mod_folder;
 pub use skin::list_car_skins;

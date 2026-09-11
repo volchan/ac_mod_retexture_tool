@@ -47,6 +47,8 @@ pub fn run() {
             commands::skin_export::export_skin,
             commands::skin_test::test_skin_in_game,
             commands::ac_detect::list_ac_tracks,
+            commands::livery_edit::save_livery_edit,
+            commands::livery_edit::load_livery_document,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
