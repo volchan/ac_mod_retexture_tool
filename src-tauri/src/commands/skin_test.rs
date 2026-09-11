@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::commands::repack::encode_replacement;
+use crate::commands::repack::{copy_dir_recursive, encode_replacement};
 use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
 use crate::commands::test_in_game::{ac_documents_cfg, build_race_ini, DirGuard, RaceIniGuard};
 use crate::errors::AppError;
@@ -87,24 +87,23 @@ fn run(opts: &SkinTestOptions) -> Result<(), AppError> {
     guard.finish()
 }
 
-/// The preview is a full copy: a skin missing files the car expects loads wrong,
-/// and this one is thrown away anyway.
+/// The preview is a full copy, sub-folders included: a skin missing files the car
+/// expects loads wrong, and this one is thrown away anyway.
 fn stage_preview_skin(
     source: &Path,
     preview_path: &Path,
     opts: &SkinTestOptions,
 ) -> Result<(), AppError> {
+    // Whatever sits here was not put there by this run, and the guard deletes the
+    // folder afterwards: wiping it first would destroy an author's own work that
+    // happens to carry the same suffix, or a leftover this tool failed to clean.
     if preview_path.exists() {
-        std::fs::remove_dir_all(preview_path)?;
+        return Err(AppError::InvalidInput(format!(
+            "{} already exists — delete it and start the test again",
+            preview_path.display()
+        )));
     }
-    std::fs::create_dir_all(preview_path)?;
-
-    for entry in std::fs::read_dir(source)?.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            std::fs::copy(&path, preview_path.join(entry.file_name()))?;
-        }
-    }
+    copy_dir_recursive(source, preview_path)?;
 
     for replacement in &opts.replacements {
         std::fs::write(
@@ -185,6 +184,40 @@ mod tests {
         );
         let written = std::fs::read_to_string(source.join("ui_skin.json")).unwrap();
         assert_eq!(written, "original");
+    }
+
+    #[test]
+    fn staging_copies_nested_skin_assets_too() {
+        let root = tempfile::tempdir().unwrap();
+        let car = root.path().join("ks_nissan_gtr");
+        let source = car.join("skins/super_silver");
+        std::fs::create_dir_all(source.join("extension")).unwrap();
+        std::fs::write(source.join("body.dds"), b"a").unwrap();
+        std::fs::write(source.join("extension/ext_config.ini"), b"b").unwrap();
+
+        let preview = car.join("skins/super_silver__toolkit_preview");
+        stage_preview_skin(&source, &preview, &options(&car)).unwrap();
+
+        assert!(preview.join("extension/ext_config.ini").exists());
+    }
+
+    #[test]
+    fn staging_refuses_to_overwrite_a_folder_it_did_not_create() {
+        let root = tempfile::tempdir().unwrap();
+        let car = root.path().join("ks_nissan_gtr");
+        let source = car.join("skins/super_silver");
+        std::fs::create_dir_all(&source).unwrap();
+        let preview = car.join("skins/super_silver__toolkit_preview");
+        std::fs::create_dir_all(&preview).unwrap();
+        std::fs::write(preview.join("precious.dds"), b"keep me").unwrap();
+
+        let result = stage_preview_skin(&source, &preview, &options(&car));
+
+        assert!(result.is_err());
+        assert_eq!(
+            std::fs::read(preview.join("precious.dds")).unwrap(),
+            b"keep me".to_vec()
+        );
     }
 
     #[test]
