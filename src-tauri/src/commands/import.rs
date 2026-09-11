@@ -288,6 +288,10 @@ mod tests {
         buf
     }
 
+    // Mirrors the command's own parameter list: the parallel vectors are what the
+    // IPC boundary actually sends, and a tidier shape here would stop the tests
+    // exercising the call the frontend makes.
+    #[allow(clippy::too_many_arguments)]
     async fn scan(
         import_path: &str,
         mod_path: &str,
