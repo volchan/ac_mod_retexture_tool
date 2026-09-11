@@ -1,16 +1,16 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use base64::engine::general_purpose;
 use base64::Engine;
 use serde_json::Value;
 
+use crate::commands::decode::is_skin_texture;
 use crate::commands::track_hero::mime_for_path;
 use crate::errors::AppError;
 use crate::models::skin::{SkinEntry, SkinMeta};
 
 const SKINS_DIR: &str = "skins";
 const UI_SKIN_JSON: &str = "ui_skin.json";
-const TEXTURE_EXT: &str = "dds";
 const MAX_PREVIEW_BYTES: u64 = 10 * 1024 * 1024;
 
 // AC skin previews are usually JPEG, sometimes with no extension at all.
@@ -64,7 +64,7 @@ fn build_skin_entry(skin_path: &Path) -> SkinEntry {
         number: number_field(&json, "number"),
         country: string_field(&json, "country"),
         preview_url: read_preview_data_url(skin_path),
-        texture_count: count_dds_files(skin_path),
+        texture_count: count_textures(skin_path),
     }
 }
 
@@ -73,6 +73,26 @@ fn read_ui_skin(skin_path: &Path) -> Value {
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+}
+
+/// Guards every path built from a skin folder name that crossed the IPC boundary.
+/// A name is only ever one folder deep: anything carrying a separator, a drive
+/// letter, `.` or `..` would let a caller write outside the car's `skins`
+/// directory, and neither the picker nor the form has any reason to send one.
+pub fn ensure_safe_folder_name(name: &str) -> Result<(), AppError> {
+    let mut components = Path::new(name).components();
+    let is_single_component =
+        matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none();
+    // Separators are checked by hand because a Windows-style path is a single
+    // `Normal` component once parsed on Unix.
+    let has_separator = name.contains('/') || name.contains('\\') || name.contains(':');
+
+    if name.is_empty() || has_separator || !is_single_component {
+        return Err(AppError::InvalidInput(format!(
+            "Unsafe skin folder name: {name}"
+        )));
+    }
+    Ok(())
 }
 
 /// Writes the author's edits into a skin folder's `ui_skin.json`, merging into
@@ -135,17 +155,14 @@ fn read_preview_data_url(skin_path: &Path) -> Option<String> {
     Some(format!("data:{mime};base64,{b64}"))
 }
 
-fn count_dds_files(skin_path: &Path) -> usize {
+/// Counts what the decoder would actually open, loose PNG and JPEG included, so
+/// the picker never advertises a skin as empty when it is not.
+fn count_textures(skin_path: &Path) -> usize {
     std::fs::read_dir(skin_path)
         .map(|entries| {
             entries
                 .flatten()
-                .filter(|e| {
-                    e.path()
-                        .extension()
-                        .and_then(|ext| ext.to_str())
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case(TEXTURE_EXT))
-                })
+                .filter(|e| is_skin_texture(&e.path()))
                 .count()
         })
         .unwrap_or(0)
@@ -156,6 +173,24 @@ mod tests {
     use std::fs;
 
     use tempfile::TempDir;
+
+    use super::ensure_safe_folder_name;
+
+    #[test]
+    fn a_plain_folder_name_is_safe() {
+        assert!(ensure_safe_folder_name("super_silver").is_ok());
+        assert!(ensure_safe_folder_name("red-01.v2").is_ok());
+    }
+
+    #[test]
+    fn traversal_and_separators_are_refused() {
+        for name in ["..", ".", "", "../evil", "a/b", "a\\b", "/abs", "C:\\win"] {
+            assert!(
+                ensure_safe_folder_name(name).is_err(),
+                "{name} should be refused"
+            );
+        }
+    }
 
     fn meta(folder: &str) -> SkinMeta {
         SkinMeta {
@@ -327,15 +362,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn counts_dds_textures_case_insensitively() {
+    async fn counts_every_texture_the_decoder_would_open() {
         let dir = TempDir::new().unwrap();
         let skin = car_with_skin(&dir, "red_01");
         fs::write(skin.join("livery.dds"), b"a").unwrap();
         fs::write(skin.join("Interior.DDS"), b"b").unwrap();
-        fs::write(skin.join("preview.jpg"), b"c").unwrap();
+        fs::write(skin.join("sponsor.png"), b"c").unwrap();
+        // Display images are shown separately and never counted as textures.
+        fs::write(skin.join("preview.jpg"), b"d").unwrap();
         fs::write(skin.join(UI_SKIN_JSON), b"{}").unwrap();
 
-        assert_eq!(list(&dir).await[0].texture_count, 2);
+        assert_eq!(list(&dir).await[0].texture_count, 3);
     }
 
     #[tokio::test]

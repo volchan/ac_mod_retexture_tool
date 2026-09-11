@@ -129,4 +129,16 @@ describe('useSkinMeta', () => {
     expect(result.openedFolderName.value).toBe('')
     unmount()
   })
+
+  it('refuses a folder name that only points at another directory', async () => {
+    const { result, unmount } = await withSetup(() => useSkinMeta())
+    result.load(skin())
+
+    for (const name of ['.', '..']) {
+      if (result.meta.value) result.meta.value.folderName = name
+      await nextTick()
+      expect(result.folderNameError.value).not.toBeNull()
+    }
+    unmount()
+  })
 })

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::commands::repack::{create_zip_archive, encode_replacement};
-use crate::commands::skin::write_skin_meta;
+use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
 use crate::models::skin::SkinMeta;
@@ -38,6 +38,9 @@ pub async fn export_skin(opts: SkinExportOptions) -> Result<(), String> {
 // ------------------------------------------------------------------------------
 
 fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
+    ensure_safe_folder_name(&opts.skin_folder)?;
+    ensure_safe_folder_name(&opts.meta.folder_name)?;
+
     let car_path = Path::new(&opts.car_path);
     let car_id = car_path
         .file_name()

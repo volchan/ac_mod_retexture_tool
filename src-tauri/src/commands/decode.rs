@@ -189,7 +189,7 @@ fn suffix_filename(filename: &str, suffix: &str) -> String {
 
 /// Skin folders hold textures the car loads plus `preview`/`livery` display
 /// images, which are already emitted separately as hero images.
-fn is_skin_texture(path: &Path) -> bool {
+pub fn is_skin_texture(path: &Path) -> bool {
     let Some(filename) = path.file_name().and_then(|s| s.to_str()) else {
         return false;
     };

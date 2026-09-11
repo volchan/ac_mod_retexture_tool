@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::commands::repack::encode_replacement;
-use crate::commands::skin::write_skin_meta;
+use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
 use crate::commands::test_in_game::{ac_documents_cfg, build_race_ini, DirGuard, RaceIniGuard};
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
@@ -42,6 +42,8 @@ pub async fn test_skin_in_game(opts: SkinTestOptions) -> Result<(), String> {
 // ------------------------------------------------------------------------------
 
 fn run(opts: &SkinTestOptions) -> Result<(), AppError> {
+    ensure_safe_folder_name(&opts.skin_folder)?;
+
     let car_path = Path::new(&opts.car_path);
     let car_id = car_path
         .file_name()
