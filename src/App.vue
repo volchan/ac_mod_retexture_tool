@@ -26,7 +26,7 @@ import type { SkinEntry, TextureReplacementOpt } from '@/types/index'
 import LibraryView from '@/views/LibraryView.vue'
 
 const { mod, activeSkin, loadMod, closeMod } = useMod()
-const { meta: skinMeta, exportFull } = useSkinMeta()
+const { meta: skinMeta, exportFull, isExporting } = useSkinMeta()
 const {
   isOpen: skinPickerOpen,
   isLoading: isLoadingSkins,
@@ -211,6 +211,8 @@ async function handleExportSkin() {
   const outputPath = await showSaveDialog(`${skinMeta.value.folderName}.zip`)
   if (!outputPath) return
 
+  isExporting.value = true
+  const pending = toast.loading(`Packing ${skinMeta.value.folderName}…`)
   try {
     await exportSkin({
       carPath: mod.value.path,
@@ -228,9 +230,11 @@ async function handleExportSkin() {
           originalFormat: t.format,
         })),
     })
-    toast.success(`Exported ${skinMeta.value.folderName}`)
+    toast.success(`Exported ${skinMeta.value.folderName}`, { id: pending })
   } catch (e) {
-    toast.error(e instanceof Error ? e.message : String(e))
+    toast.error(e instanceof Error ? e.message : String(e), { id: pending })
+  } finally {
+    isExporting.value = false
   }
 }
 

@@ -4,6 +4,9 @@ import type { SkinEntry, SkinMeta } from '@/types/index'
 const meta = ref<SkinMeta | null>(null)
 const openedFolderName = ref('')
 const exportFull = ref(true)
+/// Zipping a skin takes long enough to look like nothing happened, so the button
+/// reports it rather than letting an impatient second click start a second export.
+const isExporting = ref(false)
 
 export function useSkinMeta() {
   /** Seeds the form from the skin the workspace just opened. */
@@ -40,6 +43,7 @@ export function useSkinMeta() {
     meta,
     openedFolderName,
     exportFull,
+    isExporting,
     isFork,
     incompleteFork,
     folderNameError,
