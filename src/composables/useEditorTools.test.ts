@@ -41,10 +41,14 @@ describe('useEditorTools', () => {
     expect(doc.selectedLayer.value).toBeNull()
   })
 
-  it('centres a new text layer on the texture', () => {
+  it('centres a new text layer on its own bounds, not on its top-left corner', () => {
     const tools = useEditorTools()
     tools.addTextLayer()
-    expect(useLiveryDocument().layers.value[0]).toMatchObject({ type: 'text', x: 1024, y: 512 })
+    const layer = useLiveryDocument().layers.value[0]
+    // The texture is 2048x1024 and the default font 85px, so a centred label sits
+    // left of and above the middle by half its own size.
+    expect(layer.type === 'text' && layer.x).toBeLessThan(1024)
+    expect(layer.type === 'text' && layer.y).toBeCloseTo(512 - 85 / 2)
   })
 
   it('scales the default font to the texture height', () => {

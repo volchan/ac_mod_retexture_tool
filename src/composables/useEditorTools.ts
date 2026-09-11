@@ -8,6 +8,7 @@ export type EditorTool = 'select' | 'brush' | 'eraser' | 'bucket'
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp']
 const DEFAULT_FONT = 'Arial'
+const DEFAULT_TEXT = 'Text'
 
 const tool = ref<EditorTool>('select')
 const brushSize = ref(24)
@@ -62,15 +63,16 @@ export function useEditorTools() {
   function addTextLayer() {
     const centre = centreOf(document.value)
     const fontSize = Math.max(24, Math.round((document.value?.height ?? 1024) / 12))
+    const box = textBounds(DEFAULT_TEXT, fontSize)
     addLayer({
       id: createLayerId(),
       name: 'Text',
       visible: true,
       opacity: 1,
       type: 'text',
-      value: 'Text',
-      x: centre.x,
-      y: centre.y,
+      value: DEFAULT_TEXT,
+      x: centre.x - box.width / 2,
+      y: centre.y - box.height / 2,
       scaleX: 1,
       scaleY: 1,
       rotation: 0,
@@ -150,6 +152,18 @@ export function useEditorTools() {
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
+
+/// Konva anchors a text node at its top-left corner, so centring it means knowing
+/// how wide the glyphs actually are. Measuring beats guessing, and a canvas that
+/// refuses to measure (no 2D context) falls back to the glyph count.
+function textBounds(value: string, fontSize: number) {
+  const height = fontSize
+  const context = document.createElement('canvas').getContext('2d')
+  if (!context) return { width: value.length * fontSize * 0.5, height }
+  context.font = `${fontSize}px ${DEFAULT_FONT}`
+  const measured = context.measureText(value).width
+  return { width: measured || value.length * fontSize * 0.5, height }
+}
 
 function centreOf(document: { width: number; height: number } | null) {
   return { x: (document?.width ?? 0) / 2, y: (document?.height ?? 0) / 2 }
