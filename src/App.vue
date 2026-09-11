@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import CommandPalette from '@/components/CommandPalette.vue'
+import LiveryEditor from '@/components/editor/LiveryEditor.vue'
 import StatusBar from '@/components/layout/StatusBar.vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import RepackDialog from '@/components/repack/RepackDialog.vue'
@@ -12,6 +13,7 @@ import TestingOverlay from '@/components/test-in-game/TestingOverlay.vue'
 import Toaster from '@/components/ui/sonner/Toaster.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useLibrary } from '@/composables/useLibrary'
+import { useLiveryEditor } from '@/composables/useLiveryEditor'
 import { useMod } from '@/composables/useMod'
 import { useSkinMeta } from '@/composables/useSkinMeta'
 import { useSkinPicker } from '@/composables/useSkinPicker'
@@ -19,7 +21,7 @@ import { useTestInGame } from '@/composables/useTestInGame'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { useTheme } from '@/composables/useTheme'
-import { exportSkin, showSaveDialog } from '@/lib/tauri'
+import { exportSkin, onLiveryEditorRequest, showSaveDialog } from '@/lib/tauri'
 import type { SkinEntry, TextureReplacementOpt } from '@/types/index'
 import LibraryView from '@/views/LibraryView.vue'
 
@@ -40,6 +42,7 @@ const { init: initLibrary, addRecent, updateTextureCount } = useLibrary()
 const { reset: resetFilter } = useTextureFilter()
 const { triggerExtract, triggerImport, triggerQueue } = useGlobalCommands()
 const { cycleMode } = useTheme()
+const { openFor: openLiveryEditor } = useLiveryEditor()
 const {
   dialogOpen: testDialogOpen,
   isTesting,
@@ -64,14 +67,31 @@ const repackReplacements = ref<TextureReplacementOpt[]>([])
 const queueCount = computed(() => textures.value.filter((t) => t.replacement != null).length)
 const selectedCount = computed(() => selected.value.size)
 
+let stopEditorRequests: (() => void) | null = null
+
 onMounted(async () => {
   await initLibrary()
   window.addEventListener('keydown', handleGlobalKey)
+  stopEditorRequests = await onLiveryEditorRequest(handleEditorRequest)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKey)
+  stopEditorRequests?.()
 })
+
+/// The texture detail window cannot host the editor, so it asks this window to open
+/// it. Only the id travels: re-decoding here is cheaper than shipping a data URL of
+/// a 4096-pixel texture across the IPC boundary.
+async function handleEditorRequest(textureId: string) {
+  const texture = textures.value.find((t) => t.id === textureId)
+  if (!texture || !mod.value) return
+  try {
+    await openLiveryEditor(texture, mod.value.path)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : String(e))
+  }
+}
 
 async function handleGlobalKey(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey)) return
@@ -255,6 +275,7 @@ async function handleLaunchTest() {
 
 defineExpose({
   CommandPalette,
+  LiveryEditor,
   SkinPickerDialog,
   StatusBar,
   WorkspaceLayout,
@@ -391,4 +412,7 @@ defineExpose({
   <TestingOverlay v-if="isTesting" />
 
   <Toaster />
+
+  <!-- Livery editor (full screen, opened from a texture's detail view) -->
+  <LiveryEditor />
 </template>
