@@ -187,6 +187,20 @@ fn suffix_filename(filename: &str, suffix: &str) -> String {
     }
 }
 
+/// A skin-scoped workspace edits one skin folder, never the car model: shipping
+/// the KN5 textures there would fill the panel with entries whose replacements
+/// have nowhere to go inside a skin archive.
+fn kn5_files_to_scan(path: &Path, skin_scoped: bool) -> Vec<walkdir::DirEntry> {
+    if skin_scoped {
+        return vec![];
+    }
+    walkdir::WalkDir::new(path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("kn5"))
+        .collect()
+}
+
 /// Skin folders hold textures the car loads plus `preview`/`livery` display
 /// images, which are already emitted separately as hero images.
 pub fn is_skin_texture(path: &Path) -> bool {
@@ -227,11 +241,7 @@ pub async fn decode_mod_textures(
         ModType::Track
     };
 
-    let kn5_files: Vec<_> = walkdir::WalkDir::new(path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("kn5"))
-        .collect();
+    let kn5_files = kn5_files_to_scan(path, skin_folder.is_some());
 
     let total = kn5_files.len();
 
@@ -698,6 +708,15 @@ mod tests {
 
         let (_, abs, _) = &collect_skin_display_entries(dir.path(), None)[0];
         assert!(abs.is_file());
+    }
+
+    #[test]
+    fn a_skin_scoped_scan_leaves_the_car_model_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("ks_nissan_gtr.kn5"), b"data").unwrap();
+
+        assert!(kn5_files_to_scan(dir.path(), true).is_empty());
+        assert_eq!(kn5_files_to_scan(dir.path(), false).len(), 1);
     }
 
     #[test]
