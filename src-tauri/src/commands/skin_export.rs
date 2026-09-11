@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::commands::repack::{create_zip_archive, encode_replacement};
-use crate::commands::skin::write_skin_meta;
+use crate::commands::repack::{copy_dir_recursive, create_zip_archive, encode_replacement};
+use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
 use crate::models::skin::SkinMeta;
@@ -38,6 +38,9 @@ pub async fn export_skin(opts: SkinExportOptions) -> Result<(), String> {
 // ------------------------------------------------------------------------------
 
 fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
+    ensure_safe_folder_name(&opts.skin_folder)?;
+    ensure_safe_folder_name(&opts.meta.folder_name)?;
+
     let car_path = Path::new(&opts.car_path);
     let car_id = car_path
         .file_name()
@@ -62,11 +65,15 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
         .join(&opts.meta.folder_name);
     std::fs::create_dir_all(&skin_dst)?;
 
-    for file in files_to_ship(&source, opts) {
-        let Some(name) = file.file_name() else {
-            continue;
-        };
-        std::fs::copy(&file, skin_dst.join(name))?;
+    if opts.full {
+        copy_dir_recursive(&source, &skin_dst)?;
+    } else {
+        for file in files_to_ship(&source, opts) {
+            let Some(name) = file.file_name() else {
+                continue;
+            };
+            std::fs::copy(&file, skin_dst.join(name))?;
+        }
     }
 
     for replacement in &opts.replacements {
@@ -85,9 +92,10 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
     create_zip_archive(staging.path(), output, &|_, _, _| {})
 }
 
-/// A full export ships the whole skin folder. A partial one ships only the
-/// files an installer cannot get from the car it is layered onto: the textures
-/// that changed, plus the descriptors that identify the skin.
+/// A partial export ships only the files an installer cannot get from the car it
+/// is layered onto: the textures that changed, plus the descriptors that identify
+/// the skin. All of those sit at the top level, so a full export is the only one
+/// that has to walk the tree.
 fn files_to_ship(source: &Path, opts: &SkinExportOptions) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(source) else {
         return vec![];
@@ -103,9 +111,6 @@ fn files_to_ship(source: &Path, opts: &SkinExportOptions) -> Vec<PathBuf> {
         .map(|e| e.path())
         .filter(|p| p.is_file())
         .filter(|p| {
-            if opts.full {
-                return true;
-            }
             let Some(name) = p.file_name().and_then(|s| s.to_str()) else {
                 return false;
             };
@@ -175,6 +180,22 @@ mod tests {
                 "missing {name} in {entries:?}"
             );
         }
+    }
+
+    #[test]
+    fn full_export_ships_nested_folders_as_well() {
+        let root = car_with_skin(&["body.dds"]);
+        let nested = root
+            .path()
+            .join("ks_nissan_gtr/skins/super_silver/extension");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("ext_config.ini"), b"cfg").unwrap();
+        let out = root.path().join("skin.zip");
+
+        export_skin_inner(&options(root.path(), &out, true)).unwrap();
+
+        assert!(zip_entries(&out)
+            .contains("content/cars/ks_nissan_gtr/skins/super_silver/extension/ext_config.ini"));
     }
 
     #[test]

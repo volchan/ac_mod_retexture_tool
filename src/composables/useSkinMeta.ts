@@ -57,6 +57,8 @@ export function useSkinMeta() {
 // ------------------------------------------------------------------------------
 
 const FOLDER_NAME_PATTERN = /^[A-Za-z0-9._-]+$/
+/** Both pass the character test yet name a directory instead of a new skin. */
+const RESERVED_FOLDER_NAMES = ['.', '..']
 
 /** AC reads the folder name straight into race.ini, so keep it path-safe. */
 function validateFolderName(name: string): string | null {
@@ -64,5 +66,6 @@ function validateFolderName(name: string): string | null {
   if (!FOLDER_NAME_PATTERN.test(name)) {
     return 'Use letters, digits, dots, dashes and underscores only.'
   }
+  if (RESERVED_FOLDER_NAMES.includes(name)) return 'Choose a name, not a folder shortcut.'
   return null
 }

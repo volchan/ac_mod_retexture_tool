@@ -53,7 +53,7 @@ pub(crate) fn find_kn5_in_copy(
         .ok_or_else(|| AppError::NotFound(format!("KN5 not found: {kn5_name}")))
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), AppError> {
+pub(crate) fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), AppError> {
     std::fs::create_dir_all(dst)?;
     for entry in walkdir::WalkDir::new(src)
         .min_depth(1)
