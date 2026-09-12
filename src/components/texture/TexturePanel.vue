@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import CategoryBar from '@/components/texture/CategoryBar.vue'
 import ExtractDialog from '@/components/texture/ExtractDialog.vue'
 import ImportConfirmDialog from '@/components/texture/ImportConfirmDialog.vue'
@@ -8,6 +9,7 @@ import TextureCard from '@/components/texture/TextureCard.vue'
 import { Progress } from '@/components/ui/progress'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
+import { useLiveryEditor } from '@/composables/useLiveryEditor'
 import { useMod } from '@/composables/useMod'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
@@ -74,6 +76,15 @@ const {
 } = useTextures()
 
 const { activeSkin } = useMod()
+const { openFor: openLiveryEditor } = useLiveryEditor()
+
+async function handleEdit(texture: Texture) {
+  try {
+    await openLiveryEditor(texture, props.mod.path)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : String(e))
+  }
+}
 const { activeCategory, activeKn5Group, searchQuery, density } = useTextureFilter()
 
 const extractDialogOpen = ref(false)
@@ -239,6 +250,7 @@ defineExpose({
   TextureCard,
   Progress,
   handleOpenDetail,
+  handleEdit,
   extractDialogOpen,
   importDialogOpen,
   importMatched,
@@ -324,6 +336,7 @@ defineExpose({
             :density="density"
             @toggle-select="handleToggleSelect(texture.id)"
             @open-detail="handleOpenDetail(texture.id)"
+            @edit="handleEdit(texture)"
           />
         </div>
       </template>

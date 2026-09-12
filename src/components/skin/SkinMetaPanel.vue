@@ -4,8 +4,17 @@ import { useMod } from '@/composables/useMod'
 import { useSkinMeta } from '@/composables/useSkinMeta'
 
 const { activeSkin } = useMod()
-const { meta, openedFolderName, exportFull, isFork, incompleteFork, folderNameError, load, reset } =
-  useSkinMeta()
+const {
+  meta,
+  openedFolderName,
+  exportFull,
+  isExporting,
+  isFork,
+  incompleteFork,
+  folderNameError,
+  load,
+  reset,
+} = useSkinMeta()
 
 const emit = defineEmits<{ 'export-skin': [] }>()
 
@@ -30,6 +39,7 @@ defineExpose({
   meta,
   openedFolderName,
   exportFull,
+  isExporting,
   isFork,
   incompleteFork,
   folderNameError,
@@ -90,10 +100,10 @@ defineExpose({
 
       <button
         class="w-full py-1.5 text-[12px] font-medium rounded-[6px] bg-primary text-primary-foreground disabled:opacity-50"
-        :disabled="folderNameError != null"
+        :disabled="folderNameError != null || isExporting"
         @click="emit('export-skin')"
       >
-        Export skin
+        {{ isExporting ? 'Packing…' : 'Export skin' }}
       </button>
     </div>
   </section>

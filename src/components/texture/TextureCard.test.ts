@@ -214,4 +214,21 @@ describe('TextureCard', () => {
     })
     expect(wrapper.find('.h-\\[152px\\]').exists()).toBe(true)
   })
+
+  it('asks to edit the texture without opening the detail view', async () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture({}), isSelected: false },
+    })
+    await wrapper.get('[aria-label="Edit livery"]').trigger('click')
+    expect(wrapper.emitted('edit')).toHaveLength(1)
+    expect(wrapper.emitted('open-detail')).toBeUndefined()
+    expect(wrapper.emitted('toggle-select')).toBeUndefined()
+  })
+
+  it('offers no editing until the texture has finished decoding', () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture({ isDecoded: false }), isSelected: false },
+    })
+    expect(wrapper.get('[aria-label="Edit livery"]').attributes('disabled')).toBeDefined()
+  })
 })
