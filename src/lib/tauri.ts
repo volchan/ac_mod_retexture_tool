@@ -1,6 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 import { save } from '@tauri-apps/plugin-dialog'
@@ -11,9 +11,12 @@ import type {
   EnhanceResult,
   ImportScanResult,
   LibraryEntry,
+  LiveryEditSave,
   Mod,
   ProgressInfo,
   RepackOptions,
+  SkinEntry,
+  SkinExportOptions,
   Texture,
   TextureReplacementOpt,
 } from '@/types/index'
@@ -43,6 +46,10 @@ export async function listAcContent(path: string): Promise<LibraryEntry[]> {
 
 export async function listAcCars(acPath: string): Promise<LibraryEntry[]> {
   return invoke('list_ac_cars', { acPath })
+}
+
+export async function listCarSkins(carPath: string): Promise<SkinEntry[]> {
+  return invoke('list_car_skins', { carPath })
 }
 
 export async function listTrackLayouts(modPath: string): Promise<string[]> {
@@ -81,8 +88,16 @@ export async function scanModFolder(path: string): Promise<Mod> {
   return invoke('scan_mod_folder', { path })
 }
 
-export async function decodeModTextures(modPath: string, modType: string): Promise<void> {
-  return invoke('decode_mod_textures', { modPath, modType })
+export async function decodeModTextures(
+  modPath: string,
+  modType: string,
+  skinFolder?: string,
+): Promise<void> {
+  return invoke('decode_mod_textures', { modPath, modType, skinFolder })
+}
+
+export async function exportSkin(options: SkinExportOptions): Promise<void> {
+  return invoke('export_skin', { opts: options })
 }
 
 export async function cancelDecode(): Promise<void> {
@@ -261,4 +276,20 @@ export async function scanImportFolder(
     textureKn5s,
     textureSkinFolders,
   })
+}
+
+export async function saveLiveryEdit(opts: LiveryEditSave): Promise<string> {
+  return invoke('save_livery_edit', { opts })
+}
+
+export async function loadLiveryDocument(textureKey: string): Promise<string | null> {
+  return invoke('load_livery_document', { textureKey })
+}
+
+export async function requestLiveryEditor(textureId: string): Promise<void> {
+  return emit('open-livery-editor', { textureId })
+}
+
+export async function onLiveryEditorRequest(cb: (textureId: string) => void): Promise<() => void> {
+  return listen('open-livery-editor', (e) => cb((e.payload as { textureId: string }).textureId))
 }

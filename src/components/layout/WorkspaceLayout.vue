@@ -20,6 +20,7 @@ const emit = defineEmits<{
   close: []
   'open-cmd': []
   'test-in-game': []
+  'export-skin': []
 }>()
 
 const leftWidth = useLocalStorage('workspace-left-width', 210)
@@ -87,7 +88,12 @@ defineExpose({
 
       <!-- Right: mod info / queue (280px) -->
       <aside class="w-[280px] shrink-0 border-l bg-card flex flex-col overflow-hidden">
-        <ModInfoPanel :mod="mod" @repack="$emit('repack')" @test-in-game="$emit('test-in-game')" />
+        <ModInfoPanel
+          :mod="mod"
+          @repack="$emit('repack')"
+          @test-in-game="$emit('test-in-game')"
+          @export-skin="$emit('export-skin')"
+        />
       </aside>
     </main>
   </div>

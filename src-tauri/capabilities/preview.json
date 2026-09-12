@@ -4,6 +4,7 @@
   "description": "Capabilities for texture preview windows",
   "windows": ["preview_*"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "core:window:allow-close"
   ]
 }

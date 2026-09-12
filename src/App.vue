@@ -3,29 +3,46 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import CommandPalette from '@/components/CommandPalette.vue'
+import LiveryEditor from '@/components/editor/LiveryEditor.vue'
 import StatusBar from '@/components/layout/StatusBar.vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
 import RepackDialog from '@/components/repack/RepackDialog.vue'
+import SkinPickerDialog from '@/components/skin/SkinPickerDialog.vue'
 import CarPickerDialog from '@/components/test-in-game/CarPickerDialog.vue'
 import TestingOverlay from '@/components/test-in-game/TestingOverlay.vue'
 import Toaster from '@/components/ui/sonner/Toaster.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useLibrary } from '@/composables/useLibrary'
+import { useLiveryEditor } from '@/composables/useLiveryEditor'
 import { useMod } from '@/composables/useMod'
+import { useSkinMeta } from '@/composables/useSkinMeta'
+import { useSkinPicker } from '@/composables/useSkinPicker'
 import { useTestInGame } from '@/composables/useTestInGame'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { useTheme } from '@/composables/useTheme'
-import { showSaveDialog } from '@/lib/tauri'
-import type { TextureReplacementOpt } from '@/types/index'
+import { exportSkin, onLiveryEditorRequest, showSaveDialog } from '@/lib/tauri'
+import type { SkinEntry, TextureReplacementOpt } from '@/types/index'
 import LibraryView from '@/views/LibraryView.vue'
 
-const { mod, loadMod, closeMod } = useMod()
+const { mod, activeSkin, loadMod, closeMod } = useMod()
+const { meta: skinMeta, exportFull, isExporting } = useSkinMeta()
+const {
+  isOpen: skinPickerOpen,
+  isLoading: isLoadingSkins,
+  carPath: skinCarPath,
+  carName: skinCarName,
+  skins,
+  error: skinPickerError,
+  openForCar,
+  close: closeSkinPicker,
+} = useSkinPicker()
 const { textures, selected, selectAll, lastImportFolder } = useTextures()
 const { init: initLibrary, addRecent, updateTextureCount } = useLibrary()
 const { reset: resetFilter } = useTextureFilter()
 const { triggerExtract, triggerImport, triggerQueue } = useGlobalCommands()
 const { cycleMode } = useTheme()
+const { openFor: openLiveryEditor } = useLiveryEditor()
 const {
   dialogOpen: testDialogOpen,
   isTesting,
@@ -50,14 +67,31 @@ const repackReplacements = ref<TextureReplacementOpt[]>([])
 const queueCount = computed(() => textures.value.filter((t) => t.replacement != null).length)
 const selectedCount = computed(() => selected.value.size)
 
+let stopEditorRequests: (() => void) | null = null
+
 onMounted(async () => {
   await initLibrary()
   window.addEventListener('keydown', handleGlobalKey)
+  stopEditorRequests = await onLiveryEditorRequest(handleEditorRequest)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKey)
+  stopEditorRequests?.()
 })
+
+/// The texture detail window cannot host the editor, so it asks this window to open
+/// it. Only the id travels: re-decoding here is cheaper than shipping a data URL of
+/// a 4096-pixel texture across the IPC boundary.
+async function handleEditorRequest(textureId: string) {
+  const texture = textures.value.find((t) => t.id === textureId)
+  if (!texture || !mod.value) return
+  try {
+    await openLiveryEditor(texture, mod.value.path)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : String(e))
+  }
+}
 
 async function handleGlobalKey(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey)) return
@@ -102,7 +136,7 @@ async function handleDrop(path: string) {
   if (!mod.value) return
   if (mod.value.modType === 'car') {
     closeMod()
-    toast.error('Car mods are coming soon.')
+    toast.error('Open cars from the library to pick a skin.')
     return
   }
   if (mod.value.modType !== 'track') {
@@ -120,6 +154,25 @@ watch(
     if (mod.value) updateTextureCount(mod.value.meta.folderName, count)
   },
 )
+
+async function handleOpenCar(path: string, name: string) {
+  await openForCar(path, name)
+}
+
+async function handleSkinSelected(skin: SkinEntry) {
+  const carPath = skinCarPath.value
+  closeSkinPicker()
+
+  const result = await loadMod(carPath, skin)
+  if (result?.error) {
+    toast.error(result.error)
+    return
+  }
+  if (!mod.value) return
+
+  await addRecent(mod.value)
+  resetFilter()
+}
 
 async function handleBrowse() {
   const chosenPath = await open({ directory: true, multiple: false })
@@ -150,6 +203,39 @@ async function handleRepack() {
       heroImagePath: t.category === 'preview' ? t.path : undefined,
     }))
   repackOpen.value = true
+}
+
+async function handleExportSkin() {
+  if (!mod.value || !activeSkin.value || !skinMeta.value) return
+
+  const outputPath = await showSaveDialog(`${skinMeta.value.folderName}.zip`)
+  if (!outputPath) return
+
+  isExporting.value = true
+  const pending = toast.loading(`Packing ${skinMeta.value.folderName}…`)
+  try {
+    await exportSkin({
+      carPath: mod.value.path,
+      skinFolder: activeSkin.value.name,
+      outputPath,
+      meta: skinMeta.value,
+      full: exportFull.value,
+      replacements: textures.value
+        .filter((t) => t.replacement != null)
+        .map((t) => ({
+          textureId: t.id,
+          sourcePath: t.replacement?.sourcePath ?? '',
+          textureName: t.name,
+          skinFolder: t.skinFolder,
+          originalFormat: t.format,
+        })),
+    })
+    toast.success(`Exported ${skinMeta.value.folderName}`, { id: pending })
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : String(e), { id: pending })
+  } finally {
+    isExporting.value = false
+  }
 }
 
 async function handleCmdAction(action: string) {
@@ -193,6 +279,8 @@ async function handleLaunchTest() {
 
 defineExpose({
   CommandPalette,
+  LiveryEditor,
+  SkinPickerDialog,
   StatusBar,
   WorkspaceLayout,
   RepackDialog,
@@ -227,10 +315,19 @@ defineExpose({
   selectedCount,
   updateTextureCount,
   triggerQueue,
+  skinPickerOpen,
+  isLoadingSkins,
+  skinCarName,
+  skins,
+  skinPickerError,
+  closeSkinPicker,
+  handleOpenCar,
+  handleSkinSelected,
   handleDrop,
   handleBrowse,
   handleOpenRecent,
   handleRepack,
+  handleExportSkin,
   handleCmdAction,
   handleLaunchTest,
 })
@@ -243,6 +340,7 @@ defineExpose({
       v-if="!mod"
       class="flex-1 min-h-0"
       @open="handleOpenRecent"
+      @open-car="handleOpenCar"
       @browse="handleBrowse"
     />
 
@@ -256,6 +354,7 @@ defineExpose({
       @close="handleCmdAction('switch-mod')"
       @open-cmd="cmdPaletteOpen = true"
       @test-in-game="mod && openTestDialog(mod.path)"
+      @export-skin="handleExportSkin"
     />
 
     <!-- Status bar (always visible) -->
@@ -287,6 +386,17 @@ defineExpose({
     :replacements="repackReplacements"
   />
 
+  <!-- Skin picker dialog (car opened from the library) -->
+  <SkinPickerDialog
+    :open="skinPickerOpen"
+    :car-name="skinCarName"
+    :skins="skins"
+    :is-loading="isLoadingSkins"
+    :error="skinPickerError"
+    @update:open="(v: boolean) => { if (!v) closeSkinPicker() }"
+    @select="handleSkinSelected"
+  />
+
   <!-- Car picker dialog -->
   <CarPickerDialog
     :open="testDialogOpen"
@@ -306,4 +416,7 @@ defineExpose({
   <TestingOverlay v-if="isTesting" />
 
   <Toaster />
+
+  <!-- Livery editor (full screen, opened from a texture's detail view) -->
+  <LiveryEditor />
 </template>

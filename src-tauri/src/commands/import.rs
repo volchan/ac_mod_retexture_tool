@@ -87,18 +87,25 @@ pub async fn scan_import_folder(
     // by their relative path within the import root, not by stem — multiple layouts all have
     // the same filename "preview.png" so stem-based matching would collide.
     let mut rel_path_index: HashMap<String, usize> = HashMap::new();
+    // A hero whose stem is unique also matches on filename alone, so dropping a bare
+    // `livery.png` works like every other texture. `None` marks an ambiguous stem.
+    let mut hero_stem_index: HashMap<String, Option<usize>> = HashMap::new();
     for (i, name) in texture_names.iter().enumerate() {
         let kn5 = &texture_kn5s[i];
         let skin = &texture_skin_folders[i];
-        if !kn5.is_empty() && skin.is_empty() && !kn5.ends_with(".kn5") {
-            rel_path_index.insert(kn5.clone(), i);
-            continue;
-        }
         let stem = Path::new(name.as_str())
             .file_stem()
             .unwrap_or_default()
             .to_string_lossy()
             .to_lowercase();
+        if !kn5.is_empty() && skin.is_empty() && !kn5.ends_with(".kn5") {
+            rel_path_index.insert(kn5.clone(), i);
+            hero_stem_index
+                .entry(stem)
+                .and_modify(|slot| *slot = None)
+                .or_insert(Some(i));
+            continue;
+        }
         name_index.insert(stem, i);
     }
 
@@ -153,7 +160,8 @@ pub async fn scan_import_folder(
         let idx_opt = rel_key
             .as_deref()
             .and_then(|k| rel_path_index.get(k).copied())
-            .or_else(|| name_index.get(&stem).copied());
+            .or_else(|| name_index.get(&stem).copied())
+            .or_else(|| hero_stem_index.get(&stem).copied().flatten());
 
         if let Some(idx) = idx_opt {
             match image::open(&path) {
@@ -280,6 +288,10 @@ mod tests {
         buf
     }
 
+    // Mirrors the command's own parameter list: the parallel vectors are what the
+    // IPC boundary actually sends, and a tidier shape here would stop the tests
+    // exercising the call the frontend makes.
+    #[allow(clippy::too_many_arguments)]
     async fn scan(
         import_path: &str,
         mod_path: &str,
@@ -566,6 +578,48 @@ mod tests {
         .await;
 
         assert_eq!(result.matched.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_hero_matches_by_bare_filename() {
+        let dir = TempDir::new().unwrap();
+        write_png(dir.path(), "livery.png", 512, 512);
+
+        let result = scan(
+            &dir.path().to_string_lossy(),
+            "",
+            vec!["tex1"],
+            vec!["livery.png"],
+            vec![512],
+            vec![512],
+            vec!["skins/red_01/livery.png"],
+            vec![""],
+        )
+        .await;
+
+        assert_eq!(result.matched.len(), 1);
+        assert_eq!(result.matched[0].texture_id, "tex1");
+    }
+
+    #[tokio::test]
+    async fn test_ambiguous_hero_stem_needs_relative_path() {
+        let dir = TempDir::new().unwrap();
+        write_png(dir.path(), "preview.png", 512, 512);
+
+        let result = scan(
+            &dir.path().to_string_lossy(),
+            "",
+            vec!["tex1", "tex2"],
+            vec!["preview.png", "preview.png"],
+            vec![512, 512],
+            vec![512, 512],
+            vec!["ui/layout_a/preview.png", "ui/layout_b/preview.png"],
+            vec!["", ""],
+        )
+        .await;
+
+        assert_eq!(result.matched.len(), 0);
+        assert_eq!(result.unmatched.len(), 1);
     }
 
     #[tokio::test]

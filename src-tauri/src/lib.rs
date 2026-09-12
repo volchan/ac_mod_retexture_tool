@@ -43,6 +43,12 @@ pub fn run() {
             commands::ac_detect::list_ac_cars,
             commands::test_in_game::list_track_layouts,
             commands::test_in_game::test_in_game,
+            commands::skin::list_car_skins,
+            commands::skin_export::export_skin,
+            commands::skin_test::test_skin_in_game,
+            commands::ac_detect::list_ac_tracks,
+            commands::livery_edit::save_livery_edit,
+            commands::livery_edit::load_livery_document,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

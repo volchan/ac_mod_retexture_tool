@@ -1,0 +1,71 @@
+import { computed, ref } from 'vue'
+import type { SkinEntry, SkinMeta } from '@/types/index'
+
+const meta = ref<SkinMeta | null>(null)
+const openedFolderName = ref('')
+const exportFull = ref(true)
+/// Zipping a skin takes long enough to look like nothing happened, so the button
+/// reports it rather than letting an impatient second click start a second export.
+const isExporting = ref(false)
+
+export function useSkinMeta() {
+  /** Seeds the form from the skin the workspace just opened. */
+  function load(skin: SkinEntry): void {
+    openedFolderName.value = skin.name
+    meta.value = {
+      folderName: skin.name,
+      skinName: skin.displayName ?? '',
+      driverName: skin.driverName ?? '',
+      team: skin.team ?? '',
+      number: skin.number ?? '',
+      country: skin.country ?? '',
+    }
+  }
+
+  function reset(): void {
+    meta.value = null
+    openedFolderName.value = ''
+    exportFull.value = true
+  }
+
+  /** A renamed folder forks a new skin instead of updating the opened one. */
+  const isFork = computed(
+    () => meta.value != null && meta.value.folderName !== openedFolderName.value,
+  )
+
+  const folderNameError = computed(() => validateFolderName(meta.value?.folderName ?? ''))
+
+  /** A partial export of a renamed skin ships a folder the recipient does not
+   * already have, so the files it leaves out are simply missing. */
+  const incompleteFork = computed(() => isFork.value && !exportFull.value)
+
+  return {
+    meta,
+    openedFolderName,
+    exportFull,
+    isExporting,
+    isFork,
+    incompleteFork,
+    folderNameError,
+    load,
+    reset,
+  }
+}
+
+// ------------------------------------------------------------------------------
+// MARK: HELPERS
+// ------------------------------------------------------------------------------
+
+const FOLDER_NAME_PATTERN = /^[A-Za-z0-9._-]+$/
+/** Both pass the character test yet name a directory instead of a new skin. */
+const RESERVED_FOLDER_NAMES = ['.', '..']
+
+/** AC reads the folder name straight into race.ini, so keep it path-safe. */
+function validateFolderName(name: string): string | null {
+  if (name.trim() === '') return 'Skin name is required.'
+  if (!FOLDER_NAME_PATTERN.test(name)) {
+    return 'Use letters, digits, dots, dashes and underscores only.'
+  }
+  if (RESERVED_FOLDER_NAMES.includes(name)) return 'Choose a name, not a folder shortcut.'
+  return null
+}

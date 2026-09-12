@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckIcon, Loader2Icon, ZoomInIcon } from 'lucide-vue-next'
+import { CheckIcon, Loader2Icon, PenToolIcon, ZoomInIcon } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { previewLabel } from '@/lib/utils'
 import type { Texture, TextureDensity } from '@/types/index'
@@ -13,6 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'toggle-select': []
   'open-detail': []
+  edit: []
 }>()
 
 const hasMismatch = computed(
@@ -48,12 +49,19 @@ function handleToggleSelect() {
   emit('toggle-select')
 }
 
+function handleEdit(e: MouseEvent) {
+  e.stopPropagation()
+  emit('edit')
+}
+
 function handleOpenDetail(e: MouseEvent) {
   e.stopPropagation()
   emit('open-detail')
 }
 
 defineExpose({
+  PenToolIcon,
+  emit,
   CheckIcon,
   Loader2Icon,
   ZoomInIcon,
@@ -62,6 +70,7 @@ defineExpose({
   imgHeight,
   nameSize,
   handleToggleSelect,
+  handleEdit,
   handleOpenDetail,
   previewLabel,
 })
@@ -127,15 +136,29 @@ defineExpose({
       >
         <Loader2Icon class="animate-spin text-white" :size="24" />
       </div>
-      <button
-        type="button"
-        class="absolute bottom-1 right-1 bg-black/40 hover:bg-black/70 rounded p-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-        title="View full size"
-        aria-label="View full size"
-        @click="handleOpenDetail"
+      <div
+        class="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
       >
-        <ZoomInIcon :size="14" class="text-white" />
-      </button>
+        <button
+          type="button"
+          class="cursor-pointer rounded bg-black/50 p-1 text-white transition hover:bg-sky-500 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-black/50"
+          title="Edit livery"
+          aria-label="Edit livery"
+          :disabled="!props.texture.isDecoded"
+          @click="handleEdit"
+        >
+          <PenToolIcon :size="14" />
+        </button>
+        <button
+          type="button"
+          class="cursor-pointer rounded bg-black/50 p-1 text-white transition hover:bg-sky-500 active:scale-90"
+          title="View full size"
+          aria-label="View full size"
+          @click="handleOpenDetail"
+        >
+          <ZoomInIcon :size="14" />
+        </button>
+      </div>
     </div>
 
     <!-- Info footer -->

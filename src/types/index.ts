@@ -33,6 +33,46 @@ export interface SkinFolder {
   files: ModFile[]
 }
 
+/**
+ * One skin folder of an installed car. AC makes no distinction between skins
+ * shipped with the car mod and skins installed separately afterwards.
+ */
+export interface SkinEntry {
+  /** Folder name — the id AC uses in race.ini SKIN=. */
+  name: string
+  path: string
+  /** `skinname` from ui_skin.json, when the skin declares one. */
+  displayName?: string
+  driverName?: string
+  team?: string
+  number?: string
+  country?: string
+  previewUrl?: string
+  textureCount: number
+}
+
+/** The ui_skin.json fields the workspace lets an author edit, plus the folder
+ * name the skin is written under. Keeping the same name updates the opened
+ * skin; changing it forks a new one. */
+export interface SkinExportOptions {
+  carPath: string
+  skinFolder: string
+  outputPath: string
+  meta: SkinMeta
+  /** Ship every file of the skin, rather than only what changed. */
+  full: boolean
+  replacements: TextureReplacementOpt[]
+}
+
+export interface SkinMeta {
+  folderName: string
+  skinName: string
+  driverName: string
+  team: string
+  number: string
+  country: string
+}
+
 export interface Mod {
   modType: ModType
   path: string
@@ -220,3 +260,5 @@ export interface RecentMod {
   carBhp?: number
   carBrand?: string
 }
+
+export * from './editor'
