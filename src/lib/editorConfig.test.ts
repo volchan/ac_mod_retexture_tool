@@ -78,6 +78,29 @@ describe('layerConfig', () => {
     expect(flipped).toMatchObject({ scaleY: -3, offsetX: 0, offsetY: 32 })
   })
 
+  it('folds a mirrored text back over its own glyphs', () => {
+    const flipped = layerConfig({ ...text, scaleX: -1 }, context)
+    expect(flipped.offsetX).toBeGreaterThan(0)
+    expect(flipped).toMatchObject({ scaleX: -1, offsetY: 0 })
+  })
+
+  it('holds a mirrored ellipse on its centre by swapping the offset sign', () => {
+    const ellipse: EditorLayer = {
+      ...common,
+      ...placement,
+      type: 'shape',
+      shape: 'ellipse',
+      width: 64,
+      height: 32,
+      fill: '#fff',
+      stroke: '#000',
+      strokeWidth: 0,
+      cornerRadius: 0,
+    }
+    expect(layerConfig(ellipse, context)).toMatchObject({ offsetX: -32, offsetY: -16 })
+    expect(layerConfig({ ...ellipse, scaleX: -2 }, context)).toMatchObject({ offsetX: 32 })
+  })
+
   it('leaves an unmirrored image at its own origin', () => {
     expect(layerConfig(image, context)).toMatchObject({ offsetX: 0, offsetY: 0 })
   })

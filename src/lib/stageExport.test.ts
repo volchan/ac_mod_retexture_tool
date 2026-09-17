@@ -2,7 +2,10 @@ import type Konva from 'konva'
 import { describe, expect, it, vi } from 'vitest'
 import { flattenStage, thumbnailRatio } from './stageExport'
 
-function fakeStage(transformer?: { nodes: (v?: unknown[]) => unknown[] }) {
+function fakeStage(
+  transformer?: { nodes: (v?: unknown[]) => unknown[] },
+  guide?: { visible: (v?: boolean) => boolean },
+) {
   const state = { scaleX: 0.25, scaleY: 0.25, x: 40, y: 90 }
   const seen: Record<string, unknown>[] = []
   return {
@@ -22,6 +25,7 @@ function fakeStage(transformer?: { nodes: (v?: unknown[]) => unknown[] }) {
         state.y = v.y
       },
       findOne: () => transformer,
+      find: (selector: string) => (selector === '.editor-chrome' && guide ? [guide] : []),
       toDataURL: (opts: Record<string, unknown>) => {
         seen.push({ ...opts, scaleX: state.scaleX, x: state.x })
         return 'data:image/png;base64,AAA'
@@ -62,6 +66,27 @@ describe('flattenStage', () => {
     flattenStage(stage as unknown as Konva.Stage, 512, 512)
     expect(nodes).toHaveBeenCalledWith([])
     expect(nodes).toHaveBeenLastCalledWith(attached)
+  })
+
+  it('hides the UV guide while exporting, then puts it back', () => {
+    let visible = true
+    const duringExport: boolean[] = []
+    const guide = {
+      visible: (v?: boolean) => {
+        if (v !== undefined) visible = v
+        return visible
+      },
+    }
+    const { stage } = fakeStage(undefined, guide)
+    stage.toDataURL = () => {
+      duringExport.push(visible)
+      return 'data:image/png;base64,AAA'
+    }
+
+    flattenStage(stage as unknown as Konva.Stage, 512, 512)
+
+    expect(duringExport).toEqual([false])
+    expect(visible).toBe(true)
   })
 
   it('honours a requested pixel ratio for thumbnails', () => {

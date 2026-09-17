@@ -134,14 +134,23 @@ describe('useEditorTools', () => {
     expect(useLiveryDocument().layers.value).toHaveLength(1)
   })
 
-  it('reuses the paint layer even when another kind of layer is selected', () => {
+  it('starts a new paint layer once something covers the old one', () => {
     const tools = useEditorTools()
     const paint = tools.strokeTarget()
     tools.addTextLayer()
+    useLiveryDocument().select(null)
 
     const again: StrokeLayer = tools.strokeTarget()
-    expect(again.id).toBe(paint.id)
-    expect(useLiveryDocument().layers.value).toHaveLength(2)
+    expect(again.id).not.toBe(paint.id)
+    expect(useLiveryDocument().layers.value).toHaveLength(3)
+  })
+
+  it('keeps brushing into the paint layer while it is still on top', () => {
+    const tools = useEditorTools()
+    const paint = tools.strokeTarget()
+    useLiveryDocument().select(null)
+
+    expect(tools.strokeTarget().id).toBe(paint.id)
   })
 
   it('marks a stroke as erasing only when the eraser is active', () => {

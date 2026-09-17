@@ -14,11 +14,17 @@ export interface FillColor {
 /// within `tolerance` of the seed's own. Scanline flood fill: a texture is
 /// millions of pixels, and a naive four-way recursion overflows the stack long
 /// before it finishes a car panel.
+///
+/// `barrier` marks pixels the fill may not cross, one byte per pixel. A car
+/// texture is mostly flat colour, so a plain colour fill runs from the bonnet
+/// straight across the sheet into the doors; the UV island outlines stop it at
+/// the panel it was aimed at.
 export function floodFillMask(
   source: Pixels,
   seed: { x: number; y: number },
   tolerance: number,
   color: FillColor,
+  barrier?: Uint8Array,
 ): Uint8ClampedArray {
   const { width, height, data } = source
   const mask = new Uint8ClampedArray(width * height * 4)
@@ -32,24 +38,30 @@ export function floodFillMask(
   const filled = new Uint8Array(width * height)
   const stack: number[] = [startX, startY]
 
+  const open = (x: number, y: number) => {
+    const index = y * width + x
+    if (barrier && barrier[index] !== 0) return false
+    return matches(data, index * 4, target, limit)
+  }
+
   while (stack.length > 0) {
     const y = stack.pop() as number
     let x = stack.pop() as number
 
-    while (x >= 0 && matches(data, (y * width + x) * 4, target, limit)) x -= 1
+    while (x >= 0 && open(x, y)) x -= 1
     x += 1
 
     let spanAbove = false
     let spanBelow = false
 
-    while (x < width && matches(data, (y * width + x) * 4, target, limit)) {
+    while (x < width && open(x, y)) {
       const index = y * width + x
       if (filled[index] === 1) break
       filled[index] = 1
       paint(mask, index * 4, color)
 
       if (y > 0) {
-        const above = matches(data, ((y - 1) * width + x) * 4, target, limit)
+        const above = open(x, y - 1)
         if (above && !spanAbove) {
           stack.push(x, y - 1)
           spanAbove = true
@@ -59,7 +71,7 @@ export function floodFillMask(
       }
 
       if (y < height - 1) {
-        const below = matches(data, ((y + 1) * width + x) * 4, target, limit)
+        const below = open(x, y + 1)
         if (below && !spanBelow) {
           stack.push(x, y + 1)
           spanBelow = true

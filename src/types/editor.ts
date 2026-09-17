@@ -32,6 +32,22 @@ export interface TextLayer extends LayerCommon, Placement {
   fill: string
   stroke: string
   strokeWidth: number
+  /// Arc the baseline bends through, in degrees. Zero draws a straight line;
+  /// negative curves the other way. A livery name follows a bumper, not a ruler.
+  curve: number
+}
+
+/// A drawn primitive rather than an imported one: the stripes, blocks and dots a
+/// livery is built from, kept as numbers so they stay crisp at any texture size.
+export interface ShapeLayer extends LayerCommon, Placement {
+  type: 'shape'
+  shape: 'rect' | 'ellipse'
+  width: number
+  height: number
+  fill: string
+  stroke: string
+  strokeWidth: number
+  cornerRadius: number
 }
 
 /// A paint bucket: only the seed point and the tolerance are stored, never the
@@ -62,7 +78,7 @@ export interface StrokeLayer extends LayerCommon {
   strokes: BrushStroke[]
 }
 
-export type EditorLayer = ImageLayer | TextLayer | BucketLayer | StrokeLayer
+export type EditorLayer = ImageLayer | TextLayer | ShapeLayer | BucketLayer | StrokeLayer
 export type LayerType = EditorLayer['type']
 
 /// The base texture is never a layer: it is always the bottom of the stack and

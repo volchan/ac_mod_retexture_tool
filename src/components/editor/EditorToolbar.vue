@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import {
+  CircleIcon,
   EraserIcon,
+  FlipHorizontal2Icon,
+  FlipVertical2Icon,
   ImagePlusIcon,
   MousePointer2Icon,
   PaintBucketIcon,
   PencilIcon,
+  SquareIcon,
   TypeIcon,
 } from 'lucide-vue-next'
+import { computed } from 'vue'
 import { useEditorTools } from '@/composables/useEditorTools'
 
 const {
@@ -15,9 +20,12 @@ const {
   brushColor,
   fillColor,
   fillTolerance,
+  mirrorX,
+  mirrorY,
   setTool,
   addImageLayer,
   addTextLayer,
+  addShapeLayer,
 } = useEditorTools()
 
 const TOOLS = [
@@ -30,9 +38,30 @@ const TOOLS = [
 const CREATORS = [
   { icon: ImagePlusIcon, label: 'Add image', run: addImageLayer },
   { icon: TypeIcon, label: 'Add text', run: addTextLayer },
+  { icon: SquareIcon, label: 'Add rectangle', run: () => addShapeLayer('rect') },
+  { icon: CircleIcon, label: 'Add ellipse', run: () => addShapeLayer('ellipse') },
 ]
 
-defineExpose({ TOOLS, CREATORS, tool, brushSize, brushColor, fillColor, fillTolerance, setTool })
+/// These duplicate a stroke as it is drawn, and do nothing to an existing layer.
+const paintsStrokes = computed(() => tool.value === 'brush' || tool.value === 'eraser')
+
+const MIRRORS = [
+  { icon: FlipHorizontal2Icon, state: mirrorX, label: 'Mirror strokes left to right' },
+  { icon: FlipVertical2Icon, state: mirrorY, label: 'Mirror strokes top to bottom' },
+]
+
+defineExpose({
+  TOOLS,
+  CREATORS,
+  MIRRORS,
+  paintsStrokes,
+  tool,
+  brushSize,
+  brushColor,
+  fillColor,
+  fillTolerance,
+  setTool,
+})
 </script>
 
 <template>
@@ -45,6 +74,20 @@ defineExpose({ TOOLS, CREATORS, tool, brushSize, brushColor, fillColor, fillTole
       :class="tool === entry.id ? 'bg-sky-500 text-white' : 'hover:bg-accent'"
       :title="entry.label"
       @click="setTool(entry.id)"
+    >
+      <component :is="entry.icon" class="size-4" />
+    </button>
+
+    <div v-if="paintsStrokes" class="my-1 h-px w-8 bg-border" />
+
+    <button
+      v-for="entry in paintsStrokes ? MIRRORS : []"
+      :key="entry.label"
+      type="button"
+      class="flex size-10 cursor-pointer items-center justify-center rounded-md transition active:scale-90"
+      :class="entry.state.value ? 'bg-sky-500 text-white' : 'hover:bg-accent'"
+      :title="entry.label"
+      @click="entry.state.value = !entry.state.value"
     >
       <component :is="entry.icon" class="size-4" />
     </button>

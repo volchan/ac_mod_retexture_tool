@@ -1,3 +1,4 @@
+import { useUvTemplate } from '@/composables/useUvTemplate'
 import { floodFillMask, type Pixels, parseHexColor } from '@/lib/floodFill'
 import type { BucketLayer } from '@/types/index'
 
@@ -8,12 +9,15 @@ const MASK_CACHE_LIMIT = 6
 
 const masks = new Map<string, HTMLCanvasElement>()
 const basePixels = new WeakMap<HTMLImageElement, Pixels>()
+const barriers = new WeakMap<HTMLImageElement, Uint8Array>()
 
 /// Turns a bucket layer into the bitmap Konva draws. Flood filling a 4K texture
 /// costs tens of milliseconds, so results are memoised under a key built from the
 /// parameters that change the shape — moving the seed or widening the tolerance
 /// invalidates the entry, recolouring reuses it.
 export function useBucketMasks() {
+  const { image: template } = useUvTemplate()
+
   function maskFor(layer: BucketLayer, base: HTMLImageElement | null): HTMLCanvasElement | null {
     if (!base) return null
 
@@ -31,7 +35,8 @@ export function useBucketMasks() {
     if (!context) return null
 
     const image = context.createImageData(source.width, source.height)
-    image.data.set(floodFillMask(source, layer, layer.tolerance, parseHexColor(layer.color)))
+    const walls = template.value ? barrierOf(template.value, source) : undefined
+    image.data.set(floodFillMask(source, layer, layer.tolerance, parseHexColor(layer.color), walls))
     context.putImageData(image, 0, 0)
 
     masks.set(key, canvas)
@@ -49,6 +54,29 @@ export function useBucketMasks() {
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
+
+/// The template is drawn as opaque lines on transparent pixels, so its alpha
+/// channel already is the wall map the fill needs.
+function barrierOf(template: HTMLImageElement, source: Pixels): Uint8Array | undefined {
+  const cached = barriers.get(template)
+  if (cached) return cached
+
+  const canvas = document.createElement('canvas')
+  canvas.width = source.width
+  canvas.height = source.height
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) return undefined
+
+  context.drawImage(template, 0, 0, source.width, source.height)
+  const { data } = context.getImageData(0, 0, source.width, source.height)
+
+  const walls = new Uint8Array(source.width * source.height)
+  for (let pixel = 0; pixel < walls.length; pixel += 1) {
+    walls[pixel] = data[pixel * 4 + 3] > 0 ? 1 : 0
+  }
+  barriers.set(template, walls)
+  return walls
+}
 
 /// Insertion order is eviction order: the mask untouched for longest goes first.
 function evictOldest() {

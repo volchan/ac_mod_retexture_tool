@@ -7,6 +7,7 @@ import {
   ImageIcon,
   PaintBucketIcon,
   PencilIcon,
+  SquareIcon,
   Trash2Icon,
   TypeIcon,
 } from 'lucide-vue-next'
@@ -22,6 +23,7 @@ const { layers, selectedId, selectedLayer, removeLayer, moveLayer, updateLayer, 
 const LAYER_ICONS = {
   image: ImageIcon,
   text: TypeIcon,
+  shape: SquareIcon,
   bucket: PaintBucketIcon,
   strokes: PencilIcon,
 }

@@ -17,12 +17,18 @@ const props = defineProps<{
   baseImage: HTMLImageElement | null
   textureWidth: number
   textureHeight: number
+  uvTemplate: HTMLImageElement | null
+  uvOpacity: number
+  hoverPoint: { x: number; y: number } | null
 }>()
 
-const emit = defineEmits<{ pan: [{ x: number; y: number }] }>()
+const emit = defineEmits<{
+  pan: [{ x: number; y: number }]
+  hoverTexture: [{ x: number; y: number } | null]
+}>()
 
 const { layers, selectedId, updateLayer, holdEdits, releaseEdits, select } = useLiveryDocument()
-const { tool, strokeTarget, newStroke, addBucketLayer } = useEditorTools()
+const { tool, strokeTarget, newStroke, addBucketLayer, mirrored } = useEditorTools()
 const { maskFor } = useBucketMasks()
 const { resolve } = useImageAssets()
 
@@ -103,11 +109,18 @@ function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
 
 function handlePointerMove() {
   const stage = stageRef.value?.getStage()
+  if (!stage) return
+  emit('hoverTexture', stage.getRelativePointerPosition())
+
   const current = liveStroke.value
-  if (!stage || !current) return
+  if (!current) return
   const point = stage.getRelativePointerPosition()
   if (!point) return
   liveStroke.value = { ...current, points: [...current.points, point.x, point.y] }
+}
+
+function handlePointerLeave() {
+  emit('hoverTexture', null)
 }
 
 function handlePointerUp() {
@@ -115,7 +128,9 @@ function handlePointerUp() {
   liveStroke.value = null
   if (!stroke || stroke.points.length < 4) return
   const target = strokeTarget()
-  updateLayer(target.id, { strokes: [...target.strokes, stroke] } as Partial<StrokeLayer>)
+  updateLayer(target.id, {
+    strokes: [...target.strokes, ...mirrored(stroke)],
+  } as Partial<StrokeLayer>)
 }
 
 defineExpose({
@@ -132,6 +147,7 @@ defineExpose({
   releaseEdits,
   handlePointerDown,
   handlePointerMove,
+  handlePointerLeave,
   handlePointerUp,
   holdEdits,
   getStage: () => stageRef.value?.getStage() ?? null,
@@ -200,6 +216,7 @@ function startPan(event: PointerEvent) {
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
     @pointerup="handlePointerUp"
+    @pointerleave="handlePointerLeave"
   >
     <v-layer>
       <v-image v-if="props.baseImage" :config="{ image: props.baseImage, listening: false }" />
@@ -208,6 +225,17 @@ function startPan(event: PointerEvent) {
         <template v-if="layer.visible">
           <v-image
             v-if="layer.type === 'image'"
+            :ref="(el) => registerNode(layer.id, el)"
+            :config="config(layer)"
+            @dragstart="holdEdits"
+            @dragmove="handleDragMove($event, layer)"
+            @dragend="releaseEdits"
+            @transformstart="holdEdits"
+            @transform="handleTransform($event, layer)"
+            @transformend="releaseEdits"
+          />
+          <v-text-path
+            v-else-if="layer.type === 'text' && layer.curve !== 0"
             :ref="(el) => registerNode(layer.id, el)"
             :config="config(layer)"
             @dragstart="holdEdits"
@@ -228,6 +256,28 @@ function startPan(event: PointerEvent) {
             @transform="handleTransform($event, layer)"
             @transformend="releaseEdits"
           />
+          <v-rect
+            v-else-if="layer.type === 'shape' && layer.shape === 'rect'"
+            :ref="(el) => registerNode(layer.id, el)"
+            :config="config(layer)"
+            @dragstart="holdEdits"
+            @dragmove="handleDragMove($event, layer)"
+            @dragend="releaseEdits"
+            @transformstart="holdEdits"
+            @transform="handleTransform($event, layer)"
+            @transformend="releaseEdits"
+          />
+          <v-ellipse
+            v-else-if="layer.type === 'shape'"
+            :ref="(el) => registerNode(layer.id, el)"
+            :config="config(layer)"
+            @dragstart="holdEdits"
+            @dragmove="handleDragMove($event, layer)"
+            @dragend="releaseEdits"
+            @transformstart="holdEdits"
+            @transform="handleTransform($event, layer)"
+            @transformend="releaseEdits"
+          />
           <v-image v-else-if="layer.type === 'bucket'" :config="config(layer)" />
           <v-line
             v-for="stroke in layer.type === 'strokes' ? strokeConfigs(layer) : []"
@@ -236,6 +286,31 @@ function startPan(event: PointerEvent) {
           />
         </template>
       </template>
+
+      <v-image
+        v-if="props.uvTemplate"
+        :config="{
+          image: props.uvTemplate,
+          width: props.textureWidth,
+          height: props.textureHeight,
+          opacity: props.uvOpacity,
+          name: 'editor-chrome',
+          listening: false,
+        }"
+      />
+
+      <v-circle
+        v-if="props.hoverPoint"
+        :config="{
+          x: props.hoverPoint.x,
+          y: props.hoverPoint.y,
+          radius: 14 / props.scale,
+          stroke: '#38bdf8',
+          strokeWidth: 3 / props.scale,
+          name: 'editor-chrome',
+          listening: false,
+        }"
+      />
 
       <v-line v-if="liveStroke" :config="strokeConfigs({ strokes: [liveStroke], opacity: 1 })[0]" />
       <v-transformer ref="transformerRef" :config="transformerConfig" />

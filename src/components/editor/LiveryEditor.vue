@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { useElementSize, useEventListener } from '@vueuse/core'
+import { useElementSize, useEventListener, watchDebounced } from '@vueuse/core'
+import type Konva from 'konva'
 import {
+  BoxIcon,
   CheckIcon,
+  GridIcon,
   MaximizeIcon,
   Redo2Icon,
   Undo2Icon,
@@ -12,23 +15,44 @@ import {
 } from 'lucide-vue-next'
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { toast } from 'vue-sonner'
+import CarPreview from '@/components/editor/CarPreview.vue'
 import EditorCanvas from '@/components/editor/EditorCanvas.vue'
 import EditorToolbar from '@/components/editor/EditorToolbar.vue'
 import LayerPanel from '@/components/editor/LayerPanel.vue'
 import { Button } from '@/components/ui/button'
 import { useBucketMasks } from '@/composables/useBucketMasks'
+import { useCarPreview } from '@/composables/useCarPreview'
 import { useEditorTools } from '@/composables/useEditorTools'
 import { useEditorViewport } from '@/composables/useEditorViewport'
 import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import { useLiveryEditor } from '@/composables/useLiveryEditor'
 import { useLiveryPersistence } from '@/composables/useLiveryPersistence'
+import { useUvTemplate } from '@/composables/useUvTemplate'
+import type { CarHover } from '@/lib/carScene'
 
-const { texture, baseDataUrl, restoredDocument, close } = useLiveryEditor()
-const { document, init, reset, canUndo, canRedo, undo, redo, selectedId, removeLayer } =
+const { texture, baseDataUrl, restoredDocument, carPath, close } = useLiveryEditor()
+const { document, layers, init, reset, canUndo, canRedo, undo, redo, selectedId, removeLayer } =
   useLiveryDocument()
 const { isSaving, save } = useLiveryPersistence()
 const { addImageFromPath, isImagePath } = useEditorTools()
 const { clearMasks } = useBucketMasks()
+const {
+  isEnabled: uvEnabled,
+  opacity: uvOpacity,
+  image: uvTemplate,
+  isLoading: uvLoading,
+  error: uvError,
+  toggle: toggleUv,
+  reset: resetUv,
+} = useUvTemplate()
+const {
+  isEnabled: carEnabled,
+  mesh: carMesh,
+  isLoading: carLoading,
+  error: carError,
+  toggle: toggleCar,
+  reset: resetCar,
+} = useCarPreview()
 
 const canvasRef = ref<{ getStage: () => import('konva').default.Stage | null } | null>(null)
 const canvasHost = ref<HTMLElement | null>(null)
@@ -51,6 +75,8 @@ watch(texture, (next) => {
   // Masks belong to the texture they were filled on, and each one is as large as
   // that texture, so nothing survives the switch.
   clearMasks()
+  resetUv()
+  resetCar()
   if (!next) {
     reset()
     return
@@ -91,6 +117,41 @@ watch(
   },
   { immediate: true },
 )
+
+/// The outlines come from the car model, which never mentions a texture only the
+/// skin folder adds: saying so beats leaving an empty overlay switched on.
+async function handleToggleUv() {
+  await toggleUv(texture.value, carPath.value)
+  if (uvError.value) toast.error(uvError.value)
+}
+
+async function handleToggleCar() {
+  await toggleCar(texture.value, carPath.value)
+  if (carError.value) toast.error(carError.value)
+}
+
+/// Short enough to feel live while drawing, long enough that a stroke made of
+/// dozens of points does not redraw the car once per point.
+const liveryRevision = ref(0)
+watchDebounced(layers, () => (liveryRevision.value += 1), { deep: true, debounce: 80 })
+
+/// A hover on the car answers "where is this panel on the sheet": the texture
+/// coordinate becomes a pixel, and the part's own name says what it is.
+const hover = shallowRef<CarHover | null>(null)
+const hoverPoint = computed(() => {
+  if (!hover.value) return null
+  return {
+    x: hover.value.u * textureSize.value.width,
+    y: hover.value.v * textureSize.value.height,
+  }
+})
+
+const texturePoint = shallowRef<{ x: number; y: number } | null>(null)
+
+const stage = shallowRef<Konva.Stage | null>(null)
+watch(canvasRef, (handle) => {
+  stage.value = handle?.getStage() ?? null
+})
 
 const zoomPercent = computed(() => Math.round(effectiveScale.value * 100))
 
@@ -193,6 +254,23 @@ defineExpose({
   canvasRef,
   EditorToolbar,
   CheckIcon,
+  GridIcon,
+  uvEnabled,
+  uvOpacity,
+  uvTemplate,
+  uvLoading,
+  handleToggleUv,
+  BoxIcon,
+  CarPreview,
+  carEnabled,
+  carMesh,
+  carLoading,
+  handleToggleCar,
+  stage,
+  liveryRevision,
+  hover,
+  hoverPoint,
+  texturePoint,
 })
 </script>
 
@@ -214,6 +292,37 @@ defineExpose({
       </div>
 
       <div class="ml-auto flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          title="Show the car in 3D"
+          :class="carEnabled ? 'text-sky-500' : ''"
+          :disabled="carLoading"
+          @click="handleToggleCar"
+        >
+          <BoxIcon class="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          title="Show the car's UV seams over the texture"
+          :class="uvEnabled ? 'text-sky-500' : ''"
+          :disabled="uvLoading"
+          @click="handleToggleUv"
+        >
+          <GridIcon class="size-4" />
+        </Button>
+        <input
+          v-if="uvEnabled && uvTemplate"
+          v-model.number="uvOpacity"
+          type="range"
+          min="0.1"
+          max="1"
+          step="0.05"
+          class="w-20 accent-sky-500"
+          title="UV guide opacity"
+        />
+
         <Button variant="ghost" size="icon" title="Zoom out" @click="zoomFromButton(-1)">
           <ZoomOutIcon class="size-4" />
         </Button>
@@ -252,7 +361,29 @@ defineExpose({
           :base-image="baseImage"
           :texture-width="textureSize.width"
           :texture-height="textureSize.height"
+          :uv-template="uvEnabled ? uvTemplate : null"
+          :uv-opacity="uvOpacity"
+          :hover-point="hoverPoint"
+          @hover-texture="texturePoint = $event"
         />
+      </div>
+
+      <div v-if="carEnabled && carMesh" class="relative w-2/5 shrink-0 border-l">
+        <CarPreview
+          :mesh="carMesh"
+          :stage="stage"
+          :texture-width="textureSize.width"
+          :texture-height="textureSize.height"
+          :revision="liveryRevision"
+          :texture-point="texturePoint"
+          @hover="hover = $event"
+        />
+        <span
+          v-if="hover"
+          class="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/70 px-2 py-1 text-xs text-white"
+        >
+          {{ hover.part }}
+        </span>
       </div>
 
       <LayerPanel />
