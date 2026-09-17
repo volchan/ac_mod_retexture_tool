@@ -21,6 +21,7 @@ const emit = defineEmits<{
   'open-cmd': []
   'test-in-game': []
   'export-skin': []
+  'view-3d': []
 }>()
 
 const leftWidth = useLocalStorage('workspace-left-width', 210)
@@ -93,6 +94,7 @@ defineExpose({
           @repack="$emit('repack')"
           @test-in-game="$emit('test-in-game')"
           @export-skin="$emit('export-skin')"
+          @view-3d="$emit('view-3d')"
         />
       </aside>
     </main>

@@ -34,6 +34,9 @@ pub fn run() {
             commands::repack::repack_mod,
             commands::texture::get_kn5_texture,
             commands::texture::get_skin_texture,
+            commands::car_model::get_uv_template,
+            commands::car_model::get_car_mesh,
+            commands::fonts::list_system_fonts,
             commands::texture::clear_kn5_cache,
             commands::enhance::enhance_texture,
             commands::enhance::enhance_extracted_textures,
@@ -49,6 +52,7 @@ pub fn run() {
             commands::ac_detect::list_ac_tracks,
             commands::livery_edit::save_livery_edit,
             commands::livery_edit::load_livery_document,
+            commands::livery_model::get_livery_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

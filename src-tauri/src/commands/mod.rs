@@ -1,9 +1,12 @@
 pub mod ac_detect;
+pub mod car_model;
 pub mod decode;
 pub mod enhance;
 pub mod extract;
+pub mod fonts;
 pub mod import;
 pub mod livery_edit;
+pub mod livery_model;
 pub mod repack;
 pub mod scan;
 pub mod skin;
@@ -15,10 +18,13 @@ pub mod track_hero;
 pub use ac_detect::{
     detect_ac_install, list_ac_cars, list_ac_content, list_ac_tracks, validate_ac_folder,
 };
+pub use car_model::{get_car_mesh, get_uv_template};
 pub use decode::{cancel_decode, decode_mod_textures};
 pub use extract::extract_textures;
+pub use fonts::list_system_fonts;
 pub use import::scan_import_folder;
 pub use livery_edit::{load_livery_document, save_livery_edit};
+pub use livery_model::get_livery_model;
 pub use repack::repack_mod;
 pub use scan::scan_mod_folder;
 pub use skin::list_car_skins;

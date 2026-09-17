@@ -7,11 +7,13 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type {
   AcInstallInfo,
+  CarMeshData,
   EnhanceOptions,
   EnhanceResult,
   ImportScanResult,
   LibraryEntry,
   LiveryEditSave,
+  LiveryModel,
   Mod,
   ProgressInfo,
   RepackOptions,
@@ -159,6 +161,34 @@ export async function previewReplacementImage(imagePath: string): Promise<string
 
 export async function loadReplacementFull(imagePath: string): Promise<string> {
   return invoke('load_replacement_full', { imagePath })
+}
+
+export async function getUvTemplate(
+  carPath: string,
+  textureName: string,
+  width: number,
+  height: number,
+): Promise<string> {
+  return invoke('get_uv_template', { carPath, textureName, width, height })
+}
+
+/// `overrides` pairs a texture name with a queued replacement file, so the car
+/// shows what a repack would produce rather than what is on disk.
+export async function getLiveryModel(
+  carPath: string,
+  skin: string,
+  maxTexture: number,
+  overrides: [string, string][],
+): Promise<LiveryModel> {
+  return invoke('get_livery_model', { carPath, skin, maxTexture, overrides })
+}
+
+export async function getCarMesh(carPath: string, textureName: string): Promise<CarMeshData> {
+  return invoke('get_car_mesh', { carPath, textureName })
+}
+
+export async function listSystemFonts(): Promise<string[]> {
+  return invoke('list_system_fonts')
 }
 
 export async function readCarPreview(imagePath: string, acPath: string): Promise<string> {

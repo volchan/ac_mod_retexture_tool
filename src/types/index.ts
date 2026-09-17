@@ -98,7 +98,9 @@ export type TextureCategory =
   | 'other'
   | 'preview'
 
-export type TextureSource = 'kn5' | 'skin'
+/** `carOverride`: worn by the car but not yet repainted by this skin. Editing one
+ *  writes a file of the same name into the skin, which is how AC overrides it. */
+export type TextureSource = 'kn5' | 'skin' | 'carOverride'
 
 export interface Texture {
   id: string
@@ -262,3 +264,40 @@ export interface RecentMod {
 }
 
 export * from './editor'
+
+/** Raw geometry of the panels wearing one texture, as base64 typed-array buffers. */
+export interface CarMeshData {
+  positions: string
+  uvs: string
+  indices: string
+  vertexCount: number
+  triangleCount: number
+  parts: MeshRange[]
+}
+
+/** Where one original mesh sits in the merged triangle list. */
+export interface MeshRange {
+  name: string
+  start: number
+  count: number
+}
+
+/** A whole car with every texture its materials name, ready for a preview. */
+export interface LiveryModel {
+  mesh: CarMeshData
+  groups: MaterialGroup[]
+  textures: LiveryTexture[]
+}
+
+/** One run of triangles sharing a material; indices point into `textures`. */
+export interface MaterialGroup {
+  start: number
+  count: number
+  diffuse: number | null
+  normal: number | null
+}
+
+export interface LiveryTexture {
+  name: string
+  dataUrl: string
+}

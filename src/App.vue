@@ -6,6 +6,7 @@ import CommandPalette from '@/components/CommandPalette.vue'
 import LiveryEditor from '@/components/editor/LiveryEditor.vue'
 import StatusBar from '@/components/layout/StatusBar.vue'
 import WorkspaceLayout from '@/components/layout/WorkspaceLayout.vue'
+import LiveryPreviewDialog from '@/components/preview/LiveryPreviewDialog.vue'
 import RepackDialog from '@/components/repack/RepackDialog.vue'
 import SkinPickerDialog from '@/components/skin/SkinPickerDialog.vue'
 import CarPickerDialog from '@/components/test-in-game/CarPickerDialog.vue'
@@ -14,6 +15,7 @@ import Toaster from '@/components/ui/sonner/Toaster.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useLibrary } from '@/composables/useLibrary'
 import { useLiveryEditor } from '@/composables/useLiveryEditor'
+import { useLiveryPreview } from '@/composables/useLiveryPreview'
 import { useMod } from '@/composables/useMod'
 import { useSkinMeta } from '@/composables/useSkinMeta'
 import { useSkinPicker } from '@/composables/useSkinPicker'
@@ -43,6 +45,7 @@ const { reset: resetFilter } = useTextureFilter()
 const { triggerExtract, triggerImport, triggerQueue } = useGlobalCommands()
 const { cycleMode } = useTheme()
 const { openFor: openLiveryEditor } = useLiveryEditor()
+const { open: openLiveryPreview } = useLiveryPreview()
 const {
   dialogOpen: testDialogOpen,
   isTesting,
@@ -154,6 +157,13 @@ watch(
     if (mod.value) updateTextureCount(mod.value.meta.folderName, count)
   },
 )
+
+/// The 3D view dresses one skin, so it only makes sense once a skin is open.
+function handleView3d() {
+  const skin = activeSkin.value?.name
+  if (!mod.value || !skin) return
+  openLiveryPreview(mod.value.path, skin, textures.value)
+}
 
 async function handleOpenCar(path: string, name: string) {
   await openForCar(path, name)
@@ -284,6 +294,8 @@ defineExpose({
   StatusBar,
   WorkspaceLayout,
   RepackDialog,
+  LiveryPreviewDialog,
+  handleView3d,
   CarPickerDialog,
   TestingOverlay,
   LibraryView,
@@ -355,6 +367,7 @@ defineExpose({
       @open-cmd="cmdPaletteOpen = true"
       @test-in-game="mod && openTestDialog(mod.path)"
       @export-skin="handleExportSkin"
+      @view-3d="handleView3d"
     />
 
     <!-- Status bar (always visible) -->
@@ -385,6 +398,9 @@ defineExpose({
     :output-path="repackOutputPath"
     :replacements="repackReplacements"
   />
+
+  <!-- Livery preview (3D) -->
+  <LiveryPreviewDialog />
 
   <!-- Skin picker dialog (car opened from the library) -->
   <SkinPickerDialog
