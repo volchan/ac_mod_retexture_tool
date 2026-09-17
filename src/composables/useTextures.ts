@@ -16,9 +16,8 @@ const isDecoding = ref(false)
 const currentModPath = ref<string | undefined>(undefined)
 const lastImportFolder = ref<string | undefined>(undefined)
 
-/// The decode listeners feed the module-wide `textures`, so they live here too:
-/// one per composable instance would leave orphans pushing into the same array
-/// after a remount, and every texture would land two or three times over.
+/// Module-wide, like the `textures` they feed: one per instance leaves orphans
+/// pushing into the same array after a remount, and every texture lands twice.
 let unlisten: (() => void) | null = null
 
 async function persist() {
@@ -62,8 +61,7 @@ export function useTextures() {
     const unlistenTexture = await onDecodeTexture((tex) => {
       textures.value = [...textures.value, tex]
     })
-    // Claimed before the next await: an `init` racing this one has to be able to
-    // detach it, or it keeps filling the grid alongside the newer listener.
+    // Claimed before the next await, so a racing `init` can detach it.
     unlisten = unlistenTexture
 
     const unlistenProgress = await onDecodeProgress((info) => {
