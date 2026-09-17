@@ -92,7 +92,16 @@ const importDialogOpen = ref(false)
 const importMatched = ref<MatchedTexture[]>([])
 const importUnmatched = ref<UnmatchedFile[]>([])
 const isScanning = ref(false)
-const collapsedGroups = ref<Set<string>>(new Set())
+const CAR_GROUP = '__car__'
+
+/// A car carries well over a hundred textures against a skin's handful, so the
+/// section opens closed: it is a drawer to reach into, not the day's work.
+const collapsedGroups = ref<Set<string>>(new Set([CAR_GROUP]))
+
+function groupLabel(key: string) {
+  if (key === CAR_GROUP) return 'From the car'
+  return key === '__other__' ? 'Other' : key
+}
 
 const categories = computed<TextureCategory[]>(() =>
   props.mod.modType === 'car' ? CAR_CATEGORIES : TRACK_CATEGORIES,
@@ -113,15 +122,20 @@ const groupedTextures = computed<TextureGroup[]>(() => {
 
   const originMap = new Map<string, Texture[]>()
   for (const t of normalTextures) {
-    const key = t.kn5File ?? t.skinFolder ?? '__other__'
+    // Everything the car wears shares one heading, whatever model file it came
+    // from: the author cares that it is not theirs yet, not which KN5 holds it.
+    const key = t.source === 'carOverride' ? CAR_GROUP : (t.kn5File ?? t.skinFolder ?? '__other__')
     if (!originMap.has(key)) originMap.set(key, [])
     const bucket = originMap.get(key)
     if (bucket) bucket.push(t)
   }
 
-  const sortedOriginKeys = [...originMap.keys()].sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: 'base' }),
-  )
+  // The skin's own files come first; what it has yet to touch goes last.
+  const sortedOriginKeys = [...originMap.keys()].sort((a, b) => {
+    if (a === CAR_GROUP) return 1
+    if (b === CAR_GROUP) return -1
+    return a.localeCompare(b, undefined, { sensitivity: 'base' })
+  })
 
   const groups: TextureGroup[] = []
 
@@ -133,7 +147,7 @@ const groupedTextures = computed<TextureGroup[]>(() => {
   for (const k of sortedOriginKeys) {
     const bucket = originMap.get(k) as Texture[]
     const sorted = [...bucket].sort((a, b) => a.name.localeCompare(b.name))
-    groups.push({ key: k, label: k === '__other__' ? 'Other' : k, textures: sorted })
+    groups.push({ key: k, label: groupLabel(k), textures: sorted })
   }
 
   return groups
@@ -267,6 +281,7 @@ defineExpose({
   decodeProgress,
   tileWidth,
   collapsedGroups,
+  groupLabel,
   toggleGroupCollapsed,
   handleToggleSelect,
   handleSelectAll,
@@ -312,6 +327,11 @@ defineExpose({
           class="sticky top-0 z-10 w-full flex items-center gap-2 px-3.5 py-1.5 bg-background/95 backdrop-blur-sm border-b border-border/50 text-left"
           @click="toggleGroupCollapsed(group.key)"
         >
+          <span
+            class="text-[10px] text-muted-foreground/60 shrink-0 transition-transform"
+            :class="collapsedGroups.has(group.key) ? '' : 'rotate-90'"
+            >▶</span
+          >
           <span class="text-[12px] font-medium text-muted-foreground font-mono truncate">{{ group.label }}</span>
           <span class="text-[10px] text-muted-foreground/60 shrink-0">{{ group.textures.length }}</span>
           <span
