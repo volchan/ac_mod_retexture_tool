@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::commands::car_model::{main_kn5, pack, CarMesh};
+use crate::commands::skin::ensure_safe_folder_name;
 use crate::converters::dds;
 use crate::errors::AppError;
 use crate::parsers::kn5::Kn5File;
@@ -67,6 +68,7 @@ fn read_livery_model(
     max_texture: u32,
     overrides: &[(String, String)],
 ) -> Result<LiveryModel, AppError> {
+    ensure_safe_folder_name(skin)?;
     let car = Path::new(car_path);
     let model = main_kn5(car)?;
     let geometry = read_geometry(&model)?;
@@ -126,7 +128,7 @@ fn material_runs(meshes: &[&UvMesh], packed: &CarMesh) -> Vec<(u32, u32, u32)> {
 /// index the viewer uses to find it again.
 struct TextureLibrary<'a> {
     kn5: Kn5File,
-    skin_dir: std::path::PathBuf,
+    skin_files: HashMap<String, std::path::PathBuf>,
     max_texture: u32,
     overrides: HashMap<String, &'a str>,
     indices: HashMap<String, Option<u32>>,
@@ -142,7 +144,7 @@ impl<'a> TextureLibrary<'a> {
     ) -> Result<Self, AppError> {
         Ok(Self {
             kn5: Kn5File::open(&main_kn5(car)?)?,
-            skin_dir: car.join("skins").join(skin),
+            skin_files: index_skin_files(&car.join("skins").join(skin)),
             max_texture,
             overrides: overrides
                 .iter()
@@ -193,7 +195,7 @@ impl<'a> TextureLibrary<'a> {
 
     // ponytail: one texture at a time. Parallelise if a full GT takes too long to open.
     fn decode(&self, name: &str) -> Option<String> {
-        let data = match loose_file(name, &self.overrides, &self.skin_dir) {
+        let data = match loose_file(name, &self.overrides, &self.skin_files) {
             Some(path) => std::fs::read(path).ok()?,
             None => self.kn5.get_texture_data(name)?.to_vec(),
         };
@@ -207,19 +209,41 @@ impl<'a> TextureLibrary<'a> {
 
 /// The file that outranks the model's own copy of `name`, if any: what the queue
 /// is about to write first, then what the skin folder already ships.
+///
+/// Both sides are keyed by lowercase name. A KN5 naming `Body.dds` and a skin
+/// shipping `body.dds` are the same texture everywhere but a case-sensitive
+/// filesystem, where the skin's repaint would otherwise be skipped in silence.
 fn loose_file(
     name: &str,
     overrides: &HashMap<String, &str>,
-    skin_dir: &Path,
+    skin_files: &HashMap<String, std::path::PathBuf>,
 ) -> Option<std::path::PathBuf> {
-    if let Some(queued) = overrides.get(&name.to_lowercase()) {
+    let key = name.to_lowercase();
+    if let Some(queued) = overrides.get(&key) {
         let path = std::path::PathBuf::from(queued);
         if path.is_file() {
             return Some(path);
         }
     }
-    let in_skin = skin_dir.join(name);
-    in_skin.is_file().then_some(in_skin)
+    skin_files.get(&key).cloned()
+}
+
+/// The skin folder's own files, indexed by lowercase name. Built from a listing
+/// rather than by joining texture names: a name read out of a KN5 is third-party
+/// data, and `../../` in one would otherwise reach outside the skin.
+fn index_skin_files(skin_dir: &Path) -> HashMap<String, std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(skin_dir) else {
+        return HashMap::new();
+    };
+    entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .filter_map(|path| {
+            let name = path.file_name()?.to_str()?.to_lowercase();
+            Some((name, path))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -280,36 +304,75 @@ mod tests {
     #[test]
     fn a_queued_replacement_outranks_the_skin_file() {
         let dir = tempfile::tempdir().unwrap();
-        let skin = dir.path().join("01_red");
-        std::fs::create_dir_all(&skin).unwrap();
-        std::fs::write(skin.join("body.dds"), b"skin").unwrap();
+        std::fs::write(dir.path().join("body.dds"), b"skin").unwrap();
         let queued = dir.path().join("queued.png");
         std::fs::write(&queued, b"queued").unwrap();
 
         let overrides = HashMap::from([("body.dds".to_string(), queued.to_str().unwrap())]);
 
-        assert_eq!(loose_file("body.dds", &overrides, &skin), Some(queued));
+        assert_eq!(
+            loose_file("body.dds", &overrides, &index_skin_files(dir.path())),
+            Some(queued)
+        );
     }
 
     #[test]
     fn the_skin_file_is_used_when_nothing_is_queued() {
         let dir = tempfile::tempdir().unwrap();
-        let skin = dir.path().join("01_red");
-        std::fs::create_dir_all(&skin).unwrap();
-        let body = skin.join("body.dds");
+        let body = dir.path().join("body.dds");
         std::fs::write(&body, b"skin").unwrap();
 
-        assert_eq!(loose_file("body.dds", &HashMap::new(), &skin), Some(body));
+        assert_eq!(
+            loose_file("body.dds", &HashMap::new(), &index_skin_files(dir.path())),
+            Some(body)
+        );
+    }
+
+    #[test]
+    fn a_skin_file_matches_whatever_case_the_model_names_it_in() {
+        // Windows and macOS forgive the mismatch; Linux would drop the repaint.
+        let dir = tempfile::tempdir().unwrap();
+        let body = dir.path().join("Body.DDS");
+        std::fs::write(&body, b"skin").unwrap();
+
+        assert_eq!(
+            loose_file("body.dds", &HashMap::new(), &index_skin_files(dir.path())),
+            Some(body)
+        );
+    }
+
+    #[test]
+    fn a_texture_name_cannot_climb_out_of_the_skin_folder() {
+        // Texture names come out of a third-party KN5, so they never reach the
+        // filesystem: only a real entry of the listing can match.
+        let dir = tempfile::tempdir().unwrap();
+        let skin = dir.path().join("01_red");
+        std::fs::create_dir_all(&skin).unwrap();
+        std::fs::write(dir.path().join("secret.dds"), b"outside").unwrap();
+
+        assert_eq!(
+            loose_file("../secret.dds", &HashMap::new(), &index_skin_files(&skin)),
+            None
+        );
     }
 
     #[test]
     fn a_texture_only_the_model_carries_falls_through_to_the_kn5() {
         let dir = tempfile::tempdir().unwrap();
-        let skin = dir.path().join("01_red");
-        std::fs::create_dir_all(&skin).unwrap();
         let missing = dir.path().join("gone.png");
         let overrides = HashMap::from([("body.dds".to_string(), missing.to_str().unwrap())]);
 
-        assert_eq!(loose_file("body.dds", &overrides, &skin), None);
+        assert_eq!(
+            loose_file("body.dds", &overrides, &index_skin_files(dir.path())),
+            None
+        );
+    }
+
+    #[test]
+    fn a_skin_name_that_is_a_path_is_refused() {
+        let Err(err) = read_livery_model("/cars/gtm", "../../etc", 512, &[]) else {
+            panic!("a skin name climbing out of the folder must be refused");
+        };
+        assert!(matches!(err, AppError::InvalidInput(_)), "got {err:?}");
     }
 }

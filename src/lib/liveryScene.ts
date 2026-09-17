@@ -21,9 +21,15 @@ export interface LiveryScene {
 
 /// The whole car wearing the whole skin: one draw per material, orbitable, and
 /// read-only — unlike the editor's preview there is nothing here to pick at.
-export function createLiveryScene(canvas: HTMLCanvasElement, model: LiveryModel): LiveryScene {
+export function createLiveryScene(
+  canvas: HTMLCanvasElement,
+  model: LiveryModel,
+  onTextureError?: (name: string) => void,
+): LiveryScene {
   const geometry = buildGeometry(model.mesh)
-  const loaded: Texture[] = model.textures.map((entry) => loadTexture(entry.dataUrl))
+  const loaded: Texture[] = model.textures.map((entry) =>
+    loadTexture(entry.dataUrl, () => onTextureError?.(entry.name)),
+  )
 
   const materials = model.groups.map((group, index) => {
     // Konva and the KN5 both count V upwards, so the merged buffer carries the
@@ -85,8 +91,8 @@ function materialFor(
   })
 }
 
-function loadTexture(dataUrl: string): Texture {
-  const texture = new TextureLoader().load(dataUrl)
+function loadTexture(dataUrl: string, onError: () => void): Texture {
+  const texture = new TextureLoader().load(dataUrl, undefined, undefined, onError)
   texture.flipY = false
   return texture
 }

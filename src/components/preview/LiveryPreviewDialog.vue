@@ -2,6 +2,7 @@
 import { useElementSize, useRafFn } from '@vueuse/core'
 import { AlertCircleIcon } from 'lucide-vue-next'
 import { onBeforeUnmount, ref, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { useLiveryPreview } from '@/composables/useLiveryPreview'
@@ -24,12 +25,18 @@ watch([canvas, model], ([element, loaded]) => {
     pause()
     return
   }
-  scene = createLiveryScene(element, loaded)
+  scene = createLiveryScene(element, loaded, reportTextureError)
   scene.resize(width.value, height.value)
   resume()
 })
 
 watch([width, height], ([w, h]) => scene?.resize(w, h))
+
+/// A texture that will not decode leaves its panels black, which reads as a paint
+/// choice rather than a failure unless something says otherwise.
+function reportTextureError(name: string) {
+  toast.error(`Could not draw ${name}`)
+}
 
 onBeforeUnmount(() => {
   pause()

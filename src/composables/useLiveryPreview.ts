@@ -52,7 +52,8 @@ export function useLiveryPreview() {
 // ------------------------------------------------------------------------------
 
 function queuedOverrides(textures: Texture[]): [string, string][] {
-  return textures
-    .filter((texture) => texture.replacement !== undefined)
-    .map((texture) => [texture.name, texture.replacement?.sourcePath ?? ''])
+  return textures.flatMap((texture) => {
+    const source = texture.replacement?.sourcePath
+    return source ? [[texture.name, source] as [string, string]] : []
+  })
 }
