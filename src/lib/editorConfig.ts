@@ -20,8 +20,6 @@ export interface LayerRenderContext {
   /// The bitmap this layer draws: the sticker for an image layer, the computed
   /// region mask for a bucket.
   image: HTMLImageElement | HTMLCanvasElement | null
-  textureWidth: number
-  textureHeight: number
   /// Layers stop listening while a paint tool is active, so a brush stroke never
   /// grabs the sticker it passes over.
   interactive: boolean

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { EditorLayer } from '@/types/index'
 import { layerConfig, strokeConfigs } from './editorConfig'
 
-const context = { image: null, textureWidth: 1024, textureHeight: 512, interactive: true }
+const context = { image: null, interactive: true }
 
 const placement = { x: 10, y: 20, scaleX: 2, scaleY: 3, rotation: 45 }
 const common = { id: 'l1', name: 'layer', visible: true, opacity: 0.5 }

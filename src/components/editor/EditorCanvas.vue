@@ -61,8 +61,6 @@ watch(
 function config(layer: EditorLayer) {
   return layerConfig(layer, {
     image: bitmapFor(layer),
-    textureWidth: props.textureWidth,
-    textureHeight: props.textureHeight,
     interactive: tool.value === 'select',
   })
 }
