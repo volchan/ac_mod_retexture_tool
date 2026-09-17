@@ -1,4 +1,6 @@
-import type { Texture, TextureReplacement } from '@/types/index'
+import type { Texture, TextureReplacement, TextureSource } from '@/types/index'
+
+const TEXTURE_SOURCES: TextureSource[] = ['kn5', 'skin', 'carOverride']
 
 export type ReplacementPayload = Omit<TextureReplacement, 'previewUrl'> & { previewUrl?: string }
 export type TexturePreviewPayload = Omit<Texture, 'previewUrl' | 'isDecoded' | 'replacement'> & {
@@ -21,7 +23,7 @@ export function isValidPayload(p: unknown): p is TexturePreviewPayload {
     typeof o.name !== 'string' ||
     o.name.length === 0 ||
     typeof o.path !== 'string' ||
-    (o.source !== 'kn5' && o.source !== 'skin') ||
+    !TEXTURE_SOURCES.includes(o.source as TextureSource) ||
     typeof o.width !== 'number' ||
     typeof o.height !== 'number' ||
     typeof o.format !== 'string' ||
