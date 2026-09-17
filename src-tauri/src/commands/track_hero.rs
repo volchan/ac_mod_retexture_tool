@@ -165,12 +165,16 @@ pub(crate) fn mime_for_path(path: &str) -> &'static str {
         "image/webp"
     } else if lower.ends_with(".bmp") {
         "image/bmp"
+    } else if lower.ends_with(".svg") {
+        "image/svg+xml"
     } else {
         "image/jpeg"
     }
 }
 
-const ALLOWED_IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "dds"];
+// SVG is readable here because the editor only ever draws it into a canvas as an
+// image, where a document's scripts and external references never run.
+const ALLOWED_IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "dds", "svg"];
 const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
 
 // AC skin preview files can have no extension (raw JPEG without `.jpg`)

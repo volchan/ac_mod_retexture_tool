@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 pub enum TextureSource {
     Kn5,
     Skin,
+    /// Lives in the car's model, but a skin repaints it by dropping a file of the
+    /// same name in its own folder — which is how Assetto Corsa resolves textures.
+    /// The car model itself is never written to.
+    CarOverride,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

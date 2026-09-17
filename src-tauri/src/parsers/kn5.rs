@@ -2,6 +2,9 @@ use std::io::{Cursor, Read, Write};
 use std::path::Path;
 
 pub struct TextureSlot {
+    /// A slot the model declares but leaves empty: the flag stands alone, with
+    /// no name and no payload. Dropping it would renumber every slot after it.
+    pub active: u32,
     pub name: String,
     pub data: Vec<u8>,
     pub offset: u64,
@@ -40,7 +43,17 @@ impl Kn5File {
         let mut textures = Vec::with_capacity(texture_count as usize);
 
         for _ in 0..texture_count {
-            let _active = read_u32_le(&mut cursor)?;
+            let active = read_u32_le(&mut cursor)?;
+            if active == 0 {
+                textures.push(TextureSlot {
+                    active,
+                    name: String::new(),
+                    data: Vec::new(),
+                    offset: cursor.position(),
+                    size: 0,
+                });
+                continue;
+            }
             let name_len = read_u32_le(&mut cursor)?;
             let mut name_bytes = vec![0u8; name_len as usize];
             cursor
@@ -57,6 +70,7 @@ impl Kn5File {
                 .map_err(|e| crate::errors::AppError::Kn5Parse(e.to_string()))?;
 
             textures.push(TextureSlot {
+                active,
                 name,
                 data,
                 offset,
@@ -76,7 +90,11 @@ impl Kn5File {
     }
 
     pub fn texture_names(&self) -> Vec<&str> {
-        self.textures.iter().map(|t| t.name.as_str()).collect()
+        self.textures
+            .iter()
+            .filter(|t| t.active != 0)
+            .map(|t| t.name.as_str())
+            .collect()
     }
 
     pub fn get_texture_data(&self, name: &str) -> Option<&[u8]> {
@@ -121,7 +139,10 @@ impl Kn5File {
         write_u32_le(&mut out, self.textures.len() as u32)?;
 
         for slot in &self.textures {
-            write_u32_le(&mut out, 1u32)?;
+            write_u32_le(&mut out, slot.active)?;
+            if slot.active == 0 {
+                continue;
+            }
             write_u32_le(&mut out, slot.name.len() as u32)?;
             out.write_all(slot.name.as_bytes())
                 .map_err(crate::errors::AppError::Io)?;
@@ -217,6 +238,34 @@ mod tests {
         let kn5 = Kn5File::open(tmp.path()).unwrap();
         assert_eq!(kn5.version, 6);
         assert_eq!(kn5.texture_names(), vec!["tex.dds"]);
+    }
+
+    #[test]
+    fn an_empty_slot_carries_only_its_flag_and_survives_a_save() {
+        // RSS cars declare slots they never fill; a reader that expects a name
+        // after every flag walks off the rails on the very first one.
+        let mut buf: Vec<u8> = Vec::new();
+        buf.write_all(b"sc6969").unwrap();
+        buf.write_all(&6u32.to_le_bytes()).unwrap();
+        buf.write_all(&0u32.to_le_bytes()).unwrap(); // unknown (only for version > 5)
+        buf.write_all(&2u32.to_le_bytes()).unwrap(); // texture count
+        buf.write_all(&0u32.to_le_bytes()).unwrap(); // inactive: nothing follows
+        buf.write_all(&1u32.to_le_bytes()).unwrap(); // active
+        buf.write_all(&7u32.to_le_bytes()).unwrap();
+        buf.write_all(b"tex.dds").unwrap();
+        buf.write_all(&4u32.to_le_bytes()).unwrap();
+        buf.write_all(b"data").unwrap();
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), &buf).unwrap();
+
+        let kn5 = Kn5File::open(tmp.path()).unwrap();
+        assert_eq!(kn5.texture_names(), vec!["tex.dds"]);
+        assert_eq!(kn5.textures.len(), 2, "the empty slot keeps its place");
+
+        let out = tempfile::NamedTempFile::new().unwrap();
+        kn5.save(out.path()).unwrap();
+        assert_eq!(std::fs::read(out.path()).unwrap(), buf);
     }
 
     #[test]

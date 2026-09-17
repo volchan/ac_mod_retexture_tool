@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::commands::repack::{copy_dir_recursive, create_zip_archive, encode_replacement};
+use crate::commands::repack::{
+    copy_dir_recursive, create_zip_archive, encode_replacement, patch_kn5,
+};
 use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
@@ -76,12 +78,7 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
         }
     }
 
-    for replacement in &opts.replacements {
-        std::fs::write(
-            skin_dst.join(&replacement.texture_name),
-            encode_replacement(replacement)?,
-        )?;
-    }
+    apply_replacements(&source, &skin_dst, opts)?;
 
     write_skin_meta(&skin_dst, &opts.meta)?;
 
@@ -92,6 +89,44 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
     create_zip_archive(staging.path(), output, &|_, _, _| {})
 }
 
+/// A texture that lives inside one of the skin's own KN5 files has to go back
+/// into that file: writing it loose beside the model would ship a texture the
+/// model never looks for.
+fn apply_replacements(
+    skin_source: &Path,
+    skin_dst: &Path,
+    opts: &SkinExportOptions,
+) -> Result<(), AppError> {
+    let mut per_kn5: std::collections::HashMap<&str, Vec<&TextureReplacementOpt>> =
+        std::collections::HashMap::new();
+
+    for replacement in &opts.replacements {
+        match replacement.kn5_file.as_deref() {
+            Some(kn5) if ships_with_the_skin(skin_source, kn5) => {
+                per_kn5.entry(kn5).or_default().push(replacement)
+            }
+            // Anything else comes from the car's own model, which a skin never
+            // rewrites: the override is a file of the same name beside it.
+            _ => std::fs::write(
+                skin_dst.join(&replacement.texture_name),
+                encode_replacement(replacement)?,
+            )?,
+        }
+    }
+
+    for (kn5, replacements) in per_kn5 {
+        let name = Path::new(kn5).file_name().ok_or_else(|| {
+            AppError::NotFound(format!("replacement points at an unnamed model: {kn5}"))
+        })?;
+        patch_kn5(&skin_dst.join(name), &replacements)?;
+    }
+    Ok(())
+}
+
+fn ships_with_the_skin(skin_source: &Path, kn5: &str) -> bool {
+    Path::new(kn5).parent() == Some(skin_source)
+}
+
 /// A partial export ships only the files an installer cannot get from the car it
 /// is layered onto: the textures that changed, plus the descriptors that identify
 /// the skin. All of those sit at the top level, so a full export is the only one
@@ -100,10 +135,17 @@ fn files_to_ship(source: &Path, opts: &SkinExportOptions) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(source) else {
         return vec![];
     };
+    // A texture patched into a model means shipping the model, not the texture.
     let replaced: Vec<&str> = opts
         .replacements
         .iter()
-        .map(|r| r.texture_name.as_str())
+        .map(|r| match r.kn5_file.as_deref() {
+            Some(kn5) if ships_with_the_skin(source, kn5) => Path::new(kn5)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default(),
+            _ => r.texture_name.as_str(),
+        })
         .collect();
 
     entries
@@ -155,6 +197,19 @@ mod tests {
             full,
             replacements: vec![],
         }
+    }
+
+    fn minimal_kn5(texture: &str, data: &[u8]) -> Vec<u8> {
+        let mut buf: Vec<u8> = Vec::new();
+        buf.extend_from_slice(b"sc6969");
+        buf.extend_from_slice(&5u32.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes()); // texture count
+        buf.extend_from_slice(&1u32.to_le_bytes()); // active
+        buf.extend_from_slice(&(texture.len() as u32).to_le_bytes());
+        buf.extend_from_slice(texture.as_bytes());
+        buf.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        buf.extend_from_slice(data);
+        buf
     }
 
     fn zip_entries(path: &Path) -> BTreeSet<String> {
@@ -264,6 +319,104 @@ mod tests {
         let json: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!(json["skinname"], "Rosso Corsa");
         assert_eq!(json["priority"], 3);
+    }
+
+    #[test]
+    fn a_texture_from_the_skins_own_model_goes_back_into_that_model() {
+        let root = car_with_skin(&["ui_skin.json"]);
+        let skin = root.path().join("ks_nissan_gtr/skins/super_silver");
+        let kn5 = skin.join("led_strip_1.kn5");
+        std::fs::write(&kn5, minimal_kn5("LED_Strip.dds", b"old pixels")).unwrap();
+
+        let source = root.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&source)
+            .unwrap();
+
+        let out = root.path().join("skin.zip");
+        let mut opts = options(root.path(), &out, false);
+        opts.replacements = vec![TextureReplacementOpt {
+            texture_id: "tex".to_string(),
+            source_path: source.to_string_lossy().to_string(),
+            kn5_file: Some(kn5.to_string_lossy().to_string()),
+            texture_name: "LED_Strip.dds".to_string(),
+            skin_folder: Some("super_silver".to_string()),
+            original_format: "PNG".to_string(),
+            hero_image_path: None,
+        }];
+
+        export_skin_inner(&opts).unwrap();
+
+        let entries = zip_entries(&out);
+        let prefix = "content/cars/ks_nissan_gtr/skins/super_silver/";
+        assert!(
+            entries.contains(&format!("{prefix}led_strip_1.kn5")),
+            "the model has to travel, not the texture: {entries:?}"
+        );
+        assert!(
+            !entries.contains(&format!("{prefix}LED_Strip.dds")),
+            "a loose copy would be a file the model never looks for"
+        );
+
+        let file = std::fs::File::open(&out).unwrap();
+        let mut zip = zip::ZipArchive::new(file).unwrap();
+        let mut packed = Vec::new();
+        zip.by_name(&format!("{prefix}led_strip_1.kn5"))
+            .unwrap()
+            .read_to_end(&mut packed)
+            .unwrap();
+        let patched = root.path().join("packed.kn5");
+        std::fs::write(&patched, &packed).unwrap();
+        let reopened = crate::parsers::Kn5File::open(&patched).unwrap();
+        assert_ne!(
+            reopened.get_texture_data("LED_Strip.dds"),
+            Some(b"old pixels".as_ref())
+        );
+    }
+
+    #[test]
+    fn a_car_texture_is_overridden_beside_the_model_never_inside_it() {
+        // The rims live in the car's KN5. A skin repaints them with a file of the
+        // same name; rewriting the car itself would change every other skin too.
+        let root = car_with_skin(&["ui_skin.json"]);
+        let car_kn5 = root.path().join("ks_nissan_gtr/nissan_gtr.kn5");
+        std::fs::write(&car_kn5, minimal_kn5("EXT_Rim.dds", b"stock rims")).unwrap();
+        let before = std::fs::read(&car_kn5).unwrap();
+
+        let source = root.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&source)
+            .unwrap();
+
+        let out = root.path().join("skin.zip");
+        let mut opts = options(root.path(), &out, false);
+        opts.replacements = vec![TextureReplacementOpt {
+            texture_id: "tex".to_string(),
+            source_path: source.to_string_lossy().to_string(),
+            kn5_file: Some(car_kn5.to_string_lossy().to_string()),
+            texture_name: "EXT_Rim.dds".to_string(),
+            skin_folder: Some("super_silver".to_string()),
+            original_format: "PNG".to_string(),
+            hero_image_path: None,
+        }];
+
+        export_skin_inner(&opts).unwrap();
+
+        let entries = zip_entries(&out);
+        let prefix = "content/cars/ks_nissan_gtr/skins/super_silver/";
+        assert!(
+            entries.contains(&format!("{prefix}EXT_Rim.dds")),
+            "the override travels as a loose file: {entries:?}"
+        );
+        assert!(
+            !entries.iter().any(|e| e.ends_with("nissan_gtr.kn5")),
+            "the car model has no business in a skin archive"
+        );
+        assert_eq!(
+            std::fs::read(&car_kn5).unwrap(),
+            before,
+            "the installed car must come out untouched"
+        );
     }
 
     #[test]

@@ -187,14 +187,81 @@ fn suffix_filename(filename: &str, suffix: &str) -> String {
     }
 }
 
-/// A skin-scoped workspace edits one skin folder, never the car model: shipping
-/// the KN5 textures there would fill the panel with entries whose replacements
-/// have nowhere to go inside a skin archive.
-fn kn5_files_to_scan(path: &Path, skin_scoped: bool) -> Vec<walkdir::DirEntry> {
-    if skin_scoped {
-        return vec![];
+/// Everything the car wears that this skin has not repainted yet. A skin author
+/// can override any of them, and until now the panel only showed the handful of
+/// files the skin already contained — the rims, and most of the car, were simply
+/// not offered.
+fn emit_car_override_textures(
+    app: &AppHandle,
+    car_path: &Path,
+    skin: &str,
+    mod_type: &ModType,
+    cancel: &State<'_, DecodeCancel>,
+) -> Result<(), String> {
+    let Ok(model) = crate::commands::car_model::main_kn5(car_path) else {
+        return Ok(());
+    };
+    let Ok(kn5) = Kn5File::open(&model) else {
+        return Ok(());
+    };
+
+    let already_painted = skin_texture_names(car_path, skin);
+
+    for name in kn5.texture_names() {
+        if cancel.0.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        if already_painted.contains(&name.to_lowercase()) {
+            continue;
+        }
+        let Some(data) = kn5.get_texture_data(name) else {
+            continue;
+        };
+        let (width, height) = dds::parse_dds_dimensions(data);
+        let tex = TextureEntry {
+            id: Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            path: model.to_string_lossy().to_string(),
+            source: TextureSource::CarOverride,
+            kn5_file: Some(model.to_string_lossy().to_string()),
+            skin_folder: Some(skin.to_string()),
+            category: categorize(name, mod_type),
+            width,
+            height,
+            format: dds::detect_format(data),
+            preview_url: dds::generate_thumbnail(data, 128).unwrap_or_default(),
+            is_decoded: true,
+            replacement: None,
+        };
+        let _ = app.emit("decode-texture", &tex);
     }
-    walkdir::WalkDir::new(path)
+    Ok(())
+}
+
+fn skin_texture_names(car_path: &Path, skin: &str) -> std::collections::HashSet<String> {
+    let folder = car_path.join("skins").join(skin);
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return std::collections::HashSet::new();
+    };
+    entries
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().to_lowercase())
+        .collect()
+}
+
+/// A skin-scoped workspace edits one skin folder, never the car model: shipping
+/// the car's KN5 textures would fill the panel with entries whose replacements
+/// have nowhere to go inside a skin archive.
+///
+/// A KN5 sitting *inside* the skin folder is the opposite case. Mods ship extra
+/// parts that way — light strips, wing variants — and their textures travel with
+/// the skin, so they are the author's to edit.
+fn kn5_files_to_scan(path: &Path, skin_folder: Option<&str>) -> Vec<walkdir::DirEntry> {
+    let root = match skin_folder {
+        Some(skin) => path.join("skins").join(skin),
+        None => path.to_path_buf(),
+    };
+    walkdir::WalkDir::new(root)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("kn5"))
@@ -241,7 +308,7 @@ pub async fn decode_mod_textures(
         ModType::Track
     };
 
-    let kn5_files = kn5_files_to_scan(path, skin_folder.is_some());
+    let kn5_files = kn5_files_to_scan(path, skin_folder.as_deref());
 
     let total = kn5_files.len();
 
@@ -360,6 +427,10 @@ pub async fn decode_mod_textures(
                 }
             }
         }
+    }
+
+    if let Some(skin) = only_skin {
+        emit_car_override_textures(&app, path, skin, &mt, &cancel)?;
     }
 
     if mt == ModType::Car {
@@ -715,8 +786,28 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("ks_nissan_gtr.kn5"), b"data").unwrap();
 
-        assert!(kn5_files_to_scan(dir.path(), true).is_empty());
-        assert_eq!(kn5_files_to_scan(dir.path(), false).len(), 1);
+        assert!(kn5_files_to_scan(dir.path(), Some("missing_skin")).is_empty());
+        assert_eq!(kn5_files_to_scan(dir.path(), None).len(), 1);
+    }
+
+    #[test]
+    fn a_skin_scoped_scan_reads_the_models_the_skin_ships() {
+        // Mods add light strips and wing variants as KN5 files inside the skin
+        // folder, with their textures embedded: those belong to the skin author.
+        let dir = tempfile::tempdir().unwrap();
+        let skin = dir.path().join("skins").join("01_red");
+        std::fs::create_dir_all(&skin).unwrap();
+        std::fs::write(skin.join("led_strip_1.kn5"), b"model").unwrap();
+        std::fs::write(dir.path().join("car.kn5"), b"model").unwrap();
+
+        let found = kn5_files_to_scan(dir.path(), Some("01_red"));
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0].path().file_name().unwrap(),
+            "led_strip_1.kn5",
+            "the car's own model stays out of a skin workspace"
+        );
     }
 
     #[test]
