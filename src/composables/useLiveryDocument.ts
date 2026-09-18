@@ -108,8 +108,15 @@ export function useLiveryDocument() {
 function edit(transform: (layers: EditorLayer[]) => EditorLayer[]) {
   const current = document.value
   if (!current) return
+
+  // A transform with nothing to do hands the same array back — moving the top
+  // layer up, say. Committing that spends an undo entry on a change the user
+  // cannot see, and they have to press undo twice to reach the last real one.
+  const next = transform(current.layers)
+  if (next === current.layers) return
+
   history.begin()
-  document.value = { ...current, layers: transform(current.layers) }
+  document.value = { ...current, layers: next }
   history.commit()
 }
 

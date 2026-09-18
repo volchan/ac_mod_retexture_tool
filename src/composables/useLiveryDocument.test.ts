@@ -75,6 +75,19 @@ describe('useLiveryDocument', () => {
     expect(doc.layers.value.map((l) => l.name)).toEqual(['a'])
   })
 
+  /// Undo has to reach the last thing the user actually changed, not sit on a
+  /// pile of entries that restore what is already on screen.
+  it('spends no undo entry on a move that cannot happen', () => {
+    const doc = useLiveryDocument()
+    const only = fillLayer('a')
+    doc.addLayer(only)
+    doc.moveLayer(only.id, 1)
+
+    doc.undo()
+
+    expect(doc.layers.value).toEqual([])
+  })
+
   it('patches a single layer', () => {
     const doc = useLiveryDocument()
     const layer = fillLayer('Base coat')
