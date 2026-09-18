@@ -33,6 +33,10 @@ pub struct UvMesh {
 /// Row-major 4x4, translation in the last row, as KN5 stores it.
 type Matrix = [f32; 16];
 
+/// A car's node tree is a handful of levels deep; this is only there to stop a
+/// malformed one recursing until the stack gives out.
+const MAX_NODE_DEPTH: u32 = 256;
+
 const IDENTITY: Matrix = [
     1.0, 0.0, 0.0, 0.0, //
     0.0, 1.0, 0.0, 0.0, //
@@ -55,7 +59,7 @@ pub fn read_geometry(path: &Path) -> Result<Kn5Geometry, AppError> {
 
     let materials = read_materials(&mut r, version)?;
     let mut meshes = Vec::new();
-    read_node(&mut r, &mut meshes, IDENTITY)?;
+    read_node(&mut r, &mut meshes, IDENTITY, 0)?;
 
     Ok(Kn5Geometry { materials, meshes })
 }
@@ -83,7 +87,8 @@ impl Kn5Geometry {
 // ------------------------------------------------------------------------------
 
 fn skip_textures(r: &mut Reader) -> Result<(), AppError> {
-    let count = r.u32()?;
+    // An active slot is at least its flag, two lengths and nothing else.
+    let count = r.counted(4)?;
     for _ in 0..count {
         // An inactive slot is the flag and nothing else: no name, no payload.
         if r.u32()? == 0 {
@@ -98,8 +103,9 @@ fn skip_textures(r: &mut Reader) -> Result<(), AppError> {
 }
 
 fn read_materials(r: &mut Reader, version: u32) -> Result<Vec<Material>, AppError> {
-    let count = r.u32()?;
-    let mut materials = Vec::with_capacity(count as usize);
+    // A material is at least a name length, a shader length and two flag bytes.
+    let count = r.counted(10)?;
+    let mut materials = Vec::with_capacity(count);
 
     for _ in 0..count {
         let name = r.string()?;
@@ -109,14 +115,15 @@ fn read_materials(r: &mut Reader, version: u32) -> Result<Vec<Material>, AppErro
             r.skip(4)?; // depth mode
         }
 
-        let prop_count = r.u32()?;
+        let prop_count = r.counted(4 + 4 * 10)?;
         for _ in 0..prop_count {
             let _prop_name = r.string()?;
             r.skip(4 * 10)?; // one float, then a vec2, a vec3 and a vec4
         }
 
-        let texture_count = r.u32()?;
-        let mut textures = Vec::with_capacity(texture_count as usize);
+        // A slot is at least two name lengths and the slot index between them.
+        let texture_count = r.counted(12)?;
+        let mut textures = Vec::with_capacity(texture_count);
         for _ in 0..texture_count {
             let sampler = r.string()?;
             r.skip(4)?; // slot
@@ -129,10 +136,25 @@ fn read_materials(r: &mut Reader, version: u32) -> Result<Vec<Material>, AppErro
     Ok(materials)
 }
 
-fn read_node(r: &mut Reader, out: &mut Vec<UvMesh>, parent: Matrix) -> Result<(), AppError> {
+fn read_node(
+    r: &mut Reader,
+    out: &mut Vec<UvMesh>,
+    parent: Matrix,
+    depth: u32,
+) -> Result<(), AppError> {
     const DUMMY: u32 = 1;
     const MESH: u32 = 2;
     const SKINNED_MESH: u32 = 3;
+
+    // One stack frame per level, and a malformed file is free to describe a
+    // chain long enough to overflow it — which aborts the process rather than
+    // failing the command.
+    if depth > MAX_NODE_DEPTH {
+        return Err(AppError::Kn5Parse(format!(
+            "KN5 node tree deeper than {MAX_NODE_DEPTH} at byte {}",
+            r.pos
+        )));
+    }
 
     let class_id = r.u32()?;
     let name = r.string()?;
@@ -153,7 +175,7 @@ fn read_node(r: &mut Reader, out: &mut Vec<UvMesh>, parent: Matrix) -> Result<()
     }
 
     for _ in 0..children {
-        read_node(r, out, transform)?;
+        read_node(r, out, transform, depth + 1)?;
     }
     Ok(())
 }
@@ -174,14 +196,14 @@ fn read_mesh(
     r.skip(3)?; // cast shadows, visible, transparent
 
     if skinned {
-        let bone_count = r.u32()?;
+        let bone_count = r.counted(4 + 4 * 16)?;
         for _ in 0..bone_count {
             let _bone_name = r.string()?;
             r.skip(4 * 16)?; // inverse bind matrix
         }
     }
 
-    let vertex_count = r.u32()? as usize;
+    let vertex_count = r.counted(vertex_size)?;
     let mut uvs = Vec::with_capacity(vertex_count);
     let mut positions = Vec::with_capacity(vertex_count);
     for _ in 0..vertex_count {
@@ -192,7 +214,7 @@ fn read_mesh(
         r.skip(vertex_size - CONSUMED_PER_VERTEX)?; // tangent, and any skin weights
     }
 
-    let index_count = r.u32()? as usize;
+    let index_count = r.counted(2)?;
     let mut indices = Vec::with_capacity(index_count);
     for _ in 0..index_count {
         indices.push(r.u16()?);
@@ -292,11 +314,372 @@ impl<'a> Reader<'a> {
         String::from_utf8(bytes.to_vec()).map_err(|e| AppError::Kn5Parse(e.to_string()))
     }
 
+    /// A count read out of the file decides how much is reserved up front, so a
+    /// corrupt one asks for gigabytes and aborts on allocation failure instead
+    /// of returning an error the command could report. Nothing in the file can
+    /// be longer than the bytes left in it.
+    fn counted(&mut self, bytes_each: usize) -> Result<usize, AppError> {
+        let count = self.u32()? as usize;
+        let remaining = self.data.len().saturating_sub(self.pos);
+        if bytes_each > 0 && count > remaining / bytes_each {
+            return Err(AppError::Kn5Parse(format!(
+                "KN5 declares {count} items at byte {} with only {remaining} bytes left",
+                self.pos
+            )));
+        }
+        Ok(count)
+    }
+
     fn overflow(&self, wanted: usize) -> AppError {
         AppError::Kn5Parse(format!(
             "unexpected end of KN5: wanted {wanted} bytes at {} of {}",
             self.pos,
             self.data.len()
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Writes the byte layout `read_geometry` expects, so a test can describe a
+    /// KN5 by what it contains rather than by a fixture nobody can read.
+    #[derive(Default)]
+    struct Kn5Builder {
+        out: Vec<u8>,
+    }
+
+    impl Kn5Builder {
+        fn header(version: u32) -> Self {
+            let mut builder = Self::default();
+            builder.out.extend_from_slice(b"sc6969");
+            builder.u32(version);
+            if version > 5 {
+                builder.u32(0); // the extra word only versions past 5 carry
+            }
+            builder
+        }
+
+        fn u32(&mut self, value: u32) -> &mut Self {
+            self.out.extend_from_slice(&value.to_le_bytes());
+            self
+        }
+
+        fn u16(&mut self, value: u16) -> &mut Self {
+            self.out.extend_from_slice(&value.to_le_bytes());
+            self
+        }
+
+        fn f32(&mut self, value: f32) -> &mut Self {
+            self.out.extend_from_slice(&value.to_le_bytes());
+            self
+        }
+
+        fn bytes(&mut self, count: usize) -> &mut Self {
+            self.out.extend(std::iter::repeat_n(0u8, count));
+            self
+        }
+
+        fn string(&mut self, value: &str) -> &mut Self {
+            self.u32(value.len() as u32);
+            self.out.extend_from_slice(value.as_bytes());
+            self
+        }
+
+        /// `active` slots carry a name and a payload; an inactive one is the flag
+        /// and nothing else, and reading a name for it walks off the layout.
+        fn textures(&mut self, slots: &[(bool, &str)]) -> &mut Self {
+            self.u32(slots.len() as u32);
+            for (active, name) in slots {
+                if !active {
+                    self.u32(0);
+                    continue;
+                }
+                self.u32(1);
+                self.string(name);
+                self.u32(4);
+                self.bytes(4);
+            }
+            self
+        }
+
+        fn materials(&mut self, materials: &[(&str, &[(&str, &str)])], version: u32) -> &mut Self {
+            self.u32(materials.len() as u32);
+            for (name, textures) in materials {
+                self.string(name);
+                self.string("ksPerPixel");
+                self.bytes(2);
+                if version > 4 {
+                    self.bytes(4);
+                }
+                self.u32(0); // no properties
+                self.u32(textures.len() as u32);
+                for (sampler, file) in *textures {
+                    self.string(sampler);
+                    self.u32(0);
+                    self.string(file);
+                }
+            }
+            self
+        }
+
+        fn dummy(&mut self, name: &str, children: u32, offset: [f32; 3]) -> &mut Self {
+            self.u32(1);
+            self.string(name);
+            self.u32(children);
+            self.bytes(1);
+            for (row, value) in [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+                .into_iter()
+                .enumerate()
+            {
+                let _ = row;
+                self.f32(value);
+            }
+            self.f32(offset[0]).f32(offset[1]).f32(offset[2]).f32(1.0);
+            self
+        }
+
+        fn mesh(
+            &mut self,
+            name: &str,
+            skinned: bool,
+            material_id: u32,
+            vertices: &[([f32; 3], [f32; 2])],
+            indices: &[u16],
+        ) -> &mut Self {
+            self.u32(if skinned { 3 } else { 2 });
+            self.string(name);
+            self.u32(0); // no children
+            self.bytes(1);
+            self.bytes(3); // cast shadows, visible, transparent
+
+            if skinned {
+                self.u32(0); // no bones
+            }
+
+            let trailer = if skinned { 76 } else { 44 } - 4 * 8;
+            self.u32(vertices.len() as u32);
+            for (position, uv) in vertices {
+                for axis in position {
+                    self.f32(*axis);
+                }
+                self.bytes(4 * 3); // normal
+                self.f32(uv[0]).f32(uv[1]);
+                self.bytes(trailer);
+            }
+
+            self.u32(indices.len() as u32);
+            for index in indices {
+                self.u16(*index);
+            }
+
+            self.u32(material_id);
+            self.bytes(4); // layer
+            self.bytes(8); // lod in and out
+            if !skinned {
+                self.bytes(4 * 4); // bounding sphere
+                self.bytes(1); // is renderable
+            }
+            self
+        }
+
+        fn read(&self) -> Result<Kn5Geometry, AppError> {
+            let file = tempfile::NamedTempFile::new().unwrap();
+            std::fs::write(file.path(), &self.out).unwrap();
+            read_geometry(file.path())
+        }
+    }
+
+    fn one_triangle() -> Vec<([f32; 3], [f32; 2])> {
+        vec![
+            ([0.0, 0.0, 0.0], [0.0, 0.0]),
+            ([1.0, 0.0, 0.0], [1.0, 0.0]),
+            ([0.0, 1.0, 0.0], [0.0, 1.0]),
+        ]
+    }
+
+    fn car(version: u32) -> Kn5Builder {
+        let mut builder = Kn5Builder::header(version);
+        builder
+            .textures(&[(true, "body.dds")])
+            .materials(&[("paint", &[("txDiffuse", "body.dds")])], version);
+        builder
+    }
+
+    #[test]
+    fn a_mesh_keeps_its_uvs_and_its_material() {
+        let mut builder = car(5);
+        builder.mesh("BODY", false, 0, &one_triangle(), &[0, 1, 2]);
+        let geometry = builder.read().unwrap();
+
+        assert_eq!(geometry.meshes.len(), 1);
+        assert_eq!(geometry.meshes[0].name, "BODY");
+        assert_eq!(geometry.meshes[0].material_id, 0);
+        assert_eq!(geometry.meshes[0].uvs, vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+        assert_eq!(geometry.meshes[0].indices, vec![0, 1, 2]);
+    }
+
+    /// Versions past 5 open with an extra word before the texture table; reading
+    /// it as the table's own count walks the rest of the file off its layout.
+    #[test]
+    fn a_version_past_five_carries_an_extra_word_the_older_ones_do_not() {
+        let mut builder = car(6);
+        builder.mesh("BODY", false, 0, &one_triangle(), &[0, 1, 2]);
+
+        assert_eq!(builder.read().unwrap().meshes[0].name, "BODY");
+    }
+
+    /// An inactive slot is the flag alone, with no name and no payload after it.
+    #[test]
+    fn an_inactive_texture_slot_carries_nothing_to_skip() {
+        let version = 5;
+        let mut builder = Kn5Builder::header(version);
+        builder
+            .textures(&[(false, ""), (true, "body.dds"), (false, "")])
+            .materials(&[("paint", &[("txDiffuse", "body.dds")])], version)
+            .mesh("BODY", false, 0, &one_triangle(), &[0, 1, 2]);
+
+        assert_eq!(builder.read().unwrap().materials.len(), 1);
+    }
+
+    /// A skinned vertex carries bone weights, which widens it from 44 bytes to
+    /// 76 — the UV pair sits at the same offset, everything after it does not.
+    #[test]
+    fn a_skinned_mesh_reads_on_the_wider_vertex_stride() {
+        let mut builder = car(5);
+        builder.mesh("DRIVER", true, 0, &one_triangle(), &[0, 1, 2]);
+        let geometry = builder.read().unwrap();
+
+        assert_eq!(geometry.meshes[0].uvs, vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+        assert_eq!(geometry.meshes[0].material_id, 0);
+    }
+
+    /// A KN5 places a wheel or a wing by its node, not by its vertices, so a
+    /// mesh read without its parents' transforms sits at the centre of the car.
+    #[test]
+    fn a_node_moves_the_meshes_beneath_it() {
+        let mut builder = car(5);
+        builder
+            .dummy("root", 1, [10.0, 0.0, 0.0])
+            .mesh("WHEEL", false, 0, &one_triangle(), &[0, 1, 2]);
+        let geometry = builder.read().unwrap();
+
+        assert_eq!(geometry.meshes[0].positions[0], [10.0, 0.0, 0.0]);
+        assert_eq!(geometry.meshes[0].positions[1], [11.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn nested_nodes_compose_their_transforms() {
+        let mut builder = car(5);
+        builder
+            .dummy("root", 1, [10.0, 0.0, 0.0])
+            .dummy("axle", 1, [0.0, 5.0, 0.0])
+            .mesh("WHEEL", false, 0, &one_triangle(), &[0, 1, 2]);
+
+        assert_eq!(
+            builder.read().unwrap().meshes[0].positions[0],
+            [10.0, 5.0, 0.0]
+        );
+    }
+
+    #[test]
+    fn a_sibling_is_not_moved_by_the_node_before_it() {
+        let mut builder = car(5);
+        builder.dummy("root", 2, [0.0, 0.0, 0.0]);
+        builder
+            .dummy("axle", 1, [0.0, 5.0, 0.0])
+            .mesh("WHEEL", false, 0, &one_triangle(), &[0, 1, 2]);
+        builder.mesh("BODY", false, 0, &one_triangle(), &[0, 1, 2]);
+        let geometry = builder.read().unwrap();
+
+        assert_eq!(geometry.meshes[0].positions[0], [0.0, 5.0, 0.0]);
+        assert_eq!(geometry.meshes[1].positions[0], [0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn meshes_using_finds_a_texture_whatever_case_the_material_names_it_in() {
+        let version = 5;
+        let mut builder = Kn5Builder::header(version);
+        builder
+            .textures(&[(true, "body.dds")])
+            .materials(
+                &[
+                    ("paint", &[("txDiffuse", "Body.DDS")]),
+                    ("glass", &[("txDiffuse", "glass.dds")]),
+                ],
+                version,
+            )
+            .dummy("root", 2, [0.0, 0.0, 0.0]);
+        builder.mesh("BODY", false, 0, &one_triangle(), &[0, 1, 2]);
+        builder.mesh("GLASS", false, 1, &one_triangle(), &[0, 1, 2]);
+        let geometry = builder.read().unwrap();
+
+        let found = geometry.meshes_using("body.dds");
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].name, "BODY");
+    }
+
+    #[test]
+    fn meshes_using_finds_nothing_for_a_texture_no_material_names() {
+        let mut builder = car(5);
+        builder.mesh("BODY", false, 0, &one_triangle(), &[0, 1, 2]);
+
+        assert!(builder.read().unwrap().meshes_using("absent.dds").is_empty());
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_kn5_is_refused() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), b"not a kn5 at all").unwrap();
+
+        assert!(read_geometry(file.path()).is_err());
+    }
+
+    #[test]
+    fn an_unknown_node_class_is_refused_rather_than_guessed_at() {
+        let mut builder = car(5);
+        builder.u32(99).string("mystery").u32(0).bytes(1);
+
+        assert!(builder.read().is_err());
+    }
+
+    /// A corrupt count would otherwise reserve gigabytes and abort the process
+    /// on allocation failure, where an error can still be reported.
+    #[test]
+    fn a_count_longer_than_the_file_is_refused_before_it_is_reserved() {
+        let version = 5;
+        let mut builder = Kn5Builder::header(version);
+        builder.textures(&[]).u32(u32::MAX); // material count
+
+        assert!(builder.read().is_err());
+    }
+
+    #[test]
+    fn a_vertex_count_longer_than_the_file_is_refused() {
+        let mut builder = car(5);
+        builder
+            .u32(2)
+            .string("BODY")
+            .u32(0)
+            .bytes(1)
+            .bytes(3)
+            .u32(u32::MAX);
+
+        assert!(builder.read().is_err());
+    }
+
+    /// One stack frame per level, and the tree's depth comes out of the file.
+    #[test]
+    fn a_node_tree_deeper_than_the_bound_is_refused_rather_than_recursed_into() {
+        let mut builder = car(5);
+        for level in 0..(MAX_NODE_DEPTH + 2) {
+            builder.dummy(&format!("level_{level}"), 1, [0.0, 0.0, 0.0]);
+        }
+
+        let Err(error) = builder.read() else {
+            panic!("a tree past the bound must not be walked");
+        };
+        assert!(error.to_string().contains("deeper than"), "{error}");
     }
 }
