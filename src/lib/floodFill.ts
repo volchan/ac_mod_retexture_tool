@@ -191,6 +191,10 @@ function crop(
 /// Throws rather than defaulting a channel it cannot read: every `|| 0` here
 /// turned a typo or a truncated colour into a black fill that looked like a
 /// deliberate one, and the only way to find out was to paint it.
+///
+/// Render-time callers may rely on that: a stored document is checked against
+/// `isHexColor` by `parseDocument` in `useLiveryPersistence.ts` before a layer
+/// ever reaches the canvas, so a throw here means a bug rather than bad input.
 export function parseHexColor(hex: string): FillColor {
   const value = hex.replace('#', '')
   const expanded =
