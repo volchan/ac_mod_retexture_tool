@@ -97,6 +97,17 @@ impl Kn5File {
             .collect()
     }
 
+    #[cfg(test)]
+    pub fn empty() -> Self {
+        Self {
+            path: String::new(),
+            version: 5,
+            textures: Vec::new(),
+            raw: Vec::new(),
+            texture_section_end: 0,
+        }
+    }
+
     pub fn get_texture_data(&self, name: &str) -> Option<&[u8]> {
         self.textures
             .iter()

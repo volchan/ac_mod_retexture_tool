@@ -299,5 +299,5 @@ export interface MaterialGroup {
 
 export interface LiveryTexture {
   name: string
-  dataUrl: string
+  url: string
 }

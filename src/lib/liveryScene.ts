@@ -28,7 +28,7 @@ export function createLiveryScene(
 ): LiveryScene {
   const geometry = buildGeometry(model.mesh)
   const loaded: Texture[] = model.textures.map((entry) =>
-    loadTexture(entry.dataUrl, () => onTextureError?.(entry.name)),
+    loadTexture(entry.url, () => onTextureError?.(entry.name)),
   )
 
   const materials = model.groups.map((group, index) => {
@@ -91,8 +91,8 @@ function materialFor(
   })
 }
 
-function loadTexture(dataUrl: string, onError: () => void): Texture {
-  const texture = new TextureLoader().load(dataUrl, undefined, undefined, onError)
+function loadTexture(url: string, onError: () => void): Texture {
+  const texture = new TextureLoader().load(url, undefined, undefined, onError)
   texture.flipY = false
   return texture
 }

@@ -2,9 +2,9 @@ import { ref, shallowRef } from 'vue'
 import { getLiveryModel } from '@/lib/tauri'
 import type { LiveryModel, Texture } from '@/types/index'
 
-/// Big enough to read a sponsor decal on screen, small enough that forty of them
-/// cross the IPC boundary in seconds rather than minutes.
-const MAX_TEXTURE = 1024
+/// The ceiling is video memory now that the bytes no longer cross the IPC
+/// boundary: a 2048 texture costs 16 MB decoded, and a GT names a few dozen.
+const MAX_TEXTURE = 2048
 
 const isOpen = ref(false)
 const isLoading = ref(false)

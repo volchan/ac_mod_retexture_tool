@@ -6,6 +6,8 @@ pub mod parsers;
 
 use std::sync::{atomic::AtomicBool, Arc};
 
+use tauri::Manager;
+
 pub struct DecodeCancel(pub Arc<AtomicBool>);
 pub use commands::texture::Kn5Cache;
 
@@ -19,6 +21,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(DecodeCancel(Arc::new(AtomicBool::new(false))))
         .manage(Kn5Cache::default())
+        .manage(commands::livery_model::LiveryTextureState::default())
+        .register_asynchronous_uri_scheme_protocol(
+            commands::livery_model::LIVERY_SCHEME,
+            |ctx, request, responder| {
+                let app = ctx.app_handle().clone();
+                let path = request.uri().path().to_string();
+                tauri::async_runtime::spawn_blocking(move || {
+                    let state = app.state::<commands::livery_model::LiveryTextureState>();
+                    responder.respond(commands::livery_model::serve_texture(&state, &path));
+                });
+            },
+        )
         .invoke_handler(tauri::generate_handler![
             commands::scan::scan_mod_folder,
             commands::decode::decode_mod_textures,

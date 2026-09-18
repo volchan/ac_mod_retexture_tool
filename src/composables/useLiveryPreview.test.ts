@@ -44,7 +44,7 @@ describe('useLiveryPreview', () => {
   it('sends only the textures a replacement is queued for', async () => {
     await useLiveryPreview().open('/cars/gtm', '01_red', [plain, queued])
 
-    expect(getLiveryModel).toHaveBeenCalledWith('/cars/gtm', '01_red', 1024, [
+    expect(getLiveryModel).toHaveBeenCalledWith('/cars/gtm', '01_red', 2048, [
       ['Decals_EXT.dds', '/tmp/decals.png'],
     ])
   })

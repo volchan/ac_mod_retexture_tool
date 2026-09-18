@@ -107,14 +107,19 @@ pub fn encode_from_image(
 }
 
 pub fn generate_thumbnail(data: &[u8], max_size: u32) -> Result<String, crate::errors::AppError> {
-    let img = decode_to_image(data)?;
-    let resized = img.thumbnail(max_size, max_size);
+    let b64 = general_purpose::STANDARD.encode(thumbnail_png(data, max_size)?);
+    Ok(format!("data:image/png;base64,{b64}"))
+}
+
+/// The same pixels as `generate_thumbnail`, still as bytes: base64 costs a third
+/// more again, which only an `<img src>` is worth paying.
+pub fn thumbnail_png(data: &[u8], max_size: u32) -> Result<Vec<u8>, crate::errors::AppError> {
+    let resized = decode_to_image(data)?.thumbnail(max_size, max_size);
     let mut png_bytes: Vec<u8> = Vec::new();
     resized
         .write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png)
         .map_err(|e| crate::errors::AppError::ImageEncode(e.to_string()))?;
-    let b64 = general_purpose::STANDARD.encode(&png_bytes);
-    Ok(format!("data:image/png;base64,{b64}"))
+    Ok(png_bytes)
 }
 
 pub fn detect_format(data: &[u8]) -> String {
