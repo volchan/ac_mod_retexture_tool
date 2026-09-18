@@ -66,6 +66,12 @@ fn edits_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
     Ok(base.join(EDITS_DIR))
 }
 
+/// How much of the key the readable part may keep. A texture deep inside a mod
+/// has a long key, and the stem also carries a digest and an extension: most
+/// filesystems refuse a name past 255 bytes, and the write fails with a raw OS
+/// error rather than anything a user could act on.
+const READABLE_STEM_LIMIT: usize = 120;
+
 /// Texture keys carry path separators and extensions, none of which survive as a
 /// filename, so everything outside a safe alphabet collapses to an underscore.
 /// Builds the stem the edit's PNG and document share. The readable part is only
@@ -76,6 +82,7 @@ fn sanitize(key: &str) -> String {
     let readable: String = key
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .take(READABLE_STEM_LIMIT)
         .collect();
     format!("{readable}_{:016x}", digest(key))
 }
@@ -115,6 +122,27 @@ mod tests {
     #[test]
     fn sanitize_separates_keys_that_differ_only_by_punctuation() {
         assert_ne!(sanitize("foo-bar.dds"), sanitize("foo_bar.dds"));
+    }
+
+    /// Long keys are ordinary: a texture nested in a mod carries its whole path.
+    /// Past the filesystem's limit the write fails with a raw OS error.
+    #[test]
+    fn sanitize_stays_within_what_a_filesystem_accepts() {
+        let stem = sanitize(&format!("{}/body.dds", "nested".repeat(80)));
+
+        assert!(stem.len() < 200, "stem was {} bytes", stem.len());
+    }
+
+    /// Truncating the readable half would collide on two long keys sharing a
+    /// prefix if the digest were not taken over the whole key.
+    #[test]
+    fn sanitize_separates_long_keys_that_share_a_prefix() {
+        let prefix = "nested".repeat(80);
+
+        assert_ne!(
+            sanitize(&format!("{prefix}/body.dds")),
+            sanitize(&format!("{prefix}/glass.dds"))
+        );
     }
 
     #[test]
