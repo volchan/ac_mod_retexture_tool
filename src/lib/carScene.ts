@@ -88,9 +88,15 @@ export function createCarScene(canvas: HTMLCanvasElement, data: CarMeshData): Ca
       pointer.set(x * 2 - 1, 1 - y * 2)
       raycaster.setFromCamera(pointer, camera)
       const [hit] = raycaster.intersectObject(car)
-      marker.visible = hit !== undefined
-      if (!hit?.uv || hit.faceIndex === undefined || hit.faceIndex === null) return null
+      // Shown only once the hit has everything the caller needs: a mesh without
+      // UVs would otherwise leave the marker standing wherever it last landed,
+      // pointing at a panel the cursor is no longer over.
+      if (!hit?.uv || hit.faceIndex === undefined || hit.faceIndex === null) {
+        marker.visible = false
+        return null
+      }
 
+      marker.visible = true
       marker.position.copy(hit.point)
       return { u: hit.uv.x, v: hit.uv.y, part: partAt(data, hit.faceIndex) }
     },
@@ -158,11 +164,17 @@ function buildUvIndex(uvs: Float32Array, triangles: Uint32Array): UvIndex {
 
 function cellRange(minU: number, maxU: number, minV: number, maxV: number): number[] {
   const keys: number[] = []
-  const clamp = (value: number) => Math.min(UV_CELLS - 1, Math.max(0, Math.floor(value * UV_CELLS)))
-  for (let cu = clamp(minU); cu <= clamp(maxU); cu += 1) {
-    for (let cv = clamp(minV); cv <= clamp(maxV); cv += 1) keys.push(cv * UV_CELLS + cu)
+  for (let cu = cellOf(minU); cu <= cellOf(maxU); cu += 1) {
+    for (let cv = cellOf(minV); cv <= cellOf(maxV); cv += 1) keys.push(cv * UV_CELLS + cu)
   }
   return keys
+}
+
+/// Shared by the two sides of the index so a lookup lands in the same cell the
+/// build filled. A texture coordinate of exactly 1, or one outside the sheet on
+/// a tiling UV, addresses a cell nothing was ever bucketed into.
+function cellOf(value: number): number {
+  return Math.min(UV_CELLS - 1, Math.max(0, Math.floor(value * UV_CELLS)))
 }
 
 /// The point of the car wearing texture coordinate `(u, v)`, found by locating
@@ -174,7 +186,7 @@ function locate(
   u: number,
   v: number,
 ): [number, number, number] | null {
-  const cell = Math.floor(v * UV_CELLS) * UV_CELLS + Math.floor(u * UV_CELLS)
+  const cell = cellOf(v) * UV_CELLS + cellOf(u)
   for (const face of index.cells.get(cell) ?? []) {
     const [a, b, c] = [
       index.triangles[face * 3],
