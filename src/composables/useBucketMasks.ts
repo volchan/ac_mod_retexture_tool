@@ -29,8 +29,13 @@ export interface BucketMask {
 export function useBucketMasks() {
   const { image: template } = useUvTemplate()
 
+  /// The seams are what a fill stops at, so a mask filled without them describes
+  /// a different region than the same layer filled with them. Toggling the UV
+  /// overlay has to miss the cache rather than redraw the pre-barrier shape.
+  const walls = () => (template.value ? 'uv' : 'raw')
+
   function maskFor(layer: BucketLayer, base: HTMLImageElement | null): BucketMask | null {
-    const key = maskKey(layer)
+    const key = `${maskKey(layer)}:${walls()}`
     const cached = masks.get(key)
     if (cached) return cached
 
@@ -51,7 +56,7 @@ export function useBucketMasks() {
     color: string,
     base: HTMLImageElement | null,
   ): BucketMask | null {
-    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${color}`
+    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${color}:${walls()}`
     if (hovered?.key === key) return hovered.mask
 
     const mask = buildMask(point, tolerance, color, base, template.value)

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BucketLayer } from '@/types/index'
 import { useBucketMasks } from './useBucketMasks'
+import { useUvTemplate } from './useUvTemplate'
 
 function bucket(id: string, over: Partial<BucketLayer> = {}): BucketLayer {
   return {
@@ -45,6 +46,7 @@ describe('useBucketMasks', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     useBucketMasks().clearMasks()
+    useUvTemplate().image.value = null
   })
 
   it('reuses the mask when nothing about the fill changed', () => {
@@ -116,6 +118,31 @@ describe('useBucketMasks', () => {
       previewMask({ x: i, y: i }, 32, '#ff0000', base)
     }
     expect(maskFor(bucket('a'), base)).toBe(layer)
+  })
+
+  /// The seams are what the fill stops at, so a mask filled without them covers
+  /// a different region than the same layer filled with them.
+  it('refills when the UV seams are switched on', () => {
+    stubCanvas()
+    const { maskFor } = useBucketMasks()
+    const base = baseImage()
+    const flat = maskFor(bucket('a'), base)
+
+    useUvTemplate().image.value = baseImage()
+    expect(maskFor(bucket('a'), base)).not.toBe(flat)
+
+    useUvTemplate().image.value = null
+    expect(maskFor(bucket('a'), base)).toBe(flat)
+  })
+
+  it('refills the hover preview when the UV seams are switched on', () => {
+    stubCanvas()
+    const { previewMask } = useBucketMasks()
+    const base = baseImage()
+    const flat = previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)
+
+    useUvTemplate().image.value = baseImage()
+    expect(previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)).not.toBe(flat)
   })
 
   it('has no hover preview without a base texture', () => {
