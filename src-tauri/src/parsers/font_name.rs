@@ -263,10 +263,7 @@ mod tests {
     /// A file name is not the family name: one collection holds a dozen.
     #[test]
     fn a_collection_gives_up_every_family_it_holds() {
-        let bytes = collection(&[
-            &[(WINDOWS, "Helvetica Neue")],
-            &[(WINDOWS, "Helvetica")],
-        ]);
+        let bytes = collection(&[&[(WINDOWS, "Helvetica Neue")], &[(WINDOWS, "Helvetica")]]);
 
         assert_eq!(names_of(&bytes), vec!["Helvetica Neue", "Helvetica"]);
     }

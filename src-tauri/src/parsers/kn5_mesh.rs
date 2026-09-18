@@ -516,7 +516,10 @@ mod tests {
         assert_eq!(geometry.meshes.len(), 1);
         assert_eq!(geometry.meshes[0].name, "BODY");
         assert_eq!(geometry.meshes[0].material_id, 0);
-        assert_eq!(geometry.meshes[0].uvs, vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+        assert_eq!(
+            geometry.meshes[0].uvs,
+            vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
+        );
         assert_eq!(geometry.meshes[0].indices, vec![0, 1, 2]);
     }
 
@@ -551,7 +554,10 @@ mod tests {
         builder.mesh("DRIVER", true, 0, &one_triangle(), &[0, 1, 2]);
         let geometry = builder.read().unwrap();
 
-        assert_eq!(geometry.meshes[0].uvs, vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+        assert_eq!(
+            geometry.meshes[0].uvs,
+            vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
+        );
         assert_eq!(geometry.meshes[0].material_id, 0);
     }
 
@@ -560,9 +566,13 @@ mod tests {
     #[test]
     fn a_node_moves_the_meshes_beneath_it() {
         let mut builder = car(5);
-        builder
-            .dummy("root", 1, [10.0, 0.0, 0.0])
-            .mesh("WHEEL", false, 0, &one_triangle(), &[0, 1, 2]);
+        builder.dummy("root", 1, [10.0, 0.0, 0.0]).mesh(
+            "WHEEL",
+            false,
+            0,
+            &one_triangle(),
+            &[0, 1, 2],
+        );
         let geometry = builder.read().unwrap();
 
         assert_eq!(geometry.meshes[0].positions[0], [10.0, 0.0, 0.0]);
@@ -587,9 +597,13 @@ mod tests {
     fn a_sibling_is_not_moved_by_the_node_before_it() {
         let mut builder = car(5);
         builder.dummy("root", 2, [0.0, 0.0, 0.0]);
-        builder
-            .dummy("axle", 1, [0.0, 5.0, 0.0])
-            .mesh("WHEEL", false, 0, &one_triangle(), &[0, 1, 2]);
+        builder.dummy("axle", 1, [0.0, 5.0, 0.0]).mesh(
+            "WHEEL",
+            false,
+            0,
+            &one_triangle(),
+            &[0, 1, 2],
+        );
         builder.mesh("BODY", false, 0, &one_triangle(), &[0, 1, 2]);
         let geometry = builder.read().unwrap();
 
@@ -625,7 +639,11 @@ mod tests {
         let mut builder = car(5);
         builder.mesh("BODY", false, 0, &one_triangle(), &[0, 1, 2]);
 
-        assert!(builder.read().unwrap().meshes_using("absent.dds").is_empty());
+        assert!(builder
+            .read()
+            .unwrap()
+            .meshes_using("absent.dds")
+            .is_empty());
     }
 
     #[test]
