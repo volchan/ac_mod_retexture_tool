@@ -174,3 +174,165 @@ fn is_secondary_model(path: &Path) -> bool {
     let lower = name.to_ascii_lowercase();
     lower == "collider" || lower.contains("_lod")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mesh(name: &str, positions: &[[f32; 3]], uvs: &[[f32; 2]], indices: &[u16]) -> UvMesh {
+        UvMesh {
+            name: name.to_string(),
+            material_id: 0,
+            uvs: uvs.to_vec(),
+            positions: positions.to_vec(),
+            indices: indices.to_vec(),
+        }
+    }
+
+    fn triangle(name: &str) -> UvMesh {
+        mesh(
+            name,
+            &[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            &[[0.0, 0.0], [1.0, 0.0], [0.0, -1.0]],
+            &[0, 1, 2],
+        )
+    }
+
+    fn floats(encoded: &str) -> Vec<f32> {
+        general_purpose::STANDARD
+            .decode(encoded)
+            .unwrap()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| f32::from_le_bytes(*word))
+            .collect()
+    }
+
+    fn u32s(encoded: &str) -> Vec<u32> {
+        general_purpose::STANDARD
+            .decode(encoded)
+            .unwrap()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| u32::from_le_bytes(*word))
+            .collect()
+    }
+
+    fn write_kn5(dir: &Path, name: &str, bytes: usize) -> PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, vec![0u8; bytes]).unwrap();
+        path
+    }
+
+    /// Both meshes go into one buffer, so the second one's indices have to move
+    /// past the first one's vertices or it draws over the first panel.
+    #[test]
+    fn a_second_mesh_indexes_past_the_vertices_already_written() {
+        let packed = pack(&[&triangle("BODY"), &triangle("DOOR")]);
+
+        assert_eq!(u32s(&packed.indices), vec![0, 1, 2, 3, 4, 5]);
+        assert_eq!(packed.vertex_count, 6);
+        assert_eq!(packed.triangle_count, 2);
+    }
+
+    /// KN5 points V up and a GPU samples bottom-up, so the flip is an offset
+    /// rather than a negation — `uv_template::to_pixel` reads the same V against
+    /// a row index instead.
+    #[test]
+    fn v_is_offset_by_one_while_u_is_left_alone() {
+        let packed = pack(&[&triangle("BODY")]);
+
+        assert_eq!(floats(&packed.uvs), vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn positions_are_written_in_car_space_untouched() {
+        let packed = pack(&[&triangle("BODY")]);
+
+        assert_eq!(
+            floats(&packed.positions),
+            vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        );
+    }
+
+    /// The viewer names the part under the cursor from these, and counts them in
+    /// triangles rather than indices.
+    #[test]
+    fn each_mesh_keeps_its_own_range_of_the_buffer() {
+        let two = mesh("GLASS", &[[0.0; 3]; 4], &[[0.0; 2]; 4], &[0, 1, 2, 0, 2, 3]);
+        let packed = pack(&[&triangle("BODY"), &two]);
+
+        assert_eq!(packed.parts.len(), 2);
+        assert_eq!((packed.parts[0].start, packed.parts[0].count), (0, 1));
+        assert_eq!((packed.parts[1].start, packed.parts[1].count), (1, 2));
+        assert_eq!(packed.parts[1].name, "GLASS");
+    }
+
+    #[test]
+    fn packing_nothing_produces_an_empty_buffer_set() {
+        let packed = pack(&[]);
+
+        assert_eq!((packed.vertex_count, packed.triangle_count), (0, 0));
+        assert!(packed.parts.is_empty());
+        assert!(packed.positions.is_empty());
+    }
+
+    /// A car folder holds the detailed model beside its LODs and its collision
+    /// hull, and only the first carries the full UV layout.
+    #[test]
+    fn the_largest_model_that_is_not_a_lod_or_a_collider_wins() {
+        let dir = tempfile::tempdir().unwrap();
+        write_kn5(dir.path(), "collider.kn5", 9_000);
+        write_kn5(dir.path(), "car_lod_b.kn5", 8_000);
+        let main = write_kn5(dir.path(), "car.kn5", 400);
+        write_kn5(dir.path(), "extra.kn5", 200);
+
+        assert_eq!(main_kn5(dir.path()).unwrap(), main);
+    }
+
+    #[test]
+    fn a_model_is_found_whatever_case_its_extension_carries() {
+        let dir = tempfile::tempdir().unwrap();
+        let main = write_kn5(dir.path(), "car.KN5", 100);
+
+        assert_eq!(main_kn5(dir.path()).unwrap(), main);
+    }
+
+    #[test]
+    fn a_folder_holding_no_model_is_an_error_rather_than_a_guess() {
+        let dir = tempfile::tempdir().unwrap();
+        write_kn5(dir.path(), "ui_car.json", 100);
+
+        assert!(main_kn5(dir.path()).is_err());
+    }
+
+    #[test]
+    fn a_folder_holding_only_lods_and_a_collider_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        write_kn5(dir.path(), "collider.kn5", 100);
+        write_kn5(dir.path(), "car_LOD_B.kn5", 900);
+
+        assert!(main_kn5(dir.path()).is_err());
+    }
+
+    #[test]
+    fn lods_and_colliders_are_recognised_whatever_case_they_carry() {
+        for name in [
+            "collider.kn5",
+            "COLLIDER.kn5",
+            "car_lod_b.kn5",
+            "Car_LOD_D.kn5",
+        ] {
+            assert!(is_secondary_model(Path::new(name)), "{name}");
+        }
+    }
+
+    #[test]
+    fn the_detailed_model_is_not_mistaken_for_a_secondary_one() {
+        for name in ["car.kn5", "rss_gtm_lanzo.kn5", "body_loaded.kn5"] {
+            assert!(!is_secondary_model(Path::new(name)), "{name}");
+        }
+    }
+}
