@@ -29,7 +29,8 @@ const mirrorY = ref(false)
 /// Creating a layer needs the document's size to place it, so every factory here
 /// centres new content on the texture rather than at the origin.
 export function useEditorTools() {
-  const { document, addLayer, layers, selectedLayer, select } = useLiveryDocument()
+  const { document, addLayer, layers, selectedLayer, select, holdEdits, releaseEdits } =
+    useLiveryDocument()
   const { load } = useImageAssets()
 
   function setTool(next: EditorTool) {
@@ -143,7 +144,11 @@ export function useEditorTools() {
   /// repaint one panel of a livery. The tool stays armed: filling a car usually
   /// means clicking several panels in a row.
   function addBucketLayer(point: { x: number; y: number }) {
+    // One click is one undo step, however many axes it was mirrored across —
+    // the way `mirrored(stroke)` already lands a mirrored brush stroke.
+    holdEdits()
     for (const seed of mirroredPoints(point)) addSingleBucket(seed)
+    releaseEdits()
   }
 
   function addSingleBucket(point: { x: number; y: number }) {
