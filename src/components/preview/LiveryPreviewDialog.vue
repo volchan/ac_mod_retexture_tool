@@ -8,6 +8,10 @@ import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { useLiveryPreview } from '@/composables/useLiveryPreview'
 import { createLiveryScene, type LiveryScene } from '@/lib/liveryScene'
 
+/// Long enough for the rest of a failing skin to arrive, short enough that the
+/// message still lands while the user is looking at the black panels.
+const TEXTURE_ERROR_GRACE_MS = 250
+
 const { isOpen, isLoading, error, model, close } = useLiveryPreview()
 
 const host = ref<HTMLElement | null>(null)
@@ -34,11 +38,33 @@ watch([width, height], ([w, h]) => scene?.resize(w, h))
 
 /// A texture that will not decode leaves its panels black, which reads as a paint
 /// choice rather than a failure unless something says otherwise.
+///
+/// The loads all fail within the same frame or two, and a car whose whole skin is
+/// unreadable names sixty of them: one toast each buries the screen, so they are
+/// gathered and reported together.
+const failed = new Set<string>()
+let pendingReport: ReturnType<typeof setTimeout> | null = null
+
 function reportTextureError(name: string) {
-  toast.error(`Could not draw ${name}`)
+  failed.add(name)
+  if (pendingReport) return
+  pendingReport = setTimeout(flushTextureErrors, TEXTURE_ERROR_GRACE_MS)
+}
+
+function flushTextureErrors() {
+  pendingReport = null
+  const names = [...failed]
+  failed.clear()
+  if (names.length === 0) return
+  if (names.length === 1) {
+    toast.error(`Could not draw ${names[0]}`)
+    return
+  }
+  toast.error(`Could not draw ${names.length} textures`, { description: names.join(', ') })
 }
 
 onBeforeUnmount(() => {
+  if (pendingReport) clearTimeout(pendingReport)
   pause()
   scene?.dispose()
   scene = null

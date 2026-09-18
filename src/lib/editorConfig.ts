@@ -159,10 +159,22 @@ export function textBounds(value: string, fontSize: number, fontFamily: string) 
   const height = fontSize
   // Wide on purpose: a short path loses glyphs, a long one just bends gentler.
   const guessed = value.length * fontSize * 0.6
-  const context = globalThis.document?.createElement('canvas').getContext('2d')
+  const context = measuringContext()
   if (!context) return { width: guessed, height }
   context.font = `${fontSize}px ${fontFamily}`
   return { width: context.measureText(value).width || guessed, height }
+}
+
+/// Every text layer measures itself on every render, and a fresh canvas and 2D
+/// context each time is the expensive part of that. One context measures them
+/// all — nothing is ever drawn into it.
+let measuring: CanvasRenderingContext2D | null | undefined
+
+function measuringContext() {
+  if (measuring === undefined) {
+    measuring = globalThis.document?.createElement('canvas').getContext('2d') ?? null
+  }
+  return measuring
 }
 
 function textConfig(layer: TextLayer, context: LayerRenderContext) {

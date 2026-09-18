@@ -79,8 +79,9 @@ function materialFor(
   group: LiveryModel['groups'][number],
   loaded: Texture[],
 ): MeshStandardMaterial {
-  const diffuse = group.diffuse === null ? null : (loaded[group.diffuse] ?? null)
-  const normal = group.normal === null ? null : (loaded[group.normal] ?? null)
+  // -1 indexes nothing, so a group naming no texture falls through the lookup.
+  const diffuse = loaded[group.diffuse ?? -1] ?? null
+  const normal = loaded[group.normal ?? -1] ?? null
 
   if (diffuse) diffuse.colorSpace = SRGBColorSpace
   return new MeshStandardMaterial({

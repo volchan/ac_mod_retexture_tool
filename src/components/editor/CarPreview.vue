@@ -30,7 +30,10 @@ let scene: CarScene | null = null
 
 const { pause, resume } = useRafFn(() => scene?.render(), { immediate: false })
 
-watch(canvas, (element) => {
+// The mesh belongs to a car, and a scene built for one draws the wrong body for
+// the next. `LiveryEditor` happens to reset the preview on a texture change, but
+// that is its business, not a promise this component can rest on.
+watch([canvas, () => props.mesh], ([element]) => {
   scene?.dispose()
   scene = null
   if (!element) {
