@@ -17,8 +17,26 @@ import { Button } from '@/components/ui/button'
 import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import type { EditorLayer } from '@/types/index'
 
-const { layers, selectedId, selectedLayer, removeLayer, moveLayer, updateLayer, select } =
-  useLiveryDocument()
+const {
+  layers,
+  selectedId,
+  selectedLayer,
+  removeLayer,
+  moveLayer,
+  updateLayer,
+  select,
+  holdEdits,
+  releaseEdits,
+} = useLiveryDocument()
+
+/// Dragging the opacity slider is one gesture, not one undo entry per pixel of
+/// travel. Pointer covers the drag, focus covers the arrow keys.
+const continuous = {
+  onPointerdown: holdEdits,
+  onPointerup: releaseEdits,
+  onFocus: holdEdits,
+  onBlur: releaseEdits,
+}
 
 const LAYER_ICONS = {
   image: ImageIcon,
@@ -44,6 +62,7 @@ function toggleVisible(layer: EditorLayer) {
 
 defineExpose({
   Button,
+  continuous,
   LayerProperties,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -127,7 +146,14 @@ defineExpose({
         Opacity
         <span class="tabular-nums">{{ opacityPercent }}%</span>
       </label>
-      <input v-model.number="opacityPercent" type="range" min="0" max="100" class="w-full" />
+      <input
+        v-model.number="opacityPercent"
+        v-bind="continuous"
+        type="range"
+        min="0"
+        max="100"
+        class="w-full"
+      />
     </div>
 
     <LayerProperties />

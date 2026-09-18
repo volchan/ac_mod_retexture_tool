@@ -6,7 +6,7 @@ import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import { useSystemFonts } from '@/composables/useSystemFonts'
 import type { BlendMode, BucketLayer, ShapeLayer, TextLayer } from '@/types/index'
 
-const { selectedLayer, updateLayer } = useLiveryDocument()
+const { selectedLayer, updateLayer, holdEdits, releaseEdits } = useLiveryDocument()
 
 const BLEND_MODES: BlendMode[] = ['source-over', 'multiply', 'screen', 'overlay']
 
@@ -22,6 +22,17 @@ const placed = computed(() => {
   if (layer?.type === 'image' || layer?.type === 'text' || layer?.type === 'shape') return layer
   return null
 })
+
+/// A range or a text field fires on every tick of travel. Unheld, each tick is
+/// its own undo entry — and for a fill, its own flood fill of the whole sheet —
+/// so undo walks back a slider pixel by pixel instead of reaching the last real
+/// change. Pointer covers dragging, focus covers the keyboard.
+const continuous = {
+  onPointerdown: holdEdits,
+  onPointerup: releaseEdits,
+  onFocus: holdEdits,
+  onBlur: releaseEdits,
+}
 
 function mirror(axis: 'x' | 'y') {
   const layer = placed.value
@@ -44,6 +55,7 @@ function patchShape(patch: Partial<ShapeLayer>) {
 
 defineExpose({
   BLEND_MODES,
+  continuous,
   fonts,
   Button,
   FlipHorizontal2Icon,
@@ -84,6 +96,7 @@ defineExpose({
         </option>
       </select>
       <input
+        v-bind="continuous"
         :value="text.value"
         class="w-full rounded border bg-background px-2 py-1"
         placeholder="Text"
@@ -91,6 +104,7 @@ defineExpose({
       />
       <div class="flex items-center gap-2">
         <input
+          v-bind="continuous"
           :value="text.fontSize"
           type="number"
           min="4"
@@ -99,6 +113,7 @@ defineExpose({
           @input="patchText({ fontSize: Number(($event.target as HTMLInputElement).value) })"
         />
         <input
+          v-bind="continuous"
           :value="text.fill"
           type="color"
           class="size-7 cursor-pointer rounded border bg-transparent"
@@ -106,6 +121,7 @@ defineExpose({
           @input="patchText({ fill: ($event.target as HTMLInputElement).value })"
         />
         <input
+          v-bind="continuous"
           :value="text.stroke"
           type="color"
           class="size-7 cursor-pointer rounded border bg-transparent"
@@ -113,6 +129,7 @@ defineExpose({
           @input="patchText({ stroke: ($event.target as HTMLInputElement).value })"
         />
         <input
+          v-bind="continuous"
           :value="text.strokeWidth"
           type="number"
           min="0"
@@ -123,6 +140,7 @@ defineExpose({
       </div>
       <div class="flex items-center gap-2">
         <input
+          v-bind="continuous"
           :value="text.curve"
           type="range"
           min="-180"
@@ -138,6 +156,7 @@ defineExpose({
     <template v-if="shape">
       <div class="flex items-center gap-2">
         <input
+          v-bind="continuous"
           :value="shape.fill"
           type="color"
           class="size-7 cursor-pointer rounded border bg-transparent"
@@ -145,6 +164,7 @@ defineExpose({
           @input="patchShape({ fill: ($event.target as HTMLInputElement).value })"
         />
         <input
+          v-bind="continuous"
           :value="shape.stroke"
           type="color"
           class="size-7 cursor-pointer rounded border bg-transparent"
@@ -152,6 +172,7 @@ defineExpose({
           @input="patchShape({ stroke: ($event.target as HTMLInputElement).value })"
         />
         <input
+          v-bind="continuous"
           :value="shape.strokeWidth"
           type="number"
           min="0"
@@ -162,6 +183,7 @@ defineExpose({
       </div>
       <div v-if="shape.shape === 'rect'" class="flex items-center gap-2">
         <input
+          v-bind="continuous"
           :value="shape.cornerRadius"
           type="range"
           min="0"
@@ -179,6 +201,7 @@ defineExpose({
     <template v-if="fill">
       <div class="flex items-center gap-2">
         <input
+          v-bind="continuous"
           :value="fill.color"
           type="color"
           class="size-7 cursor-pointer rounded border bg-transparent"
@@ -197,6 +220,7 @@ defineExpose({
 
       <div class="flex items-center gap-2">
         <input
+          v-bind="continuous"
           :value="fill.tolerance"
           type="range"
           min="0"
