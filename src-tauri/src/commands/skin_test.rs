@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::commands::repack::{copy_dir_recursive, encode_replacement};
+use crate::commands::repack::{copy_dir_recursive, write_replacement};
 use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
 use crate::commands::test_in_game::{ac_documents_cfg, build_race_ini, DirGuard, RaceIniGuard};
 use crate::errors::AppError;
@@ -106,10 +106,7 @@ fn stage_preview_skin(
     copy_dir_recursive(source, preview_path)?;
 
     for replacement in &opts.replacements {
-        std::fs::write(
-            preview_path.join(&replacement.texture_name),
-            encode_replacement(replacement)?,
-        )?;
+        write_replacement(preview_path, replacement)?;
     }
 
     write_skin_meta(preview_path, &opts.meta)

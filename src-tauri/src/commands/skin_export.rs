@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::commands::repack::{
-    copy_dir_recursive, create_zip_archive, encode_replacement, patch_kn5,
+    copy_dir_recursive, create_zip_archive, patch_kn5, write_replacement,
 };
 use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
 use crate::errors::AppError;
@@ -107,10 +107,7 @@ fn apply_replacements(
             }
             // Anything else comes from the car's own model, which a skin never
             // rewrites: the override is a file of the same name beside it.
-            _ => std::fs::write(
-                skin_dst.join(&replacement.texture_name),
-                encode_replacement(replacement)?,
-            )?,
+            _ => write_replacement(skin_dst, replacement)?,
         }
     }
 

@@ -160,6 +160,17 @@ pub(crate) fn patch_kn5(
     Ok(())
 }
 
+/// Writes one replacement into `dir` under the name the car knows the texture by.
+///
+/// The name arrives over IPC and is joined straight onto a directory, so it is
+/// held to a single path component: `../` in one would otherwise let the caller
+/// place a file anywhere the app can write.
+pub(crate) fn write_replacement(dir: &Path, r: &TextureReplacementOpt) -> Result<(), AppError> {
+    crate::commands::skin::ensure_safe_file_name(&r.texture_name)?;
+    std::fs::write(dir.join(&r.texture_name), encode_replacement(r)?)?;
+    Ok(())
+}
+
 /// Mod authors ship loose PNG/JPEG textures that Assetto Corsa reads as-is, so
 /// re-encoding them would both fail and change the format the car expects.
 pub(crate) fn encode_replacement(r: &TextureReplacementOpt) -> Result<Vec<u8>, AppError> {
@@ -396,6 +407,43 @@ mod tests {
         let out = encode_replacement(&replacement(src.to_str().unwrap(), "PNG")).unwrap();
 
         assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn write_replacement_lands_under_the_name_the_car_knows() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&src)
+            .unwrap();
+
+        write_replacement(dir.path(), &replacement(src.to_str().unwrap(), "PNG")).unwrap();
+
+        assert!(dir.path().join("EXT_Panels.png").is_file());
+    }
+
+    /// The name comes over IPC and is joined onto a directory the app can write
+    /// to, so it never reaches the filesystem without being held to one segment.
+    #[test]
+    fn write_replacement_refuses_a_name_that_climbs_out_of_the_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let skin = dir.path().join("skin");
+        std::fs::create_dir_all(&skin).unwrap();
+        let src = dir.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&src)
+            .unwrap();
+
+        for name in ["../escaped.png", "nested/escaped.png", "..\\escaped.png"] {
+            let mut opt = replacement(src.to_str().unwrap(), "PNG");
+            opt.texture_name = name.to_string();
+
+            let Err(err) = write_replacement(&skin, &opt) else {
+                panic!("{name} must be refused");
+            };
+            assert!(matches!(err, AppError::InvalidInput(_)), "got {err:?}");
+        }
+        assert!(!dir.path().join("escaped.png").exists());
     }
 
     #[test]

@@ -80,6 +80,17 @@ fn read_ui_skin(skin_path: &Path) -> Value {
 /// letter, `.` or `..` would let a caller write outside the car's `skins`
 /// directory, and neither the picker nor the form has any reason to send one.
 pub fn ensure_safe_folder_name(name: &str) -> Result<(), AppError> {
+    ensure_single_component(name, "skin folder name")
+}
+
+/// The same guard for a file the caller is about to write: a texture name read
+/// out of a KN5 or handed over by the frontend reaches the filesystem, and
+/// `../` in one would place the write anywhere the app can reach.
+pub fn ensure_safe_file_name(name: &str) -> Result<(), AppError> {
+    ensure_single_component(name, "texture name")
+}
+
+fn ensure_single_component(name: &str, label: &str) -> Result<(), AppError> {
     let mut components = Path::new(name).components();
     let is_single_component =
         matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none();
@@ -88,9 +99,7 @@ pub fn ensure_safe_folder_name(name: &str) -> Result<(), AppError> {
     let has_separator = name.contains('/') || name.contains('\\') || name.contains(':');
 
     if name.is_empty() || has_separator || !is_single_component {
-        return Err(AppError::InvalidInput(format!(
-            "Unsafe skin folder name: {name}"
-        )));
+        return Err(AppError::InvalidInput(format!("Unsafe {label}: {name}")));
     }
     Ok(())
 }
