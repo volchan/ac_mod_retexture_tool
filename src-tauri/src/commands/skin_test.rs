@@ -60,8 +60,7 @@ fn run(opts: &SkinTestOptions) -> Result<(), AppError> {
 
     let preview_skin = preview_skin_name(&opts.skin_folder);
     let preview_path = car_path.join("skins").join(&preview_skin);
-    stage_preview_skin(&source, &preview_path, opts)?;
-    let _skin_guard = DirGuard(preview_path);
+    let _skin_guard = stage_with_guard(&source, &preview_path, opts)?;
 
     let ac_root = Path::new(&opts.ac_path);
     let cfg_dir = ac_documents_cfg()?;
@@ -87,13 +86,17 @@ fn run(opts: &SkinTestOptions) -> Result<(), AppError> {
     guard.finish()
 }
 
-/// The preview is a full copy, sub-folders included: a skin missing files the car
-/// expects loads wrong, and this one is thrown away anyway.
-fn stage_preview_skin(
+/// Stages the throwaway skin and hands back the guard that removes it.
+///
+/// The guard is armed before the copy rather than after it: staging writes a
+/// folder, a tree of files and every queued replacement, and a failure at any
+/// of those left the half-written preview sitting in the car's skins folder,
+/// where the next run refuses to start.
+fn stage_with_guard(
     source: &Path,
     preview_path: &Path,
     opts: &SkinTestOptions,
-) -> Result<(), AppError> {
+) -> Result<DirGuard, AppError> {
     // Whatever sits here was not put there by this run, and the guard deletes the
     // folder afterwards: wiping it first would destroy an author's own work that
     // happens to carry the same suffix, or a leftover this tool failed to clean.
@@ -103,6 +106,19 @@ fn stage_preview_skin(
             preview_path.display()
         )));
     }
+
+    let guard = DirGuard(preview_path.to_path_buf());
+    stage_preview_skin(source, preview_path, opts)?;
+    Ok(guard)
+}
+
+/// The preview is a full copy, sub-folders included: a skin missing files the car
+/// expects loads wrong, and this one is thrown away anyway.
+fn stage_preview_skin(
+    source: &Path,
+    preview_path: &Path,
+    opts: &SkinTestOptions,
+) -> Result<(), AppError> {
     copy_dir_recursive(source, preview_path)?;
 
     for replacement in &opts.replacements {
@@ -208,13 +224,39 @@ mod tests {
         std::fs::create_dir_all(&preview).unwrap();
         std::fs::write(preview.join("precious.dds"), b"keep me").unwrap();
 
-        let result = stage_preview_skin(&source, &preview, &options(&car));
+        let result = stage_with_guard(&source, &preview, &options(&car));
 
         assert!(result.is_err());
         assert_eq!(
             std::fs::read(preview.join("precious.dds")).unwrap(),
             b"keep me".to_vec()
         );
+    }
+
+    /// Guard ordering: staging can fail after the copy has already written the
+    /// folder, and the half-staged preview blocks every later run.
+    #[test]
+    fn a_failed_staging_takes_the_half_written_preview_with_it() {
+        let root = tempfile::tempdir().unwrap();
+        let car = root.path().join("ks_nissan_gtr");
+        let source = car.join("skins/super_silver");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::write(source.join("body.dds"), b"original").unwrap();
+
+        let mut opts = options(&car);
+        opts.replacements = vec![TextureReplacementOpt {
+            texture_id: "tex".to_string(),
+            source_path: source.join("body.dds").to_string_lossy().to_string(),
+            kn5_file: None,
+            texture_name: "../escaped.dds".to_string(),
+            skin_folder: Some("super_silver".to_string()),
+            original_format: "PNG".to_string(),
+            hero_image_path: None,
+        }];
+
+        let preview = car.join("skins/super_silver__toolkit_preview");
+        assert!(stage_with_guard(&source, &preview, &opts).is_err());
+        assert!(!preview.exists(), "the staged folder must not survive");
     }
 
     #[test]
