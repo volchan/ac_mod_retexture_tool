@@ -76,10 +76,17 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
         copy_dir_recursive(&source, &skin_dst)?;
     } else {
         for file in files_to_ship(&source, opts) {
-            let Some(name) = file.file_name() else {
+            // Kept at the path the skin puts it at: flattening `extension/` onto
+            // the skin root loads nothing, and two files of the same name in
+            // different folders would land on each other.
+            let Ok(relative) = file.strip_prefix(&source) else {
                 continue;
             };
-            std::fs::copy(&file, skin_dst.join(name))?;
+            let destination = skin_dst.join(relative);
+            if let Some(parent) = destination.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::copy(&file, destination)?;
         }
     }
 
@@ -131,34 +138,38 @@ fn ships_with_the_skin(skin_source: &Path, kn5: &str) -> bool {
 
 /// A partial export ships only the files an installer cannot get from the car it
 /// is layered onto: the textures that changed, plus the descriptors that identify
-/// the skin. All of those sit at the top level, so a full export is the only one
-/// that has to walk the tree.
+/// the skin.
+///
+/// Matched by lowercase name, and over the whole tree rather than the top level.
+/// A skin shipping `UI_Skin.json`, or keeping a texture under `extension/`, was
+/// dropped from the archive without a word — and only showed up as a skin that
+/// loads wrong once somebody installed it.
 fn files_to_ship(source: &Path, opts: &SkinExportOptions) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(source) else {
-        return vec![];
-    };
     // A texture patched into a model means shipping the model, not the texture.
-    let replaced: Vec<&str> = opts
+    let replaced: Vec<String> = opts
         .replacements
         .iter()
         .map(|r| match r.kn5_file.as_deref() {
             Some(kn5) if ships_with_the_skin(source, kn5) => Path::new(kn5)
                 .file_name()
                 .and_then(|n| n.to_str())
-                .unwrap_or_default(),
-            _ => r.texture_name.as_str(),
+                .unwrap_or_default()
+                .to_lowercase(),
+            _ => r.texture_name.to_lowercase(),
         })
         .collect();
 
-    entries
+    walkdir::WalkDir::new(source)
+        .into_iter()
         .flatten()
-        .map(|e| e.path())
+        .map(|entry| entry.into_path())
         .filter(|p| p.is_file())
         .filter(|p| {
             let Some(name) = p.file_name().and_then(|s| s.to_str()) else {
                 return false;
             };
-            ALWAYS_INCLUDED.contains(&name) || replaced.contains(&name)
+            let name = name.to_lowercase();
+            ALWAYS_INCLUDED.contains(&name.as_str()) || replaced.contains(&name)
         })
         .collect()
 }
@@ -199,6 +210,52 @@ mod tests {
             full,
             replacements: vec![],
         }
+    }
+
+    /// Windows and macOS hand `UI_Skin.json` back for `ui_skin.json`, so a skin
+    /// spelling it that way looks fine until its archive is opened.
+    #[test]
+    fn partial_export_ships_descriptors_whatever_case_they_carry() {
+        let root = car_with_skin(&["UI_Skin.json", "Ext_Config.ini", "body.dds"]);
+        let source = root.path().join("ks_nissan_gtr/skins/super_silver");
+        let out = root.path().join("out.zip");
+
+        let shipped = shipped_names(&source, &options(root.path(), &out, false));
+
+        assert!(shipped.contains("UI_Skin.json"), "got {shipped:?}");
+        assert!(shipped.contains("Ext_Config.ini"), "got {shipped:?}");
+    }
+
+    #[test]
+    fn partial_export_reaches_a_descriptor_kept_in_a_sub_folder() {
+        let root = car_with_skin(&["ui_skin.json"]);
+        let source = root.path().join("ks_nissan_gtr/skins/super_silver");
+        std::fs::create_dir_all(source.join("extension")).unwrap();
+        std::fs::write(source.join("extension/ext_config.ini"), b"data").unwrap();
+        let out = root.path().join("out.zip");
+
+        let shipped = shipped_names(&source, &options(root.path(), &out, false));
+
+        assert!(shipped.contains("ext_config.ini"), "got {shipped:?}");
+    }
+
+    #[test]
+    fn partial_export_leaves_out_what_the_car_already_carries() {
+        let root = car_with_skin(&["ui_skin.json", "body.dds"]);
+        let source = root.path().join("ks_nissan_gtr/skins/super_silver");
+        let out = root.path().join("out.zip");
+
+        let shipped = shipped_names(&source, &options(root.path(), &out, false));
+
+        assert!(!shipped.contains("body.dds"), "got {shipped:?}");
+    }
+
+    fn shipped_names(source: &Path, opts: &SkinExportOptions) -> BTreeSet<String> {
+        files_to_ship(source, opts)
+            .iter()
+            .filter_map(|p| p.file_name()?.to_str())
+            .map(str::to_string)
+            .collect()
     }
 
     fn minimal_kn5(texture: &str, data: &[u8]) -> Vec<u8> {
