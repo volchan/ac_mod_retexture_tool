@@ -113,6 +113,13 @@ watch(
     img.onload = () => {
       if (baseDataUrl.value === url) baseImage.value = img
     }
+    // Without this the editor sits on a null base forever: Save stays disabled,
+    // the canvas stays blank, and nothing anywhere says the texture is the reason.
+    img.onerror = () => {
+      if (baseDataUrl.value !== url) return
+      baseImage.value = null
+      toast.error(`Could not read ${texture.value?.name ?? 'the texture'}`)
+    }
     img.src = url
   },
   { immediate: true },
@@ -159,16 +166,30 @@ let stopDragDrop: (() => void) | null = null
 
 /// Dropping a sponsor PNG straight onto the livery, rather than hunting for it in a
 /// file dialog, is how a skin actually gets built.
+let unmounted = false
+
 onMounted(async () => {
-  stopDragDrop = await getCurrentWebview().onDragDropEvent(async (event) => {
+  const stop = await getCurrentWebview().onDragDropEvent(async (event) => {
     if (event.payload.type !== 'drop' || !texture.value) return
     for (const path of event.payload.paths.filter(isImagePath)) {
       await addImageFromPath(path)
     }
   })
+
+  // The listener is registered on the webview, which outlives this component.
+  // Closing the editor before the registration resolves leaves `onUnmounted`
+  // nothing to detach, and drops keep injecting layers into a closed document.
+  if (unmounted) {
+    stop()
+    return
+  }
+  stopDragDrop = stop
 })
 
-onUnmounted(() => stopDragDrop?.())
+onUnmounted(() => {
+  unmounted = true
+  stopDragDrop?.()
+})
 
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (!texture.value || isTypingIn(e.target)) return
