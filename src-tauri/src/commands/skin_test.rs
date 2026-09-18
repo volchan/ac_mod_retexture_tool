@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::commands::repack::{copy_dir_recursive, write_replacement};
 use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
-use crate::commands::test_in_game::{ac_documents_cfg, build_race_ini, DirGuard, RaceIniGuard};
+use crate::commands::test_in_game::{ac_documents_cfg, back_up_race_ini, build_race_ini, DirGuard};
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
 use crate::models::skin::SkinMeta;
@@ -67,16 +67,11 @@ fn run(opts: &SkinTestOptions) -> Result<(), AppError> {
     let race_ini = cfg_dir.join("race.ini");
     std::fs::create_dir_all(&cfg_dir)?;
 
-    let bak = race_ini.with_extension("bak");
-    let had_original = race_ini.exists();
-    if had_original {
-        std::fs::copy(&race_ini, &bak)?;
-    }
+    let guard = back_up_race_ini(&race_ini)?;
     std::fs::write(
         &race_ini,
         build_race_ini(&opts.track_id, car_id, &preview_skin, &opts.config_track),
     )?;
-    let guard = RaceIniGuard::new(race_ini, bak, had_original);
 
     std::process::Command::new(ac_root.join("acs.exe"))
         .current_dir(ac_root)
