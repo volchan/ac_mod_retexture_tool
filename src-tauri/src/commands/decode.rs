@@ -138,21 +138,49 @@ fn collect_skin_display_entries(
             .to_string_lossy()
             .to_string();
 
-        for candidate in SKIN_DISPLAY_FILENAMES {
-            let path = skin_dir.join(candidate);
-            if !path.is_file() {
-                continue;
-            }
+        for (name, path) in display_files_in(skin_dir) {
             let display_name = if single_skin {
-                candidate.to_string()
+                name.clone()
             } else {
-                suffix_filename(candidate, &skin)
+                suffix_filename(&name, &skin)
             };
-            results.push((display_name, path, format!("skins/{skin}/{candidate}")));
+            results.push((display_name, path, format!("skins/{skin}/{name}")));
         }
     }
 
     results
+}
+
+/// The display images a skin folder actually holds, under the names it spells
+/// them with.
+///
+/// Matched against a listing rather than probed as fixed-case candidates: a skin
+/// shipping `Preview.jpg` is the same file to Windows and macOS, and the
+/// exclusion further down already compares lowercase — on Linux it would
+/// otherwise vanish from both lists at once.
+///
+/// Ordered by `SKIN_DISPLAY_FILENAMES` so the preferred extension still wins
+/// whatever order the filesystem hands the entries back in.
+fn display_files_in(skin_dir: &Path) -> Vec<(String, std::path::PathBuf)> {
+    let Ok(entries) = std::fs::read_dir(skin_dir) else {
+        return vec![];
+    };
+
+    let mut found: Vec<(usize, String, std::path::PathBuf)> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .filter_map(|path| {
+            let name = path.file_name()?.to_str()?.to_string();
+            let rank = SKIN_DISPLAY_FILENAMES
+                .iter()
+                .position(|candidate| *candidate == name.to_lowercase())?;
+            Some((rank, name, path))
+        })
+        .collect();
+
+    found.sort_by_key(|entry| entry.0);
+    found.into_iter().map(|(_, name, path)| (name, path)).collect()
 }
 
 /// Skin folders of a car, sorted, narrowed to `only_skin` when the workspace is
@@ -749,6 +777,32 @@ mod tests {
             rels,
             vec!["skins/red_01/preview.jpg", "skins/red_01/livery.png"]
         );
+    }
+
+    /// Windows and macOS hand the same file back whatever case it is asked for,
+    /// so a skin shipping `Preview.JPG` looks fine until it reaches Linux.
+    #[test]
+    fn skin_display_entries_match_whatever_case_the_skin_spells_them_in() {
+        let dir = tempfile::TempDir::new().unwrap();
+        skin_with_files(&dir, "red_01", &["Preview.JPG", "Livery.Png"]);
+
+        let entries = collect_skin_display_entries(dir.path(), None);
+        let names: Vec<&str> = entries.iter().map(|(n, _, _)| n.as_str()).collect();
+
+        assert_eq!(names, vec!["Preview.JPG", "Livery.Png"]);
+    }
+
+    /// The listing comes back in whatever order the filesystem likes, but a skin
+    /// carrying both must always show the same one.
+    #[test]
+    fn skin_display_entries_keep_the_preferred_extension_first() {
+        let dir = tempfile::TempDir::new().unwrap();
+        skin_with_files(&dir, "red_01", &["preview.png", "preview.jpg"]);
+
+        let entries = collect_skin_display_entries(dir.path(), None);
+        let names: Vec<&str> = entries.iter().map(|(n, _, _)| n.as_str()).collect();
+
+        assert_eq!(names, vec!["preview.jpg", "preview.png"]);
     }
 
     #[test]
