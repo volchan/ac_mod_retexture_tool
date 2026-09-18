@@ -8,6 +8,8 @@ pub mod image_source;
 pub mod import;
 pub mod livery_edit;
 pub mod livery_model;
+pub mod livery_serving;
+pub mod livery_textures;
 pub mod repack;
 pub mod scan;
 pub mod skin;
