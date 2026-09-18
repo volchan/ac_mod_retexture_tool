@@ -180,7 +180,10 @@ fn display_files_in(skin_dir: &Path) -> Vec<(String, std::path::PathBuf)> {
         .collect();
 
     found.sort_by_key(|entry| entry.0);
-    found.into_iter().map(|(_, name, path)| (name, path)).collect()
+    found
+        .into_iter()
+        .map(|(_, name, path)| (name, path))
+        .collect()
 }
 
 /// Skin folders of a car, sorted, narrowed to `only_skin` when the workspace is
