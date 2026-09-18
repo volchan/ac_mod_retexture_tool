@@ -76,12 +76,22 @@ describe('useBucketMasks', () => {
     expect(maskFor(bucket('a'), base)).not.toBe(first)
   })
 
-  it('evicts the oldest masks rather than growing without bound', () => {
+  /// An entry cap below the layer count evicted a mask the same render that
+  /// built it, so every bucket re-ran its flood fill on every frame.
+  it('keeps every mask that fits, however many layers there are', () => {
     stubCanvas()
     const { maskFor } = useBucketMasks()
     const base = baseImage()
     const first = maskFor(bucket('layer-0'), base)
-    for (let i = 1; i <= 6; i += 1) maskFor(bucket(`layer-${i}`), base)
-    expect(maskFor(bucket('layer-0'), base)).not.toBe(first)
+    for (let i = 1; i <= 20; i += 1) {
+      maskFor(bucket(`layer-${i}`), base)
+    }
+    expect(maskFor(bucket('layer-0'), base)).toBe(first)
+  })
+
+  it('places the mask where the fill spread, not where the click landed', () => {
+    stubCanvas()
+    const mask = useBucketMasks().maskFor(bucket('a', { x: 3, y: 3 }), baseImage())
+    expect(mask).toMatchObject({ x: 0, y: 0 })
   })
 })

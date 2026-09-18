@@ -20,6 +20,9 @@ export interface LayerRenderContext {
   /// The bitmap this layer draws: the sticker for an image layer, the computed
   /// region mask for a bucket.
   image: HTMLImageElement | HTMLCanvasElement | null
+  /// Where `image` belongs on the texture, for the bitmaps that are not placed
+  /// by the layer itself: a bucket mask is cropped to the region it fills.
+  origin?: { x: number; y: number }
   /// Layers stop listening while a paint tool is active, so a brush stroke never
   /// grabs the sticker it passes over.
   interactive: boolean
@@ -54,13 +57,13 @@ export function strokeConfigs(layer: { strokes: BrushStroke[]; opacity: number }
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
 
-/// The mask is already a full-size texture with everything outside the filled
-/// region left transparent, so it draws at the origin without any placement.
+/// The seed the user clicked places nothing: the mask carries its own corner,
+/// wherever the fill happened to spread from there.
 function bucketConfig(layer: BucketLayer, context: LayerRenderContext) {
   return {
     id: layer.id,
-    x: 0,
-    y: 0,
+    x: context.origin?.x ?? 0,
+    y: context.origin?.y ?? 0,
     image: context.image,
     opacity: layer.opacity,
     globalCompositeOperation: layer.blend,

@@ -2,14 +2,23 @@ import { useUvTemplate } from '@/composables/useUvTemplate'
 import { floodFillMask, type Pixels, parseHexColor } from '@/lib/floodFill'
 import type { BucketLayer } from '@/types/index'
 
-/// A mask is as large as the texture it covers — 67 MB of canvas on a 4096²
-/// sheet — so the cache holds only the handful of most recent fills and the
-/// editor drops it outright when it opens another texture.
-const MASK_CACHE_LIMIT = 6
+/// Budgeted in pixels rather than entries: a fill is cropped to the panel it
+/// covers, so a sheet of small ones all stay cached where a handful of
+/// full-sheet fills do not. An entry limit below the layer count would evict a
+/// mask the same render that rebuilt it, and re-fill every bucket every frame.
+const MASK_BUDGET_PIXELS = 64_000_000
 
-const masks = new Map<string, HTMLCanvasElement>()
+const masks = new Map<string, BucketMask>()
 const basePixels = new WeakMap<HTMLImageElement, Pixels>()
 const barriers = new WeakMap<HTMLImageElement, Uint8Array>()
+
+/// A filled region as Konva draws it: the cropped bitmap, and where on the
+/// texture its top-left corner belongs.
+export interface BucketMask {
+  canvas: HTMLCanvasElement
+  x: number
+  y: number
+}
 
 /// Turns a bucket layer into the bitmap Konva draws. Flood filling a 4K texture
 /// costs tens of milliseconds, so results are memoised under a key built from the
@@ -18,30 +27,17 @@ const barriers = new WeakMap<HTMLImageElement, Uint8Array>()
 export function useBucketMasks() {
   const { image: template } = useUvTemplate()
 
-  function maskFor(layer: BucketLayer, base: HTMLImageElement | null): HTMLCanvasElement | null {
-    if (!base) return null
-
+  function maskFor(layer: BucketLayer, base: HTMLImageElement | null): BucketMask | null {
     const key = maskKey(layer)
     const cached = masks.get(key)
     if (cached) return cached
 
-    const source = pixelsOf(base)
-    if (!source) return null
+    const mask = buildMask(layer, layer.tolerance, layer.color, base, template.value)
+    if (!mask) return null
 
-    const canvas = document.createElement('canvas')
-    canvas.width = source.width
-    canvas.height = source.height
-    const context = canvas.getContext('2d')
-    if (!context) return null
-
-    const image = context.createImageData(source.width, source.height)
-    const walls = template.value ? barrierOf(template.value, source) : undefined
-    image.data.set(floodFillMask(source, layer, layer.tolerance, parseHexColor(layer.color), walls))
-    context.putImageData(image, 0, 0)
-
-    masks.set(key, canvas)
+    masks.set(key, mask)
     evictOldest()
-    return canvas
+    return mask
   }
 
   function clearMasks() {
@@ -54,6 +50,35 @@ export function useBucketMasks() {
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
+
+function buildMask(
+  seed: { x: number; y: number },
+  tolerance: number,
+  color: string,
+  base: HTMLImageElement | null,
+  template: HTMLImageElement | null,
+): BucketMask | null {
+  if (!base) return null
+
+  const source = pixelsOf(base)
+  if (!source) return null
+
+  const walls = template ? barrierOf(template, source) : undefined
+  const region = floodFillMask(source, seed, tolerance, parseHexColor(color), walls)
+  if (region.width === 0 || region.height === 0) return null
+
+  const canvas = document.createElement('canvas')
+  canvas.width = region.width
+  canvas.height = region.height
+  const context = canvas.getContext('2d')
+  if (!context) return null
+
+  const image = context.createImageData(region.width, region.height)
+  image.data.set(region.data)
+  context.putImageData(image, 0, 0)
+
+  return { canvas, x: region.x, y: region.y }
+}
 
 /// The template is drawn as opaque lines on transparent pixels, so its alpha
 /// channel already is the wall map the fill needs.
@@ -80,11 +105,19 @@ function barrierOf(template: HTMLImageElement, source: Pixels): Uint8Array | und
 
 /// Insertion order is eviction order: the mask untouched for longest goes first.
 function evictOldest() {
-  while (masks.size > MASK_CACHE_LIMIT) {
+  while (masks.size > 1 && cachedPixels() > MASK_BUDGET_PIXELS) {
     const oldest = masks.keys().next()
     if (oldest.done) return
     masks.delete(oldest.value)
   }
+}
+
+function cachedPixels() {
+  let total = 0
+  for (const mask of masks.values()) {
+    total += mask.canvas.width * mask.canvas.height
+  }
+  return total
 }
 
 function maskKey(layer: BucketLayer) {

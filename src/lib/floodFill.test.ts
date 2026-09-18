@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { floodFillMask, type Pixels, parseHexColor } from './floodFill'
+import { type FillRegion, floodFillMask, type Pixels, parseHexColor } from './floodFill'
 
 const RED = { r: 255, g: 0, b: 0 }
 
@@ -15,37 +15,43 @@ function strip(): Pixels {
   return { data, width, height }
 }
 
-function filledCount(mask: Uint8ClampedArray) {
+function filledCount(region: FillRegion) {
   let count = 0
-  for (let i = 3; i < mask.length; i += 4) if (mask[i] === 255) count += 1
+  for (let i = 3; i < region.data.length; i += 4) {
+    if (region.data[i] === 255) count += 1
+  }
   return count
 }
 
 describe('floodFillMask', () => {
   it('covers the connected region that shares the seed colour', () => {
-    const mask = floodFillMask(strip(), { x: 0, y: 0 }, 10, RED)
-    expect(filledCount(mask)).toBe(4)
+    expect(filledCount(floodFillMask(strip(), { x: 0, y: 0 }, 10, RED))).toBe(4)
   })
 
   it('stops at a colour outside the tolerance', () => {
-    const mask = floodFillMask(strip(), { x: 0, y: 0 }, 10, RED)
-    // First pixel of the blue half stays untouched.
-    expect(mask[2 * 4 + 3]).toBe(0)
+    // The blue half is outside the crop entirely, not merely transparent in it.
+    const region = floodFillMask(strip(), { x: 0, y: 0 }, 10, RED)
+    expect(region).toMatchObject({ x: 0, y: 0, width: 2, height: 2 })
   })
 
   it('crosses the boundary once the tolerance is wide enough', () => {
-    const mask = floodFillMask(strip(), { x: 0, y: 0 }, 400, RED)
-    expect(filledCount(mask)).toBe(8)
+    expect(filledCount(floodFillMask(strip(), { x: 0, y: 0 }, 400, RED))).toBe(8)
   })
 
   it('paints the requested colour, not the one it replaced', () => {
-    const mask = floodFillMask(strip(), { x: 0, y: 0 }, 10, { r: 1, g: 2, b: 3 })
-    expect([mask[0], mask[1], mask[2], mask[3]]).toEqual([1, 2, 3, 255])
+    const { data } = floodFillMask(strip(), { x: 0, y: 0 }, 10, { r: 1, g: 2, b: 3 })
+    expect([data[0], data[1], data[2], data[3]]).toEqual([1, 2, 3, 255])
   })
 
   it('fills from a seed in the middle of the region', () => {
-    const mask = floodFillMask(strip(), { x: 3, y: 1 }, 10, RED)
-    expect(filledCount(mask)).toBe(4)
+    expect(filledCount(floodFillMask(strip(), { x: 3, y: 1 }, 10, RED))).toBe(4)
+  })
+
+  /// The 67 MB full-sheet mask this replaces is what made a dozen fill layers
+  /// unusable: a panel covers a fraction of the texture it sits on.
+  it('crops to the filled region and says where it sits', () => {
+    const region = floodFillMask(strip(), { x: 3, y: 1 }, 10, RED)
+    expect(region).toMatchObject({ x: 2, y: 0, width: 2, height: 2 })
   })
 
   it('returns an empty mask for a seed outside the texture', () => {
@@ -57,8 +63,9 @@ describe('floodFillMask', () => {
     const data = new Uint8ClampedArray(4 * 4)
     data.set([10, 10, 10, 255], 0)
     data.set([200, 200, 200, 255], 4)
-    const mask = floodFillMask({ data, width: 2, height: 2 }, { x: 0, y: 0 }, 5, RED)
-    expect(filledCount(mask)).toBe(1)
+    const region = floodFillMask({ data, width: 2, height: 2 }, { x: 0, y: 0 }, 5, RED)
+    expect(filledCount(region)).toBe(1)
+    expect(region).toMatchObject({ width: 1, height: 1 })
   })
 })
 

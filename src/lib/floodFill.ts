@@ -10,6 +10,25 @@ export interface FillColor {
   b: number
 }
 
+/// An RGBA bitmap of the filled region, cropped to it, and where that crop sits
+/// on the texture. A panel covers a fraction of a 4K sheet, and a full-size mask
+/// would cost 67 MB to hold a few hundred thousand painted pixels.
+export interface FillRegion {
+  data: Uint8ClampedArray
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+const EMPTY_REGION: FillRegion = {
+  data: new Uint8ClampedArray(0),
+  x: 0,
+  y: 0,
+  width: 0,
+  height: 0,
+}
+
 /// Builds an RGBA mask covering the region connected to `seed` whose colour is
 /// within `tolerance` of the seed's own. Scanline flood fill: a texture is
 /// millions of pixels, and a naive four-way recursion overflows the stack long
@@ -25,18 +44,20 @@ export function floodFillMask(
   tolerance: number,
   color: FillColor,
   barrier?: Uint8Array,
-): Uint8ClampedArray {
+): FillRegion {
   const { width, height, data } = source
-  const mask = new Uint8ClampedArray(width * height * 4)
 
   const startX = Math.floor(seed.x)
   const startY = Math.floor(seed.y)
-  if (startX < 0 || startY < 0 || startX >= width || startY >= height) return mask
+  if (startX < 0 || startY < 0 || startX >= width || startY >= height) {
+    return EMPTY_REGION
+  }
 
   const target = readPixel(data, (startY * width + startX) * 4)
   const limit = tolerance * tolerance
   const filled = new Uint8Array(width * height)
   const stack: number[] = [startX, startY]
+  const bounds = { minX: width, minY: height, maxX: -1, maxY: -1 }
 
   const open = (x: number, y: number) => {
     const index = y * width + x
@@ -58,7 +79,7 @@ export function floodFillMask(
       const index = y * width + x
       if (filled[index] === 1) break
       filled[index] = 1
-      paint(mask, index * 4, color)
+      stretch(bounds, x, y)
 
       if (y > 0) {
         const above = open(x, y - 1)
@@ -84,7 +105,7 @@ export function floodFillMask(
     }
   }
 
-  return mask
+  return crop(filled, width, bounds, color)
 }
 
 // ------------------------------------------------------------------------------
@@ -108,11 +129,58 @@ function matches(
   return dr * dr + dg * dg + db * db <= squaredTolerance
 }
 
-function paint(mask: Uint8ClampedArray, offset: number, color: FillColor) {
-  mask[offset] = color.r
-  mask[offset + 1] = color.g
-  mask[offset + 2] = color.b
-  mask[offset + 3] = 255
+interface Bounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+function stretch(bounds: Bounds, x: number, y: number) {
+  if (x < bounds.minX) {
+    bounds.minX = x
+  }
+  if (x > bounds.maxX) {
+    bounds.maxX = x
+  }
+  if (y < bounds.minY) {
+    bounds.minY = y
+  }
+  if (y > bounds.maxY) {
+    bounds.maxY = y
+  }
+}
+
+/// Paints the filled pixels into a bitmap the size of their bounding box. The
+/// colour is uniform, so only the region's shape has to be carried over.
+function crop(
+  filled: Uint8Array,
+  sourceWidth: number,
+  bounds: Bounds,
+  color: FillColor,
+): FillRegion {
+  if (bounds.maxX < bounds.minX) {
+    return EMPTY_REGION
+  }
+
+  const width = bounds.maxX - bounds.minX + 1
+  const height = bounds.maxY - bounds.minY + 1
+  const data = new Uint8ClampedArray(width * height * 4)
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (filled[(y + bounds.minY) * sourceWidth + (x + bounds.minX)] !== 1) {
+        continue
+      }
+      const offset = (y * width + x) * 4
+      data[offset] = color.r
+      data[offset + 1] = color.g
+      data[offset + 2] = color.b
+      data[offset + 3] = 255
+    }
+  }
+
+  return { data, x: bounds.minX, y: bounds.minY, width, height }
 }
 
 export function parseHexColor(hex: string): FillColor {

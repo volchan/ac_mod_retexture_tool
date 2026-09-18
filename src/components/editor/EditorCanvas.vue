@@ -59,10 +59,8 @@ watch(
 )
 
 function config(layer: EditorLayer) {
-  return layerConfig(layer, {
-    image: bitmapFor(layer),
-    interactive: tool.value === 'select',
-  })
+  const { image, origin } = bitmapFor(layer)
+  return layerConfig(layer, { image, origin, interactive: tool.value === 'select' })
 }
 
 /// The document has to track the node while it moves, not only once it lands:
@@ -156,9 +154,11 @@ defineExpose({
 // ------------------------------------------------------------------------------
 
 function bitmapFor(layer: EditorLayer) {
-  if (layer.type === 'image') return resolve(layer.src)
-  if (layer.type === 'bucket') return maskFor(layer, props.baseImage)
-  return null
+  if (layer.type === 'image') return { image: resolve(layer.src), origin: undefined }
+  if (layer.type !== 'bucket') return { image: null, origin: undefined }
+
+  const mask = maskFor(layer, props.baseImage)
+  return { image: mask?.canvas ?? null, origin: mask ?? undefined }
 }
 
 function fillAtPointer(stage: Konva.Stage) {
