@@ -2,10 +2,11 @@ import type Konva from 'konva'
 import { ref } from 'vue'
 import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import { useTextures } from '@/composables/useTextures'
+import { isHexColor } from '@/lib/floodFill'
 import { textureStableKey } from '@/lib/replacementStore'
 import { flattenStage, thumbnailRatio } from '@/lib/stageExport'
 import { loadLiveryDocument, saveLiveryEdit } from '@/lib/tauri'
-import type { LiveryDocument, Texture } from '@/types/index'
+import type { EditorLayer, LiveryDocument, Texture } from '@/types/index'
 
 const isSaving = ref(false)
 
@@ -56,6 +57,15 @@ export function useLiveryPersistence() {
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
 
+function hasReadableColours(layer: EditorLayer): boolean {
+  const colours = [
+    'color' in layer ? layer.color : null,
+    'fill' in layer ? layer.fill : null,
+    'stroke' in layer ? layer.stroke : null,
+  ]
+  return colours.every((colour) => typeof colour !== 'string' || isHexColor(colour))
+}
+
 /// A stored stack only applies to a texture of the same size: the same skin
 /// re-exported at another resolution would place every sticker wrong.
 function parseDocument(stored: string | null, texture: Texture): LiveryDocument | undefined {
@@ -64,6 +74,9 @@ function parseDocument(stored: string | null, texture: Texture): LiveryDocument 
     const parsed = JSON.parse(stored) as LiveryDocument
     if (parsed.width !== texture.width || parsed.height !== texture.height) return undefined
     if (!Array.isArray(parsed.layers)) return undefined
+    // Colours are read again at render time, where a malformed one would throw
+    // inside the canvas rather than anywhere the editor could report it.
+    if (!parsed.layers.every(hasReadableColours)) return undefined
     return { ...parsed, textureId: texture.id }
   } catch {
     return undefined

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type FillRegion, floodFillMask, type Pixels, parseHexColor } from './floodFill'
+import { type FillRegion, floodFillMask, isHexColor, type Pixels, parseHexColor } from './floodFill'
 
 const RED = { r: 255, g: 0, b: 0 }
 
@@ -78,7 +78,21 @@ describe('parseHexColor', () => {
     expect(parseHexColor('ffffff')).toEqual({ r: 255, g: 255, b: 255 })
   })
 
-  it('falls back to zero on a malformed channel', () => {
-    expect(parseHexColor('#zzzzzz')).toEqual({ r: 0, g: 0, b: 0 })
+  it('expands the three digit form', () => {
+    expect(parseHexColor('#f0a')).toEqual({ r: 255, g: 0, b: 170 })
+  })
+
+  /// Defaulting a channel it cannot read turned a typo into a black fill that
+  /// looked deliberate, and the only way to notice was to paint it.
+  it('refuses anything it cannot read, rather than painting black', () => {
+    for (const bad of ['#zzzzzz', '#12345', 'ff', '', '#1234567']) {
+      expect(() => parseHexColor(bad)).toThrow()
+      expect(isHexColor(bad)).toBe(false)
+    }
+  })
+
+  it('accepts both forms through the boundary check', () => {
+    expect(isHexColor('#c8102e')).toBe(true)
+    expect(isHexColor('f0a')).toBe(true)
   })
 })

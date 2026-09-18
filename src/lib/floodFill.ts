@@ -183,11 +183,39 @@ function crop(
   return { data, x: bounds.minX, y: bounds.minY, width, height }
 }
 
+/// Accepts `#rgb` and `#rrggbb`, with or without the hash.
+///
+/// Throws rather than defaulting a channel it cannot read: every `|| 0` here
+/// turned a typo or a truncated colour into a black fill that looked like a
+/// deliberate one, and the only way to find out was to paint it.
 export function parseHexColor(hex: string): FillColor {
   const value = hex.replace('#', '')
+  const expanded =
+    value.length === 3
+      ? value
+          .split('')
+          .map((digit) => digit + digit)
+          .join('')
+      : value
+
+  if (!/^[0-9a-f]{6}$/i.test(expanded)) {
+    throw new Error(`Not a colour: ${hex}`)
+  }
+
   return {
-    r: Number.parseInt(value.slice(0, 2), 16) || 0,
-    g: Number.parseInt(value.slice(2, 4), 16) || 0,
-    b: Number.parseInt(value.slice(4, 6), 16) || 0,
+    r: Number.parseInt(expanded.slice(0, 2), 16),
+    g: Number.parseInt(expanded.slice(2, 4), 16),
+    b: Number.parseInt(expanded.slice(4, 6), 16),
+  }
+}
+
+/// Whether `parseHexColor` would accept this, for callers validating at a trust
+/// boundary rather than mid-render.
+export function isHexColor(hex: string): boolean {
+  try {
+    parseHexColor(hex)
+    return true
+  } catch {
+    return false
   }
 }
