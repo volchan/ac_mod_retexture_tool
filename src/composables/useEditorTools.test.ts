@@ -19,14 +19,18 @@ class StubImage {
   naturalWidth = 300
   naturalHeight = 100
   set src(_value: string) {
-    queueMicrotask(() => this.onload?.())
+    queueMicrotask(() => (decodeFails ? this.onerror?.() : this.onload?.()))
   }
 }
+
+/// Flipped by the one test that needs a file the webview refuses to decode.
+let decodeFails = false
 
 describe('useEditorTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('Image', StubImage)
+    decodeFails = false
     useLiveryDocument().init(texture)
     useEditorTools().setTool('select')
   })
@@ -191,6 +195,21 @@ describe('useEditorTools', () => {
       tools.setTool('eyedropper')
       tools.sampleColor('#ffffff')
       expect(tools.tool.value).toBe('brush')
+    })
+  })
+
+  describe('addImageFromPath', () => {
+    /// A guessed size adds a layer that can never draw, sitting in the stack as
+    /// though the image had been accepted.
+    it('adds no layer when the file will not decode', async () => {
+      const tools = useEditorTools()
+      const before = useLiveryDocument().layers.value.length
+
+      decodeFails = true
+      await tools.addImageFromPath('/tmp/broken.png')
+
+      expect(useLiveryDocument().layers.value.length).toBe(before)
+      expect(tools.imageError.value).toContain('broken.png')
     })
   })
 })

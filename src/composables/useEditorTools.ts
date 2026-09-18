@@ -19,6 +19,10 @@ const fillTolerance = ref(32)
 /// What the pipette interrupted, so a sampled colour lands back in the tool the
 /// user was painting with rather than making them re-arm it.
 const toolBeforePick = ref<EditorTool>('select')
+/// Set when a picked or dropped image will not decode. The editor watches it:
+/// a composable has nowhere to put a message itself, and the same failure
+/// arrives from the toolbar and from a drop.
+const imageError = ref<string | null>(null)
 const mirrorX = ref(false)
 const mirrorY = ref(false)
 
@@ -55,7 +59,14 @@ export function useEditorTools() {
   async function addImageFromPath(picked: string) {
     // Decoding here also primes the cache the canvas renders from.
     const bitmap = await load(picked)
-    const size = { width: bitmap?.naturalWidth || 512, height: bitmap?.naturalHeight || 512 }
+    // Guessing a size for a bitmap that does not exist adds a layer that can
+    // never draw, sitting in the stack looking like the image was accepted.
+    if (!bitmap) {
+      imageError.value = `Could not read ${fileNameOf(picked)}`
+      return
+    }
+
+    const size = { width: bitmap.naturalWidth, height: bitmap.naturalHeight }
     const centre = centreOf(document.value)
     addLayer({
       id: createLayerId(),
@@ -213,6 +224,7 @@ export function useEditorTools() {
 
   return {
     tool,
+    imageError,
     brushSize,
     brushColor,
     fillColor,

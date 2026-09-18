@@ -34,7 +34,7 @@ const { texture, baseDataUrl, restoredDocument, carPath, close } = useLiveryEdit
 const { document, layers, init, reset, canUndo, canRedo, undo, redo, selectedId, removeLayer } =
   useLiveryDocument()
 const { isSaving, save } = useLiveryPersistence()
-const { addImageFromPath, isImagePath } = useEditorTools()
+const { addImageFromPath, isImagePath, imageError } = useEditorTools()
 const { clearMasks } = useBucketMasks()
 const {
   isEnabled: uvEnabled,
@@ -124,6 +124,12 @@ watch(
   },
   { immediate: true },
 )
+
+watch(imageError, (message) => {
+  if (!message) return
+  toast.error(message)
+  imageError.value = null
+})
 
 /// The outlines come from the car model, which never mentions a texture only the
 /// skin folder adds: saying so beats leaving an empty overlay switched on.
