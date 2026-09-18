@@ -55,6 +55,10 @@ const stageRef = ref<{ getStage: () => Konva.Stage } | null>(null)
 const transformerRef = ref<{ getNode: () => Konva.Transformer } | null>(null)
 const previewLayerRef = ref<{ getNode: () => Konva.Layer } | null>(null)
 const liveStroke = shallowRef<BrushStroke | null>(null)
+
+// Closing the editor mid-drag never fires the pointerup that would detach the
+// pan listeners, and they keep emitting at a component that is gone.
+let stopPan: (() => void) | null = null
 const pointer = shallowRef<{ x: number; y: number } | null>(null)
 const fillPreview = shallowRef<BucketMask | null>(null)
 
@@ -100,7 +104,10 @@ watchDebounced([pointer, tool, fillColor, fillTolerance], recomputeFillPreview, 
 
 watch(fillPreview, (preview) => (preview ? pulse.resume() : pulse.pause()), { flush: 'post' })
 
-onBeforeUnmount(pulse.pause)
+onBeforeUnmount(() => {
+  pulse.pause()
+  stopPan?.()
+})
 
 function config(layer: EditorLayer) {
   const { image, origin } = bitmapFor(layer)
@@ -263,7 +270,10 @@ function isOnTransformer(node: Konva.Node | null): boolean {
   return false
 }
 
+/// Tracked on `window` rather than the stage so a pan survives the cursor
+/// leaving the canvas, which is most of what panning is for.
 function startPan(event: PointerEvent) {
+  stopPan?.()
   let last = { x: event.clientX, y: event.clientY }
 
   function move(ev: PointerEvent) {
@@ -274,10 +284,12 @@ function startPan(event: PointerEvent) {
   function up() {
     window.removeEventListener('pointermove', move)
     window.removeEventListener('pointerup', up)
+    stopPan = null
   }
 
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', up)
+  stopPan = up
 }
 </script>
 
