@@ -59,8 +59,13 @@ export function floodFillMask(
   const stack: number[] = [startX, startY]
   const bounds = { minX: width, minY: height, maxX: -1, maxY: -1 }
 
+  /// A pixel this fill may still take. Counting already-filled ones as closed
+  /// costs nothing and saves the walk left crossing a span that is already done,
+  /// only for the walk right to stop on its first pixel — and it keeps rows that
+  /// are already painted from being pushed back onto the stack.
   const open = (x: number, y: number) => {
     const index = y * width + x
+    if (filled[index] === 1) return false
     if (barrier && barrier[index] !== 0) return false
     return matches(data, index * 4, target, limit)
   }
@@ -76,9 +81,7 @@ export function floodFillMask(
     let spanBelow = false
 
     while (x < width && open(x, y)) {
-      const index = y * width + x
-      if (filled[index] === 1) break
-      filled[index] = 1
+      filled[y * width + x] = 1
       stretch(bounds, x, y)
 
       if (y > 0) {

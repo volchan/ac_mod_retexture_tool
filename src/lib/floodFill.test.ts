@@ -23,7 +23,29 @@ function filledCount(region: FillRegion) {
   return count
 }
 
+/// A 5×3 sheet with a wall down the middle of the top two rows — an upside-down
+/// U. Reaching the far side means going down, across the open bottom row and back
+/// up, which sends the fill into rows it has already partly painted.
+function archway(): Pixels {
+  const width = 5
+  const height = 3
+  const data = new Uint8ClampedArray(width * height * 4)
+  for (let i = 0; i < width * height; i += 1) {
+    const isWall = i % width === 2 && Math.floor(i / width) < 2
+    data.set(isWall ? [0, 0, 200, 255] : [200, 0, 0, 255], i * 4)
+  }
+  return { data, width, height }
+}
+
 describe('floodFillMask', () => {
+  it('paints a region it re-enters from below', () => {
+    const region = floodFillMask(archway(), { x: 0, y: 0 }, 10, RED)
+
+    // Thirteen open pixels: fifteen in the sheet, less the two-pixel wall.
+    expect(filledCount(region)).toBe(13)
+    expect(region).toMatchObject({ x: 0, y: 0, width: 5, height: 3 })
+  })
+
   it('covers the connected region that shares the seed colour', () => {
     expect(filledCount(floodFillMask(strip(), { x: 0, y: 0 }, 10, RED))).toBe(4)
   })
