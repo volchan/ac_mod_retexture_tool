@@ -6,6 +6,7 @@ use tauri::http::Response;
 use tauri::{AppHandle, Manager};
 
 use crate::commands::car_model::{main_kn5, pack, CarMesh};
+use crate::commands::image_source::is_readable_image;
 use crate::commands::skin::ensure_safe_folder_name;
 use crate::converters::dds;
 use crate::errors::AppError;
@@ -13,8 +14,10 @@ use crate::parsers::kn5::Kn5File;
 use crate::parsers::kn5_mesh::{read_geometry, Kn5Geometry, UvMesh};
 
 /// Samplers worth uploading to a preview: the paint, and the panel creases.
-const DIFFUSE_SAMPLERS: &[&str] = &["txDiffuse", "txdiffuse"];
-const NORMAL_SAMPLERS: &[&str] = &["txNormal", "txnormal"];
+/// Matched case-insensitively — the casing here is only what a KN5 usually
+/// writes, not what it has to.
+const DIFFUSE_SAMPLER: &str = "txDiffuse";
+const NORMAL_SAMPLER: &str = "txNormal";
 
 pub const LIVERY_SCHEME: &str = "livery";
 
@@ -57,6 +60,7 @@ pub struct LiveryTextures {
     sources: Vec<TextureSource>,
 }
 
+#[derive(PartialEq, Eq)]
 enum TextureSource {
     Loose(PathBuf),
     Embedded(String),
@@ -209,16 +213,16 @@ impl TextureLibrary {
         let Some(material) = geometry.materials.get(material_id as usize) else {
             return (None, None);
         };
-        let named = |samplers: &[&str]| {
+        let named = |wanted: &str| {
             material
                 .textures
                 .iter()
-                .find(|(sampler, _)| samplers.contains(&sampler.as_str()))
+                .find(|(sampler, _)| sampler.eq_ignore_ascii_case(wanted))
                 .map(|(_, texture)| texture.clone())
         };
 
-        let diffuse = named(DIFFUSE_SAMPLERS).and_then(|name| self.index_of(&name));
-        let normal = named(NORMAL_SAMPLERS).and_then(|name| self.index_of(&name));
+        let diffuse = named(DIFFUSE_SAMPLER).and_then(|name| self.index_of(&name));
+        let normal = named(NORMAL_SAMPLER).and_then(|name| self.index_of(&name));
         (diffuse, normal)
     }
 
@@ -228,13 +232,22 @@ impl TextureLibrary {
         if let Some(known) = self.indices.get(name) {
             return *known;
         }
-        let index = self.locate(name).map(|source| {
-            self.names.push(name.to_string());
-            self.sources.push(source);
-            (self.sources.len() - 1) as u32
-        });
+        let located = self.locate(name);
+        let index = located.map(|source| self.slot_for(source, name));
         self.indices.insert(name.to_string(), index);
         index
+    }
+
+    /// Two names resolving to one file share a slot. A KN5 spelling `Body.dds`
+    /// while the skin folder ships `body.dds` names the same image twice, and a
+    /// slot each would decode and stream it twice.
+    fn slot_for(&mut self, source: TextureSource, name: &str) -> u32 {
+        if let Some(held) = self.sources.iter().position(|known| *known == source) {
+            return held as u32;
+        }
+        self.names.push(name.to_string());
+        self.sources.push(source);
+        (self.sources.len() - 1) as u32
     }
 
     fn locate(&self, name: &str) -> Option<TextureSource> {
@@ -319,10 +332,12 @@ fn parse_texture_path(path: &str) -> Option<(u64, usize)> {
 }
 
 fn not_found() -> Response<Vec<u8>> {
+    // An empty body and a status are all this sets, so the builder has nothing
+    // to reject; a plain empty response is the harmless way to say so anyway.
     Response::builder()
         .status(404)
         .body(Vec::new())
-        .expect("a bodyless 404 always builds")
+        .unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
 /// The file that outranks the model's own copy of `name`, if any: what the queue
@@ -339,7 +354,10 @@ fn loose_file(
     let key = name.to_lowercase();
     if let Some(queued) = overrides.get(&key) {
         let path = PathBuf::from(queued);
-        if path.is_file() {
+        // The queue arrives over IPC and whatever it names is streamed back to
+        // the webview at a guessable `livery://` address, so only a file this
+        // toolkit would have decoded as artwork is allowed through.
+        if is_readable_image(&path) {
             return Some(path);
         }
     }
@@ -457,6 +475,103 @@ mod tests {
             loose_file("body.dds", &HashMap::new(), &index_skin_files(dir.path())),
             Some(body)
         );
+    }
+
+    /// The queue arrives over IPC and whatever it names is streamed back to the
+    /// webview at a guessable address.
+    #[test]
+    fn a_queued_replacement_that_is_not_an_image_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let secret = dir.path().join("id_rsa");
+        std::fs::write(&secret, b"-----BEGIN PRIVATE KEY-----").unwrap();
+
+        let overrides = HashMap::from([("body.dds".to_string(), secret.display().to_string())]);
+
+        assert_eq!(
+            loose_file("body.dds", &overrides, &index_skin_files(dir.path())),
+            None
+        );
+    }
+
+    fn library(dir: &Path) -> TextureLibrary {
+        TextureLibrary {
+            kn5: Arc::new(Kn5File::empty()),
+            skin_files: index_skin_files(dir),
+            overrides: HashMap::new(),
+            indices: HashMap::new(),
+            names: Vec::new(),
+            sources: Vec::new(),
+        }
+    }
+
+    fn material(textures: &[(&str, &str)]) -> Kn5Geometry {
+        Kn5Geometry {
+            materials: vec![crate::parsers::kn5_mesh::Material {
+                name: "paint".to_string(),
+                textures: textures
+                    .iter()
+                    .map(|(sampler, file)| (sampler.to_string(), file.to_string()))
+                    .collect(),
+            }],
+            meshes: vec![],
+        }
+    }
+
+    /// The casing in the constants is what a KN5 usually writes, not what it has
+    /// to: a model spelling it otherwise drew untextured.
+    #[test]
+    fn a_sampler_is_recognised_whatever_case_the_model_spells_it_in() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("body.dds"), b"skin").unwrap();
+        std::fs::write(dir.path().join("body_nm.dds"), b"skin").unwrap();
+
+        for spelling in ["txDiffuse", "txdiffuse", "TXDIFFUSE", "TxDiffuse"] {
+            let geometry = material(&[(spelling, "body.dds"), ("txNORMAL", "body_nm.dds")]);
+            let (diffuse, normal) = library(dir.path()).slots_for(&geometry, 0);
+
+            assert!(diffuse.is_some(), "diffuse missed {spelling}");
+            assert!(normal.is_some(), "normal missed {spelling}");
+        }
+    }
+
+    #[test]
+    fn a_sampler_the_preview_has_no_use_for_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("body.dds"), b"skin").unwrap();
+
+        let geometry = material(&[("txMaps", "body.dds"), ("txDetail", "body.dds")]);
+
+        assert_eq!(library(dir.path()).slots_for(&geometry, 0), (None, None));
+    }
+
+    #[test]
+    fn a_material_the_model_does_not_carry_names_no_texture() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(library(dir.path()).slots_for(&material(&[]), 7), (None, None));
+    }
+
+    /// Both names reach one file on disk, and a slot each would decode and stream
+    /// the same image twice.
+    #[test]
+    fn two_names_for_one_file_share_a_slot() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("body.dds"), b"skin").unwrap();
+
+        let mut library = library(dir.path());
+
+        assert_eq!(library.index_of("Body.dds"), Some(0));
+        assert_eq!(library.index_of("body.dds"), Some(0));
+        assert_eq!(library.sources.len(), 1);
+    }
+
+    #[test]
+    fn a_texture_nothing_supplies_is_remembered_as_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut library = library(dir.path());
+
+        assert_eq!(library.index_of("absent.dds"), None);
+        assert_eq!(library.index_of("absent.dds"), None);
+        assert!(library.sources.is_empty());
     }
 
     #[test]
