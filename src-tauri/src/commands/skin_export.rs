@@ -32,7 +32,12 @@ pub struct SkinExportOptions {
 /// install, so an author can share a skin without redistributing the car.
 #[tauri::command]
 pub async fn export_skin(opts: SkinExportOptions) -> Result<(), String> {
-    export_skin_inner(&opts).map_err(|e| e.to_string())
+    // A recursive copy plus a full zip is seconds of blocking work, and on the
+    // async runtime it stalls every other command for the whole export.
+    tokio::task::spawn_blocking(move || export_skin_inner(&opts))
+        .await
+        .map_err(|e| format!("Task failed: {e}"))?
+        .map_err(|e: AppError| e.to_string())
 }
 
 // ------------------------------------------------------------------------------
