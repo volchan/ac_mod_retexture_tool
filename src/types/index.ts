@@ -41,19 +41,19 @@ export interface SkinEntry {
   /** Folder name — the id AC uses in race.ini SKIN=. */
   name: string
   path: string
-  /** `skinname` from ui_skin.json, when the skin declares one. */
-  displayName?: string
-  driverName?: string
-  team?: string
-  number?: string
-  country?: string
-  previewUrl?: string
+  /** `skinname` from ui_skin.json, when the skin declares one. Null, not
+   * absent: the backend serializes every one of these as an `Option`. */
+  displayName: string | null
+  driverName: string | null
+  team: string | null
+  number: string | null
+  country: string | null
+  previewUrl: string | null
   textureCount: number
 }
 
-/** The ui_skin.json fields the workspace lets an author edit, plus the folder
- * name the skin is written under. Keeping the same name updates the opened
- * skin; changing it forks a new one. */
+/** What a skin export needs: where it comes from, where the archive goes, and
+ * how much of the skin travels with it. */
 export interface SkinExportOptions {
   carPath: string
   skinFolder: string
@@ -64,6 +64,9 @@ export interface SkinExportOptions {
   replacements: TextureReplacementOpt[]
 }
 
+/** The ui_skin.json fields the workspace lets an author edit, plus the folder
+ * name the skin is written under. Keeping the same name updates the opened
+ * skin; changing it forks a new one. */
 export interface SkinMeta {
   folderName: string
   skinName: string
