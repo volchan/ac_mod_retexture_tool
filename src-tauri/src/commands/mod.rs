@@ -4,6 +4,7 @@ pub mod decode;
 pub mod enhance;
 pub mod extract;
 pub mod fonts;
+pub mod image_source;
 pub mod import;
 pub mod livery_edit;
 pub mod livery_model;
