@@ -45,7 +45,7 @@ pub fn render(meshes: &[&UvMesh], width: u32, height: u32) -> RgbaImage {
 /// seam a painter has to stay inside of.
 fn border_edges(mesh: &UvMesh) -> Vec<(u16, u16)> {
     let mut uses: HashMap<(u16, u16), u32> = HashMap::new();
-    for triangle in mesh.indices.chunks_exact(3) {
+    for triangle in mesh.indices.as_chunks::<3>().0 {
         let corners = [
             (triangle[0], triangle[1]),
             (triangle[1], triangle[2]),
