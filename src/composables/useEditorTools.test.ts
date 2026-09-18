@@ -166,4 +166,31 @@ describe('useEditorTools', () => {
     tools.brushColor.value = '#00ff00'
     expect(tools.newStroke([1, 2])).toMatchObject({ size: 64, color: '#00ff00', points: [1, 2] })
   })
+
+  describe('sampleColor', () => {
+    it('arms both the brush and the bucket with the sampled colour', () => {
+      const tools = useEditorTools()
+      tools.sampleColor('#0a0b0c')
+      expect(tools.fillColor.value).toBe('#0a0b0c')
+      expect(tools.brushColor.value).toBe('#0a0b0c')
+    })
+
+    /// The pipette is a detour, never a destination: the user was about to paint.
+    it('hands the tool back to whatever the pipette interrupted', () => {
+      const tools = useEditorTools()
+      tools.setTool('bucket')
+      tools.setTool('eyedropper')
+      tools.sampleColor('#ffffff')
+      expect(tools.tool.value).toBe('bucket')
+    })
+
+    it('does not forget the interrupted tool when the pipette is re-armed', () => {
+      const tools = useEditorTools()
+      tools.setTool('brush')
+      tools.setTool('eyedropper')
+      tools.setTool('eyedropper')
+      tools.sampleColor('#ffffff')
+      expect(tools.tool.value).toBe('brush')
+    })
+  })
 })

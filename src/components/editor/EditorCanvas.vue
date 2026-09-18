@@ -8,6 +8,7 @@ import { useImageAssets } from '@/composables/useImageAssets'
 import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import { layerConfig, strokeConfigs, transformerConfig } from '@/lib/editorConfig'
 import { pointerIntent } from '@/lib/editorPointer'
+import { pickColor } from '@/lib/stageExport'
 import type { BrushStroke, EditorLayer, StrokeLayer } from '@/types/index'
 
 const props = defineProps<{
@@ -29,8 +30,16 @@ const emit = defineEmits<{
 }>()
 
 const { layers, selectedId, updateLayer, holdEdits, releaseEdits, select } = useLiveryDocument()
-const { tool, strokeTarget, newStroke, addBucketLayer, mirrored, fillColor, fillTolerance } =
-  useEditorTools()
+const {
+  tool,
+  strokeTarget,
+  newStroke,
+  addBucketLayer,
+  sampleColor,
+  mirrored,
+  fillColor,
+  fillTolerance,
+} = useEditorTools()
 const { maskFor, previewMask } = useBucketMasks()
 const { resolve } = useImageAssets()
 
@@ -131,6 +140,7 @@ function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
   if (intent.kind === 'transform') return
   if (intent.kind === 'paint') startStroke(stage)
   if (intent.kind === 'fill') fillAtPointer(stage)
+  if (intent.kind === 'pick') pickAtPointer(stage)
   if (intent.kind === 'pan') {
     select(null)
     startPan(e.evt)
@@ -223,6 +233,13 @@ function bitmapFor(layer: EditorLayer) {
 
   const mask = maskFor(layer, props.baseImage)
   return { image: mask?.canvas ?? null, origin: mask ?? undefined }
+}
+
+function pickAtPointer(stage: Konva.Stage) {
+  const point = stage.getRelativePointerPosition()
+  if (!point) return
+  const hex = pickColor(stage, point.x, point.y)
+  if (hex) sampleColor(hex)
 }
 
 function fillAtPointer(stage: Konva.Stage) {

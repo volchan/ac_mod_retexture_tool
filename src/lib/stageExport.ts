@@ -9,7 +9,23 @@ export function flattenStage(
   height: number,
   pixelRatio = 1,
 ): string {
-  return withoutChrome(stage, width, height, pixelRatio, (options) => stage.toDataURL(options))
+  const sheet = { x: 0, y: 0, width, height }
+  return withoutChrome(stage, sheet, pixelRatio, (options) => stage.toDataURL(options))
+}
+
+/// The colour the livery actually shows at one texture pixel, guides and markers
+/// excluded. Rendered as a one pixel crop rather than read back from the visible
+/// layer: the sheet is drawn at whatever zoom the user is at, and the overlays
+/// they work against would tint the sample.
+export function pickColor(stage: Konva.Stage, x: number, y: number): string | null {
+  const pixel = { x: Math.floor(x), y: Math.floor(y), width: 1, height: 1 }
+  const canvas = withoutChrome(stage, pixel, 1, (options) => stage.toCanvas(options))
+  const context = canvas.getContext('2d')
+  if (!context) return null
+
+  const [r, g, b, alpha] = context.getImageData(0, 0, 1, 1).data
+  if (alpha === 0) return null
+  return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
 }
 
 /// The same flattening without the PNG round trip. Encoding a 7168 pixel texture
@@ -21,17 +37,24 @@ export function stageToCanvas(
   height: number,
   pixelRatio = 1,
 ): HTMLCanvasElement {
-  return withoutChrome(stage, width, height, pixelRatio, (options) => stage.toCanvas(options))
+  const sheet = { x: 0, y: 0, width, height }
+  return withoutChrome(stage, sheet, pixelRatio, (options) => stage.toCanvas(options))
 }
 
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
 
+interface Crop {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 function withoutChrome<T>(
   stage: Konva.Stage,
-  width: number,
-  height: number,
+  crop: Crop,
   pixelRatio: number,
   draw: (options: Record<string, unknown>) => T,
 ): T {
@@ -50,7 +73,7 @@ function withoutChrome<T>(
   stage.position({ x: 0, y: 0 })
 
   try {
-    return draw({ x: 0, y: 0, width, height, pixelRatio, mimeType: 'image/png' })
+    return draw({ ...crop, pixelRatio, mimeType: 'image/png' })
   } finally {
     stage.scale({ x: view.scaleX, y: view.scaleY })
     stage.position({ x: view.x, y: view.y })

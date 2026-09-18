@@ -12,6 +12,7 @@ export interface PointerTarget {
 export type PointerIntent =
   | { kind: 'paint' }
   | { kind: 'fill' }
+  | { kind: 'pick' }
   | { kind: 'pan' }
   | { kind: 'select'; id: string }
   | { kind: 'transform' }
@@ -20,6 +21,7 @@ export type PointerIntent =
 /// everything else: its anchors carry no id, so treating them as background would
 /// clear the selection and tear the handles away mid-resize.
 export function pointerIntent(tool: EditorTool, target: PointerTarget): PointerIntent {
+  if (tool === 'eyedropper') return { kind: 'pick' }
   if (tool === 'bucket') return { kind: 'fill' }
   if (tool !== 'select') return { kind: 'paint' }
   if (target.onTransformer) return { kind: 'transform' }

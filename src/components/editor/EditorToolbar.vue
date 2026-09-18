@@ -8,6 +8,7 @@ import {
   MousePointer2Icon,
   PaintBucketIcon,
   PencilIcon,
+  PipetteIcon,
   SquareIcon,
   TypeIcon,
 } from 'lucide-vue-next'
@@ -33,6 +34,7 @@ const TOOLS = [
   { id: 'brush', icon: PencilIcon, label: 'Brush' },
   { id: 'eraser', icon: EraserIcon, label: 'Eraser' },
   { id: 'bucket', icon: PaintBucketIcon, label: 'Fill a region with a colour' },
+  { id: 'eyedropper', icon: PipetteIcon, label: 'Pick a colour off the livery' },
 ] as const
 
 const CREATORS = [

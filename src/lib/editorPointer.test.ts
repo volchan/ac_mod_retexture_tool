@@ -42,4 +42,11 @@ describe('pointerIntent', () => {
       kind: 'pan',
     })
   })
+
+  it('samples a colour with the pipette, wherever the press lands', () => {
+    expect(pointerIntent('eyedropper', background)).toEqual({ kind: 'pick' })
+    expect(pointerIntent('eyedropper', { ...background, onTransformer: true })).toEqual({
+      kind: 'pick',
+    })
+  })
 })

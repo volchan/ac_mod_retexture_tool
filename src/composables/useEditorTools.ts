@@ -5,7 +5,7 @@ import { createLayerId, useLiveryDocument } from '@/composables/useLiveryDocumen
 import { textBounds } from '@/lib/editorConfig'
 import type { BrushStroke, ShapeLayer, StrokeLayer } from '@/types/index'
 
-export type EditorTool = 'select' | 'brush' | 'eraser' | 'bucket'
+export type EditorTool = 'select' | 'brush' | 'eraser' | 'bucket' | 'eyedropper'
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'svg']
 const DEFAULT_FONT = 'Arial'
@@ -16,6 +16,9 @@ const brushSize = ref(24)
 const brushColor = ref('#ffffff')
 const fillColor = ref('#c8102e')
 const fillTolerance = ref(32)
+/// What the pipette interrupted, so a sampled colour lands back in the tool the
+/// user was painting with rather than making them re-arm it.
+const toolBeforePick = ref<EditorTool>('select')
 const mirrorX = ref(false)
 const mirrorY = ref(false)
 
@@ -26,8 +29,17 @@ export function useEditorTools() {
   const { load } = useImageAssets()
 
   function setTool(next: EditorTool) {
+    if (next === 'eyedropper' && tool.value !== 'eyedropper') toolBeforePick.value = tool.value
     tool.value = next
     if (next !== 'select') select(null)
+  }
+
+  /// Both colours follow the sample: the pipette answers "that shade there", and
+  /// which tool is about to spend it is the user's next click, not this one.
+  function sampleColor(hex: string) {
+    fillColor.value = hex
+    brushColor.value = hex
+    setTool(toolBeforePick.value)
   }
 
   async function addImageLayer() {
@@ -215,6 +227,7 @@ export function useEditorTools() {
     addTextLayer,
     addShapeLayer,
     addBucketLayer,
+    sampleColor,
     strokeTarget,
     newStroke,
   }
