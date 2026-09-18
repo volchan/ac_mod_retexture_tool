@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { useRafFn, watchDebounced } from '@vueuse/core'
 import type Konva from 'konva'
-import { ref, shallowRef, watch } from 'vue'
-import { useBucketMasks } from '@/composables/useBucketMasks'
+import { onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { type BucketMask, useBucketMasks } from '@/composables/useBucketMasks'
 import { useEditorTools } from '@/composables/useEditorTools'
 import { useImageAssets } from '@/composables/useImageAssets'
 import { useLiveryDocument } from '@/composables/useLiveryDocument'
@@ -28,13 +29,25 @@ const emit = defineEmits<{
 }>()
 
 const { layers, selectedId, updateLayer, holdEdits, releaseEdits, select } = useLiveryDocument()
-const { tool, strokeTarget, newStroke, addBucketLayer, mirrored } = useEditorTools()
-const { maskFor } = useBucketMasks()
+const { tool, strokeTarget, newStroke, addBucketLayer, mirrored, fillColor, fillTolerance } =
+  useEditorTools()
+const { maskFor, previewMask } = useBucketMasks()
 const { resolve } = useImageAssets()
+
+/// How wide the pulse swings, and how long a full swing takes. Slow enough to
+/// read as breathing rather than strobing.
+const PULSE = { low: 0.25, high: 0.65, periodMs: 1100 }
+
+/// Flood filling a 4K sheet costs tens of milliseconds, far too much to run on
+/// every pointer event: the region is worked out once the cursor settles.
+const HOVER_SETTLE_MS = 90
 
 const stageRef = ref<{ getStage: () => Konva.Stage } | null>(null)
 const transformerRef = ref<{ getNode: () => Konva.Transformer } | null>(null)
+const previewLayerRef = ref<{ getNode: () => Konva.Layer } | null>(null)
 const liveStroke = shallowRef<BrushStroke | null>(null)
+const pointer = shallowRef<{ x: number; y: number } | null>(null)
+const fillPreview = shallowRef<BucketMask | null>(null)
 
 // Konva nodes registered as they mount, rather than looked up by id: a freshly
 // added layer has no node yet when the selection watcher runs.
@@ -57,6 +70,28 @@ watch(
   },
   { flush: 'post' },
 )
+
+/// The pulse is driven straight onto the Konva node instead of through a reactive
+/// opacity: a ref would re-render every layer sixty times a second. Its own layer
+/// keeps the redraw to one small bitmap rather than the whole sheet.
+const pulse = useRafFn(
+  () => {
+    const node = previewLayerRef.value?.getNode()
+    if (!node) return
+    const phase = (Math.sin((Date.now() / PULSE.periodMs) * Math.PI * 2) + 1) / 2
+    node.opacity(PULSE.low + (PULSE.high - PULSE.low) * phase)
+    node.batchDraw()
+  },
+  { immediate: false },
+)
+
+watchDebounced([pointer, tool, fillColor, fillTolerance], recomputeFillPreview, {
+  debounce: HOVER_SETTLE_MS,
+})
+
+watch(fillPreview, (preview) => (preview ? pulse.resume() : pulse.pause()), { flush: 'post' })
+
+onBeforeUnmount(pulse.pause)
 
 function config(layer: EditorLayer) {
   const { image, origin } = bitmapFor(layer)
@@ -107,6 +142,7 @@ function handlePointerMove() {
   const stage = stageRef.value?.getStage()
   if (!stage) return
   emit('hoverTexture', stage.getRelativePointerPosition())
+  pointer.value = stage.getRelativePointerPosition()
 
   const current = liveStroke.value
   if (!current) return
@@ -117,6 +153,8 @@ function handlePointerMove() {
 
 function handlePointerLeave() {
   emit('hoverTexture', null)
+  pointer.value = null
+  fillPreview.value = null
 }
 
 function handlePointerUp() {
@@ -132,8 +170,11 @@ function handlePointerUp() {
 defineExpose({
   stageRef,
   transformerRef,
+  previewLayerRef,
   layers,
   liveStroke,
+  fillPreview,
+  previewConfig,
   config,
   strokeConfigs,
   transformerConfig,
@@ -152,6 +193,29 @@ defineExpose({
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
+
+/// Shows what the bucket is aiming at before it is clicked: on a sheet this
+/// dense, a seed pixel says nothing about how far the fill will run.
+function recomputeFillPreview() {
+  const point = pointer.value
+  if (tool.value !== 'bucket' || !point) {
+    fillPreview.value = null
+    return
+  }
+  fillPreview.value = previewMask(point, fillTolerance.value, fillColor.value, props.baseImage)
+}
+
+/// Named as chrome so it is stripped from the flattened sheet: the highlight is
+/// something to aim with, never paint.
+function previewConfig(mask: BucketMask) {
+  return {
+    image: mask.canvas,
+    x: mask.x,
+    y: mask.y,
+    name: 'editor-chrome',
+    listening: false,
+  }
+}
 
 function bitmapFor(layer: EditorLayer) {
   if (layer.type === 'image') return { image: resolve(layer.src), origin: undefined }
@@ -312,6 +376,10 @@ function startPan(event: PointerEvent) {
 
       <v-line v-if="liveStroke" :config="strokeConfigs({ strokes: [liveStroke], opacity: 1 })[0]" />
       <v-transformer ref="transformerRef" :config="transformerConfig" />
+    </v-layer>
+
+    <v-layer v-if="fillPreview" ref="previewLayerRef" :config="{ listening: false }">
+      <v-image :config="previewConfig(fillPreview)" />
     </v-layer>
   </v-stage>
 </template>

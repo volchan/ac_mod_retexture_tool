@@ -89,6 +89,39 @@ describe('useBucketMasks', () => {
     expect(maskFor(bucket('layer-0'), base)).toBe(first)
   })
 
+  it('reuses the hover preview while the pointer sits on the same spot', () => {
+    stubCanvas()
+    const { previewMask } = useBucketMasks()
+    const base = baseImage()
+    const first = previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)
+    expect(previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)).toBe(first)
+  })
+
+  it('recomputes the hover preview once the pointer moves elsewhere', () => {
+    stubCanvas()
+    const { previewMask } = useBucketMasks()
+    const base = baseImage()
+    const first = previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)
+    expect(previewMask({ x: 3, y: 3 }, 32, '#ff0000', base)).not.toBe(first)
+  })
+
+  /// The pointer visits a new region every time it moves, so a preview that went
+  /// through the cache would evict the masks the layers are still drawing.
+  it('keeps hover previews out of the layer cache', () => {
+    stubCanvas()
+    const { maskFor, previewMask } = useBucketMasks()
+    const base = baseImage()
+    const layer = maskFor(bucket('a'), base)
+    for (let i = 0; i < 30; i += 1) {
+      previewMask({ x: i, y: i }, 32, '#ff0000', base)
+    }
+    expect(maskFor(bucket('a'), base)).toBe(layer)
+  })
+
+  it('has no hover preview without a base texture', () => {
+    expect(useBucketMasks().previewMask({ x: 1, y: 1 }, 32, '#ff0000', null)).toBeNull()
+  })
+
   it('places the mask where the fill spread, not where the click landed', () => {
     stubCanvas()
     const mask = useBucketMasks().maskFor(bucket('a', { x: 3, y: 3 }), baseImage())

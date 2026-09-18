@@ -12,6 +12,8 @@ const masks = new Map<string, BucketMask>()
 const basePixels = new WeakMap<HTMLImageElement, Pixels>()
 const barriers = new WeakMap<HTMLImageElement, Uint8Array>()
 
+let hovered: { key: string; mask: BucketMask } | null = null
+
 /// A filled region as Konva draws it: the cropped bitmap, and where on the
 /// texture its top-left corner belongs.
 export interface BucketMask {
@@ -40,11 +42,29 @@ export function useBucketMasks() {
     return mask
   }
 
-  function clearMasks() {
-    masks.clear()
+  /// The region the bucket would fill if the user clicked here. One slot rather
+  /// than the cache: the pointer visits a new region every time it moves, and
+  /// every one of those would otherwise crowd out a mask a layer still draws.
+  function previewMask(
+    point: { x: number; y: number },
+    tolerance: number,
+    color: string,
+    base: HTMLImageElement | null,
+  ): BucketMask | null {
+    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${color}`
+    if (hovered?.key === key) return hovered.mask
+
+    const mask = buildMask(point, tolerance, color, base, template.value)
+    hovered = mask ? { key, mask } : null
+    return mask
   }
 
-  return { maskFor, clearMasks }
+  function clearMasks() {
+    masks.clear()
+    hovered = null
+  }
+
+  return { maskFor, previewMask, clearMasks }
 }
 
 // ------------------------------------------------------------------------------
