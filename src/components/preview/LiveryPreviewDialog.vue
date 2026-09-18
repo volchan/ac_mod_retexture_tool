@@ -62,7 +62,9 @@ defineExpose({
 
 <template>
   <Dialog :open="isOpen" @update:open="close">
-    <DialogContent class="max-w-[95vw] h-[90vh] p-0 gap-0 overflow-hidden">
+    <DialogContent
+      class="flex w-[95vw] sm:max-w-none h-[90vh] flex-col p-0 gap-0 overflow-hidden [&>[data-slot=dialog-close]]:top-2 [&>[data-slot=dialog-close]]:right-4"
+    >
       <DialogTitle class="border-b px-4 py-2 text-[12px] font-medium">Livery preview</DialogTitle>
 
       <div ref="host" class="relative flex-1 min-h-0 bg-muted/20">
