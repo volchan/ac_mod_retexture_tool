@@ -61,6 +61,7 @@ pub fn run() {
             commands::test_in_game::list_track_layouts,
             commands::test_in_game::test_in_game,
             commands::skin::list_car_skins,
+            commands::skin_art::write_skin_art,
             commands::skin_export::export_skin,
             commands::skin_test::test_skin_in_game,
             commands::ac_detect::list_ac_tracks,

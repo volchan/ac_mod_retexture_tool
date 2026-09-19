@@ -17,6 +17,7 @@ import type {
   Mod,
   ProgressInfo,
   RepackOptions,
+  SkinArt,
   SkinEntry,
   SkinExportOptions,
   Texture,
@@ -100,6 +101,17 @@ export async function decodeModTextures(
 
 export async function exportSkin(options: SkinExportOptions): Promise<void> {
   return invoke('export_skin', { opts: options })
+}
+
+/// Writes one of a skin's two display images. `payload` is bare base64, which
+/// is what a canvas data URL carries after its comma.
+export async function writeSkinArt(
+  carPath: string,
+  skin: string,
+  art: SkinArt,
+  payload: string,
+): Promise<string> {
+  return invoke('write_skin_art', { carPath, skin, art, payload })
 }
 
 export async function cancelDecode(): Promise<void> {

@@ -13,6 +13,7 @@ pub mod livery_textures;
 pub mod repack;
 pub mod scan;
 pub mod skin;
+pub mod skin_art;
 pub mod skin_export;
 pub mod skin_test;
 pub mod test_in_game;

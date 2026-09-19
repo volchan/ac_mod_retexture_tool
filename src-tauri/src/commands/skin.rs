@@ -9,9 +9,14 @@ use crate::commands::track_hero::mime_for_path;
 use crate::errors::AppError;
 use crate::models::skin::{SkinEntry, SkinMeta};
 
-const SKINS_DIR: &str = "skins";
+pub(crate) const SKINS_DIR: &str = "skins";
 const UI_SKIN_JSON: &str = "ui_skin.json";
 const MAX_PREVIEW_BYTES: u64 = 10 * 1024 * 1024;
+
+/// What the webview may write back as a preview or a badge. A preview is a
+/// hundred KB of JPEG and a badge a few KB of PNG; this only has to stop a
+/// runaway payload, not judge the image.
+pub(crate) const MAX_SKIN_ART_BYTES: u64 = 4 * 1024 * 1024;
 
 // AC skin previews are usually JPEG, sometimes with no extension at all.
 const PREVIEW_CANDIDATES: &[&str] = &["preview.jpg", "preview.png", "preview.jpeg", "preview"];

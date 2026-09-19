@@ -76,6 +76,9 @@ export interface SkinMeta {
   country: string
 }
 
+/** Which of a skin's two display images is being written. */
+export type SkinArt = 'preview' | 'livery'
+
 export interface Mod {
   modType: ModType
   path: string
