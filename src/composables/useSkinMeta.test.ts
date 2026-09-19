@@ -142,3 +142,66 @@ describe('useSkinMeta', () => {
     unmount()
   })
 })
+
+describe('syncFolderToNumber', () => {
+  async function metaAfter(folderName: string, raceNumber: string) {
+    const { result, unmount } = await withSetup(() => useSkinMeta())
+    result.load(skin({ name: folderName }))
+    result.syncFolderToNumber(raceNumber)
+    const folder = result.meta.value?.folderName
+    unmount()
+    return folder
+  }
+
+  it('puts the number in front of the name the author chose', async () => {
+    expect(await metaAfter('racing_blue', '24')).toBe('24_racing_blue')
+  })
+
+  /// Typing a second digit would otherwise stack prefixes: 2_51_racing_blue.
+  it('replaces a number already there rather than stacking another', async () => {
+    expect(await metaAfter('51_racing_blue', '24')).toBe('24_racing_blue')
+  })
+
+  it('replaces a number carrying a letter, as an entry list allows', async () => {
+    expect(await metaAfter('51A_racing_blue', '24')).toBe('24_racing_blue')
+  })
+
+  /// The prefix has to start with a digit, or the first word of every skin name
+  /// would be eaten as if it were a number.
+  it('leaves a name whose first word is a word alone', async () => {
+    expect(await metaAfter('rosso_corsa', '24')).toBe('24_rosso_corsa')
+  })
+
+  it('strips the prefix back off when the number is cleared', async () => {
+    expect(await metaAfter('24_racing_blue', '')).toBe('racing_blue')
+    expect(await metaAfter('24_racing_blue', '   ')).toBe('racing_blue')
+  })
+
+  it('keeps a number AC would read but a folder name would not hold', async () => {
+    expect(await metaAfter('racing_blue', '# 24')).toBe('24_racing_blue')
+  })
+
+  it('names the folder after the number alone when nothing else is left', async () => {
+    expect(await metaAfter('51', '24')).toBe('24')
+  })
+
+  /// A skin is only opened, never renamed, by being looked at: the sync runs on
+  /// the author's own edit, so loading must leave the folder exactly as found.
+  it('is not what load does', async () => {
+    const { result, unmount } = await withSetup(() => useSkinMeta())
+    result.load(skin({ name: 'racing_blue', number: '24' }))
+
+    expect(result.meta.value?.folderName).toBe('racing_blue')
+    expect(result.isFork.value).toBe(false)
+    unmount()
+  })
+
+  it('does nothing when no skin is open', async () => {
+    const { result, unmount } = await withSetup(() => useSkinMeta())
+    result.reset()
+
+    expect(() => result.syncFolderToNumber('24')).not.toThrow()
+    expect(result.meta.value).toBeNull()
+    unmount()
+  })
+})

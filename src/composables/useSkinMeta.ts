@@ -22,6 +22,16 @@ export function useSkinMeta() {
     }
   }
 
+  /** Renumbers the folder to match, keeping whatever the author called the skin.
+   *
+   * Only ever called from a change the author makes, never from `load`: a skin
+   * opened from disk must not rename itself into a fork just by being looked at.
+   */
+  function syncFolderToNumber(raceNumber: string): void {
+    if (!meta.value) return
+    meta.value.folderName = numbered(meta.value.folderName, raceNumber)
+  }
+
   function reset(): void {
     meta.value = null
     openedFolderName.value = ''
@@ -49,12 +59,34 @@ export function useSkinMeta() {
     folderNameError,
     load,
     reset,
+    syncFolderToNumber,
   }
 }
 
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
+
+/// A folder already carrying a race number wears it as a leading `24_` or
+/// `51A_`, or is the bare number itself. That prefix is swapped rather than
+/// stacked when the number changes. It has to start with a digit: `rosso_corsa`
+/// names a colour, not car number rosso.
+const LEADING_NUMBER = /^\d[A-Za-z0-9]*(_(?=.)|$)/
+
+/// Anything the folder name may not hold, collapsed so a number typed with a
+/// space or a hash still produces a name AC can read.
+const UNUSABLE_IN_FOLDER = /[^A-Za-z0-9]+/g
+
+/** `24` over `rosso_corsa` gives `24_rosso_corsa`; over `51_rosso_corsa` it
+ * replaces the 51 rather than stacking another prefix. An empty number strips
+ * the prefix back off. */
+function numbered(folderName: string, raceNumber: string): string {
+  const base = folderName.replace(LEADING_NUMBER, '')
+  const prefix = raceNumber.trim().replace(UNUSABLE_IN_FOLDER, '')
+
+  if (!prefix) return base
+  return base ? `${prefix}_${base}` : prefix
+}
 
 const FOLDER_NAME_PATTERN = /^[A-Za-z0-9._-]+$/
 /** Both pass the character test yet name a directory instead of a new skin. */

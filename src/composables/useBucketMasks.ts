@@ -69,7 +69,19 @@ export function useBucketMasks() {
     hovered = null
   }
 
-  return { maskFor, previewMask, clearMasks }
+  /// How much of the texture each bucket covers, for whoever has to rank the
+  /// colours a livery wears. Only layers already drawn are in here — a bucket
+  /// stores a seed point, and its size is not known until it has been filled.
+  function maskAreas(): Map<string, number> {
+    const areas = new Map<string, number>()
+    for (const [key, mask] of masks) {
+      const [layerId] = key.split(':')
+      areas.set(layerId, mask.canvas.width * mask.canvas.height)
+    }
+    return areas
+  }
+
+  return { maskFor, previewMask, clearMasks, maskAreas }
 }
 
 // ------------------------------------------------------------------------------
