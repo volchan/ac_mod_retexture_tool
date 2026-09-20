@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { useElementSize, useRafFn } from '@vueuse/core'
-import { AlertCircleIcon } from 'lucide-vue-next'
+import { AlertCircleIcon, CameraIcon } from 'lucide-vue-next'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { useLiveryPreview } from '@/composables/useLiveryPreview'
+import { PREVIEW_SIZE, useSkinArt } from '@/composables/useSkinArt'
 import { createLiveryScene, type LiveryScene } from '@/lib/liveryScene'
 
 /// Long enough for the rest of a failing skin to arrive, short enough that the
 /// message still lands while the user is looking at the black panels.
 const TEXTURE_ERROR_GRACE_MS = 250
 
-const { isOpen, isLoading, error, model, close } = useLiveryPreview()
+const { isOpen, isLoading, error, model, shown, close } = useLiveryPreview()
+const { savePreview, isSaving } = useSkinArt()
 
 const host = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -63,6 +65,23 @@ function flushTextureErrors() {
   toast.error(`Could not draw ${names.length} textures`, { description: names.join(', ') })
 }
 
+/// The capture is taken from the scene the user is looking at, framing and all:
+/// what they lined up is what AC's selection screen will show.
+async function useAsSkinPreview() {
+  const target = shown.value
+  if (!scene || !target) return
+
+  try {
+    const shot = scene.capture(PREVIEW_SIZE.width, PREVIEW_SIZE.height)
+    await savePreview(target.carPath, target.skin, shot)
+    toast.success('Saved as this skin\u2019s preview')
+  } catch (e) {
+    toast.error('Could not save the preview', {
+      description: e instanceof Error ? e.message : String(e),
+    })
+  }
+}
+
 onBeforeUnmount(() => {
   if (pendingReport) clearTimeout(pendingReport)
   pause()
@@ -72,6 +91,7 @@ onBeforeUnmount(() => {
 
 defineExpose({
   AlertCircleIcon,
+  CameraIcon,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -83,6 +103,8 @@ defineExpose({
   host,
   canvas,
   close,
+  isSaving,
+  useAsSkinPreview,
 })
 </script>
 
@@ -91,7 +113,19 @@ defineExpose({
     <DialogContent
       class="flex w-[95vw] sm:max-w-none h-[90vh] flex-col p-0 gap-0 overflow-hidden [&>[data-slot=dialog-close]]:top-2 [&>[data-slot=dialog-close]]:right-4"
     >
-      <DialogTitle class="border-b px-4 py-2 text-[12px] font-medium">Livery preview</DialogTitle>
+      <div class="flex items-center gap-3 border-b px-4 py-2">
+        <DialogTitle class="text-[12px] font-medium">Livery preview</DialogTitle>
+
+        <button
+          v-if="model"
+          class="ml-auto mr-8 flex items-center gap-1.5 rounded-[6px] border border-border px-2 py-1 text-[11px] font-medium disabled:opacity-50"
+          :disabled="isSaving"
+          @click="useAsSkinPreview"
+        >
+          <CameraIcon :size="13" />
+          {{ isSaving ? 'Saving\u2026' : 'Use as skin preview' }}
+        </button>
+      </div>
 
       <div ref="host" class="relative flex-1 min-h-0 bg-muted/20">
         <canvas v-if="model" ref="canvas" class="size-full" />

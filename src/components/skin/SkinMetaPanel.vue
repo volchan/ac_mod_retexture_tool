@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { useMod } from '@/composables/useMod'
+import { useSkinArt } from '@/composables/useSkinArt'
 import { useSkinMeta } from '@/composables/useSkinMeta'
 
-const { activeSkin } = useMod()
+const { mod, activeSkin } = useMod()
+const { badgeColours, paintBadge, saveBadge, isSaving } = useSkinArt()
 const {
   meta,
   openedFolderName,
@@ -14,6 +17,7 @@ const {
   folderNameError,
   load,
   reset,
+  syncFolderToNumber,
 } = useSkinMeta()
 
 const emit = defineEmits<{ 'export-skin': [] }>()
@@ -26,6 +30,39 @@ watch(
   },
   { immediate: true },
 )
+
+const badge = ref<HTMLCanvasElement | null>(null)
+
+/// Redrawn from the colours the livery wears and the number as it is typed, so
+/// the sidebar shows what AC's entry list will show rather than a stale file.
+watch(
+  [badge, badgeColours, () => meta.value?.number],
+  ([canvas, , raceNumber]) => {
+    if (canvas) paintBadge(canvas, raceNumber ?? '')
+  },
+  { immediate: true },
+)
+
+/// The number is the one field that renames the folder, so it is the only one
+/// whose edits go anywhere but straight into the form.
+function onFieldInput(key: (typeof FIELDS)[number]['key']) {
+  if (key === 'number' && meta.value) syncFolderToNumber(meta.value.number)
+}
+
+async function saveBadgeToSkin() {
+  const carPath = mod.value?.path
+  const skin = activeSkin.value?.name
+  if (!carPath || !skin) return
+
+  try {
+    await saveBadge(carPath, skin, meta.value?.number ?? '')
+    toast.success('Saved this skin\u2019s badge')
+  } catch (e) {
+    toast.error('Could not save the badge', {
+      description: e instanceof Error ? e.message : String(e),
+    })
+  }
+}
 
 const FIELDS = [
   { key: 'skinName', label: 'Skin name', placeholder: 'Rosso Corsa' },
@@ -44,6 +81,10 @@ defineExpose({
   incompleteFork,
   folderNameError,
   FIELDS,
+  badge,
+  isSaving,
+  onFieldInput,
+  saveBadgeToSkin,
   emit,
 })
 </script>
@@ -78,8 +119,27 @@ defineExpose({
         :placeholder="field.placeholder"
         class="w-full mt-0.5 px-2 py-1 text-[12px] rounded-[5px] border border-border bg-background"
         :aria-label="field.label"
+        @input="onFieldInput(field.key)"
       />
     </label>
+
+    <div class="mt-3 flex items-center gap-2.5">
+      <canvas
+        ref="badge"
+        class="size-[52px] shrink-0 rounded-[5px] border border-border"
+        aria-label="Entry list badge"
+      />
+      <div class="min-w-0">
+        <p class="text-[11px] text-muted-foreground">Entry list badge</p>
+        <button
+          class="text-[11px] font-medium underline underline-offset-2 disabled:opacity-50"
+          :disabled="isSaving || !activeSkin"
+          @click="saveBadgeToSkin"
+        >
+          {{ isSaving ? 'Saving\u2026' : 'Save to skin' }}
+        </button>
+      </div>
+    </div>
 
     <div class="mt-3 pt-3 border-t border-border">
       <label class="flex items-center gap-2 text-[12px] mb-1">
@@ -101,6 +161,7 @@ defineExpose({
       <button
         class="w-full py-1.5 text-[12px] font-medium rounded-[6px] bg-primary text-primary-foreground disabled:opacity-50"
         :disabled="folderNameError != null || isExporting"
+        aria-label="Export skin"
         @click="emit('export-skin')"
       >
         {{ isExporting ? 'Packing…' : 'Export skin' }}

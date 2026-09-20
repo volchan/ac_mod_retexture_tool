@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BADGE_SIZE, drawLiveryBadge } from './liveryBadge'
-import { FALLBACK_COLOURS } from './liveryColours'
+import { BADGE_SIZE, drawLiveryBadge, FALLBACK_COLOURS } from './liveryBadge'
 
 /// jsdom has no 2D context, and the badge is a sequence of drawing decisions
 /// rather than a bitmap worth comparing — so the calls are recorded instead.

@@ -1,5 +1,4 @@
 import { isHexColor, parseHexColor } from '@/lib/floodFill'
-import { FALLBACK_COLOURS } from '@/lib/liveryColours'
 
 /// Draws the 128x128 `livery.png` AC shows beside a car in the entry list and
 /// the pit board: the livery's two dominant colours split on a diagonal, with
@@ -10,6 +9,10 @@ import { FALLBACK_COLOURS } from '@/lib/liveryColours'
 
 /// AC reads `livery.png` at a fixed size; anything else is scaled and blurs.
 export const BADGE_SIZE = 128
+
+/// What a livery with nothing readable on it falls back to: AC's own empty-slot
+/// grey, rather than a black badge that reads as a bug.
+export const FALLBACK_COLOURS = ['#8A8A8A', '#3C3C3C']
 
 /// Where the diagonal crosses the top and bottom edges, as a fraction of the
 /// width. Leaning it rather than splitting corner to corner leaves the number a

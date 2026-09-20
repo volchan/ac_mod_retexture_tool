@@ -1,10 +1,11 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick } from 'vue'
-import { shapeLayer } from '@/test-fixtures/layers'
+import { FALLBACK_COLOURS } from '@/lib/liveryBadge'
+import { STUBBED_DATA_URL, stubCanvas } from '@/test-fixtures/canvas'
 import type { Texture } from '@/types/index'
-import { useLiveryDocument } from './useLiveryDocument'
 import { useSkinArt } from './useSkinArt'
+import { useTextures } from './useTextures'
 
 const { writeSkinArt } = vi.hoisted(() => ({ writeSkinArt: vi.fn(async () => '/written/path') }))
 
@@ -12,31 +13,6 @@ vi.mock('@/lib/tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/tauri')>()
   return { ...actual, writeSkinArt }
 })
-
-/// jsdom builds a real canvas element but gives it no 2D context and no
-/// toDataURL, so both are stubbed. The drawing itself is covered by the badge's
-/// own tests; what matters here is which bytes reach the backend.
-const BADGE_DATA_URL = 'data:image/png;base64,QkFER0U='
-
-function stubCanvas() {
-  const create = document.createElement.bind(document)
-  vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-    const element = create(tag)
-    if (tag !== 'canvas') return element
-
-    const canvas = element as HTMLCanvasElement
-    canvas.getContext = (() => fakeContext()) as HTMLCanvasElement['getContext']
-    canvas.toDataURL = () => BADGE_DATA_URL
-    return canvas
-  })
-}
-
-function fakeContext() {
-  return new Proxy({} as CanvasRenderingContext2D, {
-    get: (_target, key) => (key === 'measureText' ? () => ({ width: 10 }) : () => undefined),
-    set: () => true,
-  })
-}
 
 async function withSetup<T>(composable: () => T): Promise<{ result: T; unmount: () => void }> {
   let result!: T
@@ -52,7 +28,7 @@ async function withSetup<T>(composable: () => T): Promise<{ result: T; unmount: 
   return { result, unmount: () => wrapper.unmount() }
 }
 
-function texture(): Texture {
+function texture(overrides: Partial<Texture> = {}): Texture {
   return {
     id: 'body',
     name: 'body.dds',
@@ -64,6 +40,7 @@ function texture(): Texture {
     format: 'DXT5',
     previewUrl: '',
     isDecoded: true,
+    ...overrides,
   }
 }
 
@@ -72,17 +49,28 @@ describe('useSkinArt', () => {
     vi.restoreAllMocks()
     writeSkinArt.mockClear()
     stubCanvas()
-    useLiveryDocument().init(texture())
+    useTextures().textures.value = []
   })
 
-  it('ranks the colours the open livery wears', async () => {
+  /// Sampling needs a decoded image, which jsdom never produces, so what is
+  /// covered here is which texture is reached for — the sampling itself is
+  /// tested where it lives.
+  it('falls back while no livery texture has been decoded', async () => {
     const { result, unmount } = await withSetup(() => useSkinArt())
-    const doc = useLiveryDocument()
-    doc.addLayer(shapeLayer({ fill: '#1B4D8F', strokeWidth: 0, width: 500, height: 500 }))
-    doc.addLayer(shapeLayer({ id: 'b', fill: '#E8E8E8', strokeWidth: 0, width: 20, height: 20 }))
+
+    expect(result.badgeColours.value).toEqual(FALLBACK_COLOURS)
+    unmount()
+  })
+
+  it('leaves a skin that repaints only wheels and glass without a colour', async () => {
+    useTextures().textures.value = [
+      texture({ id: 'wheel', category: 'wheels', previewUrl: 'data:image/png;base64,AAA' }),
+      texture({ id: 'glass', category: 'interior', previewUrl: 'data:image/png;base64,AAA' }),
+    ]
+    const { result, unmount } = await withSetup(() => useSkinArt())
     await nextTick()
 
-    expect(result.badgeColours.value).toEqual(['#1B4D8F', '#E8E8E8'])
+    expect(result.badgeColours.value).toEqual(FALLBACK_COLOURS)
     unmount()
   })
 
@@ -92,7 +80,12 @@ describe('useSkinArt', () => {
     const written = await result.saveBadge('/cars/gtm', 'racing_blue', '24')
 
     expect(written).toBe('/written/path')
-    expect(writeSkinArt).toHaveBeenCalledWith('/cars/gtm', 'racing_blue', 'livery', 'QkFER0U=')
+    expect(writeSkinArt).toHaveBeenCalledWith(
+      '/cars/gtm',
+      'racing_blue',
+      'livery',
+      STUBBED_DATA_URL.split(',')[1],
+    )
     unmount()
   })
 

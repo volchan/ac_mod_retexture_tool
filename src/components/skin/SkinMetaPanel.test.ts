@@ -1,8 +1,9 @@
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useMod } from '@/composables/useMod'
 import { useSkinMeta } from '@/composables/useSkinMeta'
+import { stubCanvas } from '@/test-fixtures/canvas'
 import type { SkinEntry } from '@/types/index'
 import SkinMetaPanel from './SkinMetaPanel.vue'
 
@@ -35,6 +36,8 @@ function metaOf(wrapper: Awaited<ReturnType<typeof panelFor>>) {
 
 describe('SkinMetaPanel', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
+    stubCanvas()
     useSkinMeta().reset()
     useMod().activeSkin.value = null
   })
@@ -91,12 +94,12 @@ describe('SkinMetaPanel', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('Use letters, digits, dots, dashes and underscores only.')
-    expect(wrapper.find('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[aria-label="Export skin"]').attributes('disabled')).toBeDefined()
   })
 
   it('emits export-skin when the button is pressed', async () => {
     const wrapper = await panelFor(makeSkin())
-    await wrapper.find('button').trigger('click')
+    await wrapper.find('[aria-label="Export skin"]').trigger('click')
     expect(wrapper.emitted('export-skin')).toHaveLength(1)
   })
 
@@ -106,7 +109,7 @@ describe('SkinMetaPanel', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('Packing…')
-    expect(wrapper.find('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[aria-label="Export skin"]').attributes('disabled')).toBeDefined()
   })
 
   it('describes what each export mode actually ships', async () => {
@@ -129,5 +132,47 @@ describe('SkinMetaPanel', () => {
       number: '',
       country: '',
     })
+  })
+
+  /// The number is the one field that renames the folder; the others go
+  /// straight into the form and nowhere else.
+  it('renumbers the folder as the number is typed', async () => {
+    const wrapper = await panelFor(makeSkin({ name: 'racing_blue', number: '' }))
+
+    const number = wrapper.get('[aria-label="Number"]')
+    await number.setValue('24')
+
+    expect(metaOf(wrapper).folderName).toBe('24_racing_blue')
+  })
+
+  it('leaves the folder alone when another field is typed into', async () => {
+    const wrapper = await panelFor(makeSkin({ name: 'racing_blue' }))
+
+    await wrapper.get('[aria-label="Team"]').setValue('Scuderia')
+
+    expect(metaOf(wrapper).folderName).toBe('racing_blue')
+  })
+
+  /// Opening a skin must not rename it: a folder that renumbered itself on load
+  /// would fork a new skin the author never asked for.
+  it('opens a numbered skin without forking it', async () => {
+    const wrapper = await panelFor(makeSkin({ name: 'racing_blue', number: '24' }))
+
+    expect(metaOf(wrapper).folderName).toBe('racing_blue')
+    expect(wrapper.vm.isFork).toBe(false)
+  })
+
+  it('shows a badge for the open skin', async () => {
+    const wrapper = await panelFor(makeSkin())
+
+    expect(wrapper.find('[aria-label="Entry list badge"]').exists()).toBe(true)
+  })
+
+  it('has nothing to save the badge to until a skin is open', async () => {
+    const wrapper = await panelFor(makeSkin())
+    useMod().activeSkin.value = null
+    await nextTick()
+
+    expect(wrapper.find('[aria-label="Entry list badge"]').exists()).toBe(false)
   })
 })

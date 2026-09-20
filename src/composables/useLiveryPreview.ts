@@ -10,6 +10,8 @@ const isOpen = ref(false)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const model = shallowRef<LiveryModel | null>(null)
+/// Which skin is on screen, so a capture of it knows where to be written back.
+const shown = ref<{ carPath: string; skin: string } | null>(null)
 
 // Reading a car walks the whole model and decodes every texture it names: a reply
 // arriving after the dialog closed, or after another skin opened, is dropped.
@@ -23,6 +25,7 @@ export function useLiveryPreview() {
     isLoading.value = true
     error.value = null
     model.value = null
+    shown.value = { carPath, skin }
 
     try {
       const loaded = await getLiveryModel(carPath, skin, MAX_TEXTURE, queuedOverrides(textures))
@@ -42,9 +45,10 @@ export function useLiveryPreview() {
     isLoading.value = false
     model.value = null
     error.value = null
+    shown.value = null
   }
 
-  return { isOpen, isLoading, error, model, open, close }
+  return { isOpen, isLoading, error, model, shown, open, close }
 }
 
 // ------------------------------------------------------------------------------
