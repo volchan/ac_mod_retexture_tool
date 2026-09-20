@@ -13,10 +13,6 @@ import type { Texture } from '@/types/index'
 /// What AC's own previews are. Anything else is scaled on the selection screen.
 export const PREVIEW_SIZE = { width: 1024, height: 575 }
 
-/// Which textures a car wears its livery on. A skin repaints plenty besides —
-/// wheels, glass, interior — and none of those say what colour the car is.
-const LIVERY_CATEGORIES = new Set(['livery', 'body'])
-
 const isSaving = ref(false)
 const badgeColours = ref<string[]>(FALLBACK_COLOURS)
 
@@ -64,12 +60,21 @@ export function useSkinArt() {
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
 
-/// The biggest sheet the livery is painted on. A car splits its paint across
-/// several, and the largest is the one carrying the panels a badge should show.
-function liveryTexture(textures: Texture[]): Texture | null {
-  const candidates = textures.filter((texture) => LIVERY_CATEGORIES.has(texture.category))
-  const ranked = [...candidates].sort((a, b) => b.width * b.height - a.width * a.height)
-  return ranked[0] ?? null
+/// The biggest sheet this skin actually paints on.
+///
+/// Size alone decides, deliberately. The category looks like the better filter
+/// and is not: it is guessed from the file name and calls anything without
+/// `body` in it `other`, which is most mod cars — `2026_Chassis_P.dds` carries
+/// a whole livery and lands there, where a `body_detail` sheet a fourteenth its
+/// size would have outranked it on a name.
+///
+/// The skin's own textures come first whatever their size: one it never touches
+/// still wears the donor car's colours, which is not what this livery looks like.
+export function liveryTexture(textures: Texture[]): Texture | null {
+  const owned = textures.filter((t) => t.replacement != null || t.source === 'skin')
+  const pool = owned.length > 0 ? owned : textures
+
+  return [...pool].sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null
 }
 
 async function coloursOf(texture: Texture): Promise<string[]> {
