@@ -183,4 +183,36 @@ describe('useSkinArt', () => {
       expect(pickedId()).toBe('queued')
     })
   })
+
+  describe('when the badge cannot read the car', () => {
+    /// A badge that quietly gives up looks exactly like a car painted grey, and
+    /// the sidebar had been showing one for a fully painted livery.
+    it('says why it fell back rather than showing grey in silence', async () => {
+      useTextures().textures.value = [texture({ previewUrl: 'data:image/png;base64,broken' })]
+      vi.stubGlobal(
+        'Image',
+        class {
+          onerror: (() => void) | null = null
+          set src(_value: string) {
+            queueMicrotask(() => this.onerror?.())
+          }
+        },
+      )
+
+      const { result, unmount } = await withSetup(() => useSkinArt())
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(result.badgeColours.value).toEqual(FALLBACK_COLOURS)
+      expect(result.badgeError.value).toMatch(/Could not read/)
+      unmount()
+    })
+
+    it('has nothing to say while no texture has been decoded', async () => {
+      vi.unstubAllGlobals()
+      const { result, unmount } = await withSetup(() => useSkinArt())
+
+      expect(result.badgeError.value).toBeNull()
+      unmount()
+    })
+  })
 })

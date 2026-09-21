@@ -15,6 +15,9 @@ export const PREVIEW_SIZE = { width: 1024, height: 575 }
 
 const isSaving = ref(false)
 const badgeColours = ref<string[]>(FALLBACK_COLOURS)
+/// Why the badge is showing fallback grey rather than the car's colours. A
+/// badge that quietly gives up looks exactly like a car painted grey.
+const badgeError = ref<string | null>(null)
 
 export function useSkinArt() {
   const { textures } = useTextures()
@@ -22,10 +25,26 @@ export function useSkinArt() {
   /// Read off the pixels rather than the editor's layers: a livery is as often
   /// a dropped image as a stack of drawn shapes, and sampling covers both. A
   /// queued replacement wins, so the badge shows what a repack would produce.
+  // Watched by the pixels rather than by the texture: queueing a replacement
+  // repaints the car without swapping the object the list holds, and watching
+  // that object would leave the badge on the colours it was first built with.
   watch(
-    () => liveryTexture(textures.value),
-    async (texture) => {
-      badgeColours.value = texture ? await coloursOf(texture) : FALLBACK_COLOURS
+    () => paintedSource(liveryTexture(textures.value)),
+    async (source) => {
+      if (!source) {
+        badgeColours.value = FALLBACK_COLOURS
+        badgeError.value = null
+        return
+      }
+
+      try {
+        const sampled = sampleColours(await decoded(source))
+        badgeColours.value = sampled.length > 0 ? sampled : FALLBACK_COLOURS
+        badgeError.value = sampled.length > 0 ? null : 'Nothing painted on this texture'
+      } catch (e) {
+        badgeColours.value = FALLBACK_COLOURS
+        badgeError.value = e instanceof Error ? e.message : String(e)
+      }
     },
     { immediate: true },
   )
@@ -53,7 +72,7 @@ export function useSkinArt() {
     return save(carPath, skin, 'preview', capture)
   }
 
-  return { badgeColours, paintBadge, saveBadge, savePreview, isSaving }
+  return { badgeColours, badgeError, paintBadge, saveBadge, savePreview, isSaving }
 }
 
 // ------------------------------------------------------------------------------
@@ -77,18 +96,11 @@ export function liveryTexture(textures: Texture[]): Texture | null {
   return [...pool].sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null
 }
 
-async function coloursOf(texture: Texture): Promise<string[]> {
-  const source = texture.replacement?.previewUrl || texture.previewUrl
-  if (!source) return FALLBACK_COLOURS
-
-  try {
-    const sampled = sampleColours(await decoded(source))
-    return sampled.length > 0 ? sampled : FALLBACK_COLOURS
-  } catch {
-    // A texture that will not decode is already reported where it is shown; the
-    // badge falling back to grey is not a second thing worth a toast.
-    return FALLBACK_COLOURS
-  }
+/// Which pixels the badge speaks for: what the queue is about to write, else
+/// what is on the texture now.
+function paintedSource(texture: Texture | null): string | null {
+  if (!texture) return null
+  return texture.replacement?.previewUrl || texture.previewUrl || null
 }
 
 function decoded(source: string): Promise<HTMLImageElement> {

@@ -6,7 +6,7 @@ import { useSkinArt } from '@/composables/useSkinArt'
 import { useSkinMeta } from '@/composables/useSkinMeta'
 
 const { mod, activeSkin } = useMod()
-const { badgeColours, paintBadge, saveBadge, isSaving } = useSkinArt()
+const { badgeColours, badgeError, paintBadge, saveBadge, isSaving } = useSkinArt()
 const {
   meta,
   openedFolderName,
@@ -82,6 +82,7 @@ defineExpose({
   folderNameError,
   FIELDS,
   badge,
+  badgeError,
   isSaving,
   onFieldInput,
   saveBadgeToSkin,
@@ -131,6 +132,9 @@ defineExpose({
       />
       <div class="min-w-0">
         <p class="text-[11px] text-muted-foreground">Entry list badge</p>
+        <p v-if="badgeError" class="text-[10.5px] text-destructive">
+          Grey: {{ badgeError }}
+        </p>
         <button
           class="text-[11px] font-medium underline underline-offset-2 disabled:opacity-50"
           :disabled="isSaving || !activeSkin"
