@@ -8,6 +8,7 @@ vi.mock('@/lib/tauri', () => ({
 import { open } from '@tauri-apps/plugin-dialog'
 import type { StrokeLayer, Texture } from '@/types/index'
 import { useEditorTools } from './useEditorTools'
+import { useViewCentre } from './useEditorViewport'
 import { useLiveryDocument } from './useLiveryDocument'
 
 const texture = { id: 'tex1', name: 'skin_body.dds', width: 2048, height: 1024 } as Texture
@@ -210,6 +211,45 @@ describe('useEditorTools', () => {
 
       expect(useLiveryDocument().layers.value.length).toBe(before)
       expect(tools.imageError.value).toContain('broken.png')
+    })
+  })
+
+  describe('where a new layer opens', () => {
+    /// Zoomed into one door of an 8K sheet, the middle of the sheet is
+    /// off-screen: a sticker dropped there reads as nothing having happened.
+    it('centres a shape on the view rather than on the sheet', () => {
+      useViewCentre().value = { x: 1800, y: 900 }
+      const { addShapeLayer } = useEditorTools()
+
+      addShapeLayer('rect')
+
+      const [layer] = useLiveryDocument().layers.value
+      if (layer.type !== 'shape') throw new Error('expected a shape layer')
+      expect(layer.x + layer.width / 2).toBe(1800)
+      expect(layer.y + layer.height / 2).toBe(900)
+    })
+
+    it('centres text on the view too', () => {
+      useViewCentre().value = { x: 1800, y: 900 }
+      const { addTextLayer } = useEditorTools()
+
+      addTextLayer()
+
+      const [layer] = useLiveryDocument().layers.value
+      expect(layer.type === 'text' && layer.x).toBeGreaterThan(1000)
+    })
+
+    /// Before the canvas has laid out there is no view to speak of, and the
+    /// sheet's own middle is the only answer that is not the top-left corner.
+    it('falls back to the middle of the sheet before the canvas has a size', () => {
+      useViewCentre().value = null
+      const { addShapeLayer } = useEditorTools()
+
+      addShapeLayer('rect')
+
+      const [layer] = useLiveryDocument().layers.value
+      if (layer.type !== 'shape') throw new Error('expected a shape layer')
+      expect(layer.x + layer.width / 2).toBe(1024)
     })
   })
 })

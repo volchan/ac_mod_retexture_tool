@@ -1,8 +1,21 @@
-import { computed, type Ref, ref } from 'vue'
+import { computed, type Ref, ref, watchEffect } from 'vue'
 
 const MIN_SCALE = 0.02
 const MAX_SCALE = 8
 const ZOOM_STEP = 1.12
+
+/// Where the texture is under the middle of the window, in texture pixels.
+///
+/// Module-level because the viewport belongs to the canvas while what needs it
+/// is the toolbar: a new sticker lands where the author is looking, and on an
+/// 8K sheet zoomed into one door the middle of the sheet is off-screen.
+const viewCentre = ref<{ x: number; y: number } | null>(null)
+
+/// Null until the canvas has a size, so a caller reaching for it before the
+/// editor has laid out falls back to the sheet rather than to the corner.
+export function useViewCentre() {
+  return viewCentre
+}
 
 /// Textures are far larger than any window, so the stage renders scaled down and
 /// the editor works in texture pixels while the user pans a viewport over them.
@@ -27,6 +40,29 @@ export function useEditorViewport(
       return centeredOffset(textureSize.value, containerSize.value, fitScale.value)
     return offset.value
   })
+
+  // Synchronous: the toolbar reads this the instant a button is pressed, and a
+  // centre still queued for the next tick would drop the layer where the view
+  // was before the pan that just ended.
+  watchEffect(
+    () => {
+      const box = containerSize.value
+      if (box.width === 0 || box.height === 0) {
+        viewCentre.value = null
+        return
+      }
+
+      const origin = stagePosition.value
+      const scale = effectiveScale.value
+      viewCentre.value = {
+        // Panned so far that the middle of the window is off the sheet, a layer
+        // dropped there would be invisible and look like nothing happened.
+        x: within((box.width / 2 - origin.x) / scale, textureSize.value.width),
+        y: within((box.height / 2 - origin.y) / scale, textureSize.value.height),
+      }
+    },
+    { flush: 'sync' },
+  )
 
   function zoomAt(point: { x: number; y: number }, direction: number) {
     const current = effectiveScale.value
@@ -71,4 +107,8 @@ function centeredOffset(
 
 function clamp(value: number) {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
+}
+
+function within(value: number, extent: number) {
+  return Math.min(extent, Math.max(0, value))
 }

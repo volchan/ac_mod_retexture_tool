@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
-import { useEditorViewport } from './useEditorViewport'
+import { useEditorViewport, useViewCentre } from './useEditorViewport'
 
 function setup(texture = { width: 1000, height: 500 }, container = { width: 400, height: 400 }) {
   return useEditorViewport(ref(texture), ref(container))
@@ -69,5 +69,59 @@ describe('useEditorViewport', () => {
     resetView()
     expect(effectiveScale.value).toBe(0.4)
     expect(stagePosition.value).toEqual({ x: 0, y: 100 })
+  })
+
+  describe('viewCentre', () => {
+    it('is the middle of the sheet while the whole sheet is in frame', () => {
+      setup()
+
+      expect(useViewCentre().value).toEqual({ x: 500, y: 250 })
+    })
+
+    /// What the whole thing is for: zoomed into one door of a big sheet, the
+    /// middle of the sheet is somewhere off-screen.
+    it('follows the window rather than the sheet once panned', () => {
+      const { panBy } = setup()
+
+      panBy({ x: -200, y: 0 })
+
+      expect(useViewCentre().value?.x).toBeGreaterThan(500)
+    })
+
+    /// Zooming holds the point under the cursor still, so zooming anywhere else
+    /// drags the middle of the window towards it.
+    it('is pulled towards whatever the zoom is anchored on', () => {
+      const { zoomAt } = setup()
+
+      zoomAt({ x: 0, y: 0 }, 1)
+
+      expect(useViewCentre().value?.x).toBeLessThan(500)
+    })
+
+    it('holds still when the zoom is anchored on the middle of the window', () => {
+      const { zoomAt } = setup()
+
+      zoomAt({ x: 200, y: 200 }, 1)
+
+      expect(useViewCentre().value?.x).toBeCloseTo(500)
+    })
+
+    /// Panned far enough that the window sits off the sheet entirely, a layer
+    /// dropped at the middle of the window would be invisible.
+    it('stays on the sheet however far the view is panned off it', () => {
+      const { panBy } = setup()
+
+      panBy({ x: -100_000, y: -100_000 })
+
+      expect(useViewCentre().value).toEqual({ x: 1000, y: 500 })
+    })
+
+    /// Before the canvas has laid out there is no view to speak of, and a
+    /// caller has to be able to tell that apart from the top-left corner.
+    it('has nothing to say before the canvas has a size', () => {
+      setup({ width: 1000, height: 500 }, { width: 0, height: 0 })
+
+      expect(useViewCentre().value).toBeNull()
+    })
   })
 })

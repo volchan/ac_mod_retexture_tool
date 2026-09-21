@@ -1,5 +1,6 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { ref } from 'vue'
+import { useViewCentre } from '@/composables/useEditorViewport'
 import { useImageAssets } from '@/composables/useImageAssets'
 import { createLayerId, useLiveryDocument } from '@/composables/useLiveryDocument'
 import { textBounds } from '@/lib/editorConfig'
@@ -264,8 +265,13 @@ function flip(stroke: BrushStroke, extent: number, axis: 'x' | 'y'): BrushStroke
   return { ...stroke, points }
 }
 
+/// Where a new layer opens: under the middle of the window, so it lands where
+/// the author is looking. Zoomed into one door of an 8K sheet, the middle of the
+/// sheet is somewhere off-screen and a sticker dropped there reads as nothing
+/// having happened. Falls back to the sheet's own middle before the canvas has
+/// laid out and there is no view to speak of.
 function centreOf(document: { width: number; height: number } | null) {
-  return { x: (document?.width ?? 0) / 2, y: (document?.height ?? 0) / 2 }
+  return useViewCentre().value ?? { x: (document?.width ?? 0) / 2, y: (document?.height ?? 0) / 2 }
 }
 
 export function isImagePath(path: string) {
