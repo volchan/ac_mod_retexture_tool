@@ -1,5 +1,11 @@
+import type { FillMode } from '@/lib/floodFill'
+
 /// Blend modes Konva maps straight onto the canvas compositing operation.
-export type BlendMode = 'source-over' | 'multiply' | 'screen' | 'overlay'
+///
+/// `color` is the tint: it keeps the pixels underneath as light or dark as they
+/// were and replaces only which colour they are, so an orange car repainted
+/// blue keeps every shadow, reflection and panel line the artist drew.
+export type BlendMode = 'source-over' | 'multiply' | 'screen' | 'overlay' | 'color'
 
 export interface LayerCommon {
   id: string
@@ -50,11 +56,14 @@ export interface ShapeLayer extends LayerCommon, Placement {
   cornerRadius: number
 }
 
-/// A paint bucket: only the seed point and the tolerance are stored, never the
+/// A paint bucket: only the seed point, the mode and the tolerance are stored, never the
 /// region it covers. The mask is recomputed from the base texture on demand, so
 /// an undo snapshot stays a handful of numbers instead of a megapixel bitmap.
 export interface BucketLayer extends LayerCommon {
   type: 'bucket'
+  /// What the fill spread across. Absent means `colour`, which is what every
+  /// bucket written before the other modes existed was.
+  mode?: FillMode
   /// Seed point in texture pixels.
   x: number
   y: number

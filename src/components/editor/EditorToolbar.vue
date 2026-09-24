@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   CircleIcon,
+  DropletIcon,
   EraserIcon,
   FlipHorizontal2Icon,
   FlipVertical2Icon,
@@ -27,6 +28,7 @@ const {
   addImageLayer,
   addTextLayer,
   addShapeLayer,
+  addTintLayer,
 } = useEditorTools()
 
 const TOOLS = [
@@ -42,6 +44,7 @@ const CREATORS = [
   { icon: TypeIcon, label: 'Add text', run: addTextLayer },
   { icon: SquareIcon, label: 'Add rectangle', run: () => addShapeLayer('rect') },
   { icon: CircleIcon, label: 'Add ellipse', run: () => addShapeLayer('ellipse') },
+  { icon: DropletIcon, label: 'Tint the whole livery', run: addTintLayer },
 ]
 
 /// These duplicate a stroke as it is drawn, and do nothing to an existing layer.

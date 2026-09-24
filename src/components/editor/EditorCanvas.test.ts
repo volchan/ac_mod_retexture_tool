@@ -251,9 +251,37 @@ describe('EditorCanvas', () => {
     wrapper.vm.handlePointerMove()
 
     await vi.advanceTimersByTimeAsync(200)
-    expect(mocks.previewMask).toHaveBeenCalledWith({ x: 11, y: 22 }, 32, expect.any(String), null)
+    expect(mocks.previewMask).toHaveBeenCalledWith(
+      { x: 11, y: 22 },
+      32,
+      expect.any(String),
+      null,
+      'colour',
+    )
     expect(wrapper.vm.fillPreview).toMatchObject({ x: 5, y: 6 })
     vi.useRealTimers()
+  })
+
+  /// A livery panel is rarely one flat colour, so matching the seed's colour
+  /// recolours the stripe rather than the panel it runs across.
+  it('fills the whole island when the bucket is clicked with shift held', () => {
+    useEditorTools().setTool('bucket')
+    const wrapper = canvas()
+    const stage = fakeStage({ x: 11, y: 22 })
+    wrapper.vm.stageRef = { getStage: () => stage }
+    wrapper.vm.handlePointerDown({ target: stage, evt: { shiftKey: true } } as never)
+
+    expect(useLiveryDocument().layers.value[0]).toMatchObject({ type: 'bucket', mode: 'zone' })
+  })
+
+  it('matches the colour under the bucket when shift is not held', () => {
+    useEditorTools().setTool('bucket')
+    const wrapper = canvas()
+    const stage = fakeStage({ x: 11, y: 22 })
+    wrapper.vm.stageRef = { getStage: () => stage }
+    wrapper.vm.handlePointerDown({ target: stage, evt: {} } as never)
+
+    expect(useLiveryDocument().layers.value[0]).toMatchObject({ mode: 'colour' })
   })
 
   it('previews nothing while a tool other than the bucket is held', async () => {

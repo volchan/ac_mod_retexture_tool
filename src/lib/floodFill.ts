@@ -4,6 +4,19 @@ export interface Pixels {
   height: number
 }
 
+/// What decides whether a pixel joins the fill.
+///
+/// `colour` matches the seed's own colour within a tolerance — one panel of a
+/// livery. `zone` takes every pixel that carries paint at all, so a panel split
+/// across four colours is recoloured in one click. `sheet` needs no seed: it is
+/// every painted pixel on the texture, which is what tinting a car means.
+export type FillMode = 'colour' | 'zone' | 'sheet'
+
+/// Under this a pixel is a hole in the atlas rather than bodywork. A car sheet
+/// is mostly holes, and a zone fill bleeding into one would cover the whole
+/// texture.
+const PAINTED = 8
+
 export interface FillColor {
   r: number
   g: number
@@ -38,12 +51,16 @@ const EMPTY_REGION: FillRegion = {
 /// texture is mostly flat colour, so a plain colour fill runs from the bonnet
 /// straight across the sheet into the doors; the UV island outlines stop it at
 /// the panel it was aimed at.
+///
+/// In `zone` mode colour stops mattering and only paint does: the fill spreads
+/// across every pixel of the island it was aimed at, whatever is drawn on it.
 export function floodFillMask(
   source: Pixels,
   seed: { x: number; y: number },
   tolerance: number,
   color: FillColor,
   barrier?: Uint8Array,
+  mode: Exclude<FillMode, 'sheet'> = 'colour',
 ): FillRegion {
   const { width, height, data } = source
 
@@ -55,6 +72,12 @@ export function floodFillMask(
 
   const target = readPixel(data, (startY * width + startX) * 4)
   const limit = tolerance * tolerance
+
+  /// A zone fill started on a hole would otherwise spread across every hole on
+  /// the sheet and cover the car from behind.
+  if (mode === 'zone' && data[(startY * width + startX) * 4 + 3] < PAINTED) {
+    return EMPTY_REGION
+  }
   const filled = new Uint8Array(width * height)
   const stack: number[] = [startX, startY]
   const bounds = { minX: width, minY: height, maxX: -1, maxY: -1 }
@@ -67,6 +90,7 @@ export function floodFillMask(
     const index = y * width + x
     if (filled[index] === 1) return false
     if (barrier && barrier[index] !== 0) return false
+    if (mode === 'zone') return data[index * 4 + 3] >= PAINTED
     return matches(data, index * 4, target, limit)
   }
 
@@ -106,6 +130,23 @@ export function floodFillMask(
 
       x += 1
     }
+  }
+
+  return crop(filled, width, bounds, color)
+}
+
+/// Every painted pixel on the sheet, ignoring where they are and what colour
+/// they wear. A tint has no seed to spread from: a car atlas is dozens of
+/// unconnected islands, and a flood fill would only ever reach the one clicked.
+export function paintedMask(source: Pixels, color: FillColor): FillRegion {
+  const { width, height, data } = source
+  const filled = new Uint8Array(width * height)
+  const bounds = { minX: width, minY: height, maxX: -1, maxY: -1 }
+
+  for (let pixel = 0; pixel < filled.length; pixel += 1) {
+    if (data[pixel * 4 + 3] < PAINTED) continue
+    filled[pixel] = 1
+    stretch(bounds, pixel % width, Math.floor(pixel / width))
   }
 
   return crop(filled, width, bounds, color)

@@ -4,6 +4,7 @@ import { useViewCentre } from '@/composables/useEditorViewport'
 import { useImageAssets } from '@/composables/useImageAssets'
 import { createLayerId, useLiveryDocument } from '@/composables/useLiveryDocument'
 import { textBounds } from '@/lib/editorConfig'
+import type { FillMode } from '@/lib/floodFill'
 import type { BrushStroke, ShapeLayer, StrokeLayer } from '@/types/index'
 
 export type EditorTool = 'select' | 'brush' | 'eraser' | 'bucket' | 'eyedropper'
@@ -141,24 +142,51 @@ export function useEditorTools() {
     setTool('select')
   }
 
-  /// Recolours the region clicked on rather than the whole sheet, so a bucket can
-  /// repaint one panel of a livery. The tool stays armed: filling a car usually
-  /// means clicking several panels in a row.
-  function addBucketLayer(point: { x: number; y: number }) {
-    // One click is one undo step, however many axes it was mirrored across —
-    // the way `mirrored(stroke)` already lands a mirrored brush stroke.
-    holdEdits()
-    for (const seed of mirroredPoints(point)) addSingleBucket(seed)
-    releaseEdits()
-  }
+  /// Repaints every panel at once while keeping the artwork underneath: the
+  /// mask is the sheet's own painted pixels, blended as `color`, so the hue
+  /// changes and the shading, logos and panel lines stay where they were.
+  ///
+  /// A rectangle over the sheet cannot do this. A blend needs something under
+  /// it, and a car atlas is mostly holes — over those the rectangle is all
+  /// there is, and the empty space comes out painted.
+  function addTintLayer() {
+    if (!document.value) return
 
-  function addSingleBucket(point: { x: number; y: number }) {
     addLayer({
       id: createLayerId(),
-      name: 'Fill',
+      name: 'Tint',
       visible: true,
       opacity: 1,
       type: 'bucket',
+      mode: 'sheet',
+      x: 0,
+      y: 0,
+      tolerance: 0,
+      color: fillColor.value,
+      blend: 'color',
+    })
+    setTool('select')
+  }
+
+  /// Recolours the region clicked on rather than the whole sheet, so a bucket can
+  /// repaint one panel of a livery. The tool stays armed: filling a car usually
+  /// means clicking several panels in a row.
+  function addBucketLayer(point: { x: number; y: number }, mode: FillMode = 'colour') {
+    // One click is one undo step, however many axes it was mirrored across —
+    // the way `mirrored(stroke)` already lands a mirrored brush stroke.
+    holdEdits()
+    for (const seed of mirroredPoints(point)) addSingleBucket(seed, mode)
+    releaseEdits()
+  }
+
+  function addSingleBucket(point: { x: number; y: number }, mode: FillMode) {
+    addLayer({
+      id: createLayerId(),
+      name: mode === 'zone' ? 'Zone' : 'Fill',
+      visible: true,
+      opacity: 1,
+      type: 'bucket',
+      mode,
       x: Math.round(point.x),
       y: Math.round(point.y),
       tolerance: fillTolerance.value,
@@ -244,6 +272,7 @@ export function useEditorTools() {
     isImagePath,
     addTextLayer,
     addShapeLayer,
+    addTintLayer,
     addBucketLayer,
     sampleColor,
     strokeTarget,

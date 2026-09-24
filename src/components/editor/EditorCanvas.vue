@@ -8,6 +8,7 @@ import { useImageAssets } from '@/composables/useImageAssets'
 import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import { layerConfig, strokeConfigs, transformerConfig } from '@/lib/editorConfig'
 import { pointerIntent } from '@/lib/editorPointer'
+import type { FillMode } from '@/lib/floodFill'
 import { pickColor } from '@/lib/stageExport'
 import type { BrushStroke, EditorLayer, StrokeLayer } from '@/types/index'
 
@@ -61,6 +62,9 @@ const liveStroke = shallowRef<BrushStroke | null>(null)
 let stopPan: (() => void) | null = null
 const pointer = shallowRef<{ x: number; y: number } | null>(null)
 const fillPreview = shallowRef<BucketMask | null>(null)
+/// Held shift swaps the bucket from matching a colour to taking the whole
+/// island, so the highlight has to follow the key as well as the pointer.
+const fillMode = shallowRef<FillMode>('colour')
 
 // Konva nodes registered as they mount, rather than looked up by id: a freshly
 // added layer has no node yet when the selection watcher runs.
@@ -98,7 +102,7 @@ const pulse = useRafFn(
   { immediate: false },
 )
 
-watchDebounced([pointer, tool, fillColor, fillTolerance], recomputeFillPreview, {
+watchDebounced([pointer, tool, fillColor, fillTolerance, fillMode], recomputeFillPreview, {
   debounce: HOVER_SETTLE_MS,
 })
 
@@ -146,7 +150,7 @@ function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
   // handles the user just grabbed.
   if (intent.kind === 'transform') return
   if (intent.kind === 'paint') startStroke(stage)
-  if (intent.kind === 'fill') fillAtPointer(stage)
+  if (intent.kind === 'fill') fillAtPointer(stage, heldMode(e.evt))
   if (intent.kind === 'pick') pickAtPointer(stage)
   if (intent.kind === 'pan') {
     select(null)
@@ -155,9 +159,10 @@ function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
   if (intent.kind === 'select') select(intent.id)
 }
 
-function handlePointerMove() {
+function handlePointerMove(e?: Konva.KonvaEventObject<PointerEvent>) {
   const stage = stageRef.value?.getStage()
   if (!stage) return
+  fillMode.value = heldMode(e?.evt)
   emit('hoverTexture', stage.getRelativePointerPosition())
   pointer.value = stage.getRelativePointerPosition()
 
@@ -219,7 +224,20 @@ function recomputeFillPreview() {
     fillPreview.value = null
     return
   }
-  fillPreview.value = previewMask(point, fillTolerance.value, fillColor.value, props.baseImage)
+  fillPreview.value = previewMask(
+    point,
+    fillTolerance.value,
+    fillColor.value,
+    props.baseImage,
+    fillMode.value,
+  )
+}
+
+/// Shift turns the bucket from "this colour" into "this panel". Konva hands the
+/// native event along with every pointer event, and a synthetic one without it
+/// simply holds no modifier.
+function heldMode(event: PointerEvent | undefined): FillMode {
+  return event?.shiftKey ? 'zone' : 'colour'
 }
 
 /// Named as chrome so it is stripped from the flattened sheet: the highlight is
@@ -249,10 +267,10 @@ function pickAtPointer(stage: Konva.Stage) {
   if (hex) sampleColor(hex)
 }
 
-function fillAtPointer(stage: Konva.Stage) {
+function fillAtPointer(stage: Konva.Stage, mode: FillMode) {
   const point = stage.getRelativePointerPosition()
   if (!point) return
-  addBucketLayer(point)
+  addBucketLayer(point, mode)
 }
 
 function startStroke(stage: Konva.Stage) {

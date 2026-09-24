@@ -252,4 +252,38 @@ describe('useEditorTools', () => {
       expect(layer.x + layer.width / 2).toBe(1024)
     })
   })
+
+  describe('tinting the whole livery', () => {
+    /// A rectangle over the sheet paints the holes in the atlas, because a
+    /// blend mode over nothing is just the colour. A bucket masks itself to the
+    /// pixels that carry paint, which is what a tint has to follow.
+    it('masks itself to the painted pixels rather than covering the sheet', () => {
+      useViewCentre().value = { x: 1800, y: 900 }
+      const { addTintLayer } = useEditorTools()
+
+      addTintLayer()
+
+      const [layer] = useLiveryDocument().layers.value
+      expect(layer).toMatchObject({ type: 'bucket', mode: 'sheet' })
+    })
+
+    /// Covering the car outright would throw away the shading, the logos and
+    /// every panel line: `color` takes the hue and leaves the light alone.
+    it('takes the colour and leaves the shading', () => {
+      const { addTintLayer } = useEditorTools()
+
+      addTintLayer()
+
+      expect(useLiveryDocument().layers.value[0].blend).toBe('color')
+    })
+
+    it('adds nothing when no texture is open', () => {
+      useLiveryDocument().reset()
+      const { addTintLayer } = useEditorTools()
+
+      addTintLayer()
+
+      expect(useLiveryDocument().layers.value).toHaveLength(0)
+    })
+  })
 })

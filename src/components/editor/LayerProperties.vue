@@ -8,7 +8,7 @@ import type { BlendMode, BucketLayer, ShapeLayer, TextLayer } from '@/types/inde
 
 const { selectedLayer, updateLayer, holdEdits, releaseEdits } = useLiveryDocument()
 
-const BLEND_MODES: BlendMode[] = ['source-over', 'multiply', 'screen', 'overlay']
+const BLEND_MODES: BlendMode[] = ['source-over', 'multiply', 'screen', 'overlay', 'color']
 
 const { fonts, load: loadFonts } = useSystemFonts()
 onMounted(loadFonts)

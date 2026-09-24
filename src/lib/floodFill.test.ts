@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { type FillRegion, floodFillMask, isHexColor, type Pixels, parseHexColor } from './floodFill'
+import {
+  type FillRegion,
+  floodFillMask,
+  isHexColor,
+  type Pixels,
+  paintedMask,
+  parseHexColor,
+} from './floodFill'
 
 const RED = { r: 255, g: 0, b: 0 }
 
@@ -116,5 +123,73 @@ describe('parseHexColor', () => {
   it('accepts both forms through the boundary check', () => {
     expect(isHexColor('#c8102e')).toBe(true)
     expect(isHexColor('f0a')).toBe(true)
+  })
+})
+
+/// Two panels a hole apart, the shape a car atlas is in: a red island of two
+/// pixels, an empty column, then a blue one.
+function islands(): Pixels {
+  const width = 5
+  const height = 1
+  const data = new Uint8ClampedArray(width * height * 4)
+  data.set([200, 0, 0, 255], 0)
+  data.set([0, 200, 0, 255], 4)
+  data.set([0, 0, 0, 0], 8)
+  data.set([0, 0, 200, 255], 12)
+  data.set([0, 0, 180, 255], 16)
+  return { data, width, height }
+}
+
+describe('filling a zone rather than a colour', () => {
+  /// A panel is rarely one flat colour: a livery runs stripes and logos across
+  /// it, and matching the seed's colour recolours the stripe, not the panel.
+  it('takes the whole island whatever is painted on it', () => {
+    const region = floodFillMask(islands(), { x: 0, y: 0 }, 0, RED, undefined, 'zone')
+
+    expect(filledCount(region)).toBe(2)
+  })
+
+  it('leaves the island across the hole alone', () => {
+    const region = floodFillMask(islands(), { x: 0, y: 0 }, 0, RED, undefined, 'zone')
+
+    expect(region.x).toBe(0)
+    expect(region.width).toBe(2)
+  })
+
+  /// Started on a hole, a zone fill would run through the empty atlas and cover
+  /// the car from behind.
+  it('fills nothing when it starts on a hole', () => {
+    const region = floodFillMask(islands(), { x: 2, y: 0 }, 0, RED, undefined, 'zone')
+
+    expect(filledCount(region)).toBe(0)
+  })
+
+  it('still stops at a wall the UV outline puts in its way', () => {
+    const wall = new Uint8Array([0, 1, 0, 0, 0])
+    const region = floodFillMask(islands(), { x: 0, y: 0 }, 0, RED, wall, 'zone')
+
+    expect(filledCount(region)).toBe(1)
+  })
+})
+
+describe('paintedMask', () => {
+  /// A tint has no seed: an atlas is dozens of unconnected islands, and a flood
+  /// fill would only ever reach the one it started in.
+  it('takes every painted pixel, across the holes between them', () => {
+    const region = paintedMask(islands(), RED)
+
+    expect(filledCount(region)).toBe(4)
+  })
+
+  it('stretches from the first painted pixel to the last', () => {
+    const region = paintedMask(islands(), RED)
+
+    expect(region).toMatchObject({ x: 0, width: 5 })
+  })
+
+  it('finds nothing on a sheet with no paint on it', () => {
+    const empty: Pixels = { data: new Uint8ClampedArray(8), width: 2, height: 1 }
+
+    expect(paintedMask(empty, RED).width).toBe(0)
   })
 })
