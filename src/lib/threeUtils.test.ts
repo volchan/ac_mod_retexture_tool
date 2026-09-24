@@ -101,8 +101,8 @@ describe('frameHero', () => {
   it('shoots from near the roof line rather than from above', () => {
     const { pitch } = framed(frameHero)
 
-    expect(pitch).toBeGreaterThan(0)
-    expect(pitch).toBeLessThan(18)
+    expect(pitch).toBeGreaterThan(8)
+    expect(pitch).toBeLessThan(22)
     expect(pitch).toBeLessThan(framed(frameCamera).pitch)
   })
 

@@ -37,10 +37,10 @@ export function frameCamera(
   controls.update()
 }
 
-/// How AC's own previews are shot: from ahead and off to one side, barely above
-/// the roof. The orbit default looks down from 24 degrees, where a livery reads
-/// as a roof.
-const HERO_VIEW = new Vector3(0.62, 0.2, 0.78).normalize()
+/// How AC's own previews are shot: from ahead and off to one side, high enough
+/// to see along the bonnet and the roof without the car reading as a floor plan.
+/// The Y component is the height — 0.26 is about 15 degrees up.
+const HERO_VIEW = new Vector3(0.62, 0.26, 0.78).normalize()
 
 /// Air left around the car, as a share of the distance it takes to fit it.
 const HERO_MARGIN = 1.06
