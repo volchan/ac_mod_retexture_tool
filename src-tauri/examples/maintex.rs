@@ -5,5 +5,5 @@ fn main() {
     let kn5 = ac_mod_toolkit_lib::commands::car_model::main_kn5(std::path::Path::new(&car)).unwrap();
     let geometry = ac_mod_toolkit_lib::parsers::kn5_mesh::read_geometry(&kn5).unwrap();
 
-    println!("{:?}", ac_mod_toolkit_lib::commands::livery_model::livery_texture(&geometry));
+    println!("{:?}", ac_mod_toolkit_lib::commands::livery_sheet::livery_texture(&geometry));
 }

@@ -61,7 +61,7 @@ pub fn run() {
             commands::test_in_game::list_track_layouts,
             commands::test_in_game::test_in_game,
             commands::skin::list_car_skins,
-            commands::livery_model::main_livery_texture,
+            commands::livery_sheet::main_livery_texture,
             commands::skin_art::sample_texture_colours,
             commands::skin_art::write_skin_art,
             commands::skin_export::export_skin,
