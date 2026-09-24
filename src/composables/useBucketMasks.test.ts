@@ -42,11 +42,17 @@ function baseImage() {
   return img
 }
 
+function showSeams() {
+  useUvTemplate().image.value = baseImage()
+  useUvTemplate().isEnabled.value = true
+}
+
 describe('useBucketMasks', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     useBucketMasks().clearMasks()
     useUvTemplate().image.value = null
+    useUvTemplate().isEnabled.value = false
   })
 
   it('reuses the mask when nothing about the fill changed', () => {
@@ -128,10 +134,25 @@ describe('useBucketMasks', () => {
     const base = baseImage()
     const flat = maskFor(bucket('a'), base)
 
-    useUvTemplate().image.value = baseImage()
+    showSeams()
     expect(maskFor(bucket('a'), base)).not.toBe(flat)
 
-    useUvTemplate().image.value = null
+    useUvTemplate().isEnabled.value = false
+    expect(maskFor(bucket('a'), base)).toBe(flat)
+  })
+
+  /// A seam is never filled, only stopped at, so the hairline of old paint under
+  /// it is only paintable with the walls down. A wall the user cannot see is a
+  /// fill that stops for no reason at all.
+  it('drops the walls when the overlay is hidden, template still loaded', () => {
+    stubCanvas()
+    const { maskFor } = useBucketMasks()
+    const base = baseImage()
+    const flat = maskFor(bucket('a'), base)
+
+    showSeams()
+    useUvTemplate().isEnabled.value = false
+
     expect(maskFor(bucket('a'), base)).toBe(flat)
   })
 
@@ -141,7 +162,7 @@ describe('useBucketMasks', () => {
     const base = baseImage()
     const flat = previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)
 
-    useUvTemplate().image.value = baseImage()
+    showSeams()
     expect(previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)).not.toBe(flat)
   })
 

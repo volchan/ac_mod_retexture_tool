@@ -1,5 +1,11 @@
 import { useUvTemplate } from '@/composables/useUvTemplate'
-import { floodFillMask, type Pixels, parseHexColor } from '@/lib/floodFill'
+import {
+  type FillMode,
+  floodFillMask,
+  type Pixels,
+  paintedMask,
+  parseHexColor,
+} from '@/lib/floodFill'
 import type { BucketLayer } from '@/types/index'
 
 /// Budgeted in pixels rather than entries: a fill is cropped to the panel it
@@ -27,19 +33,24 @@ export interface BucketMask {
 /// parameters that change the shape — moving the seed or widening the tolerance
 /// invalidates the entry, recolouring reuses it.
 export function useBucketMasks() {
-  const { image: template } = useUvTemplate()
+  const { image: template, isEnabled } = useUvTemplate()
+
+  /// The seams a fill may not cross, and only while they are on screen. A wall
+  /// the user cannot see is a fill that stops for no reason — and the seam
+  /// itself is never filled, so painting over one means turning the overlay off.
+  const seams = () => (isEnabled.value ? template.value : null)
 
   /// The seams are what a fill stops at, so a mask filled without them describes
   /// a different region than the same layer filled with them. Toggling the UV
   /// overlay has to miss the cache rather than redraw the pre-barrier shape.
-  const walls = () => (template.value ? 'uv' : 'raw')
+  const walls = () => (seams() ? 'uv' : 'raw')
 
   function maskFor(layer: BucketLayer, base: HTMLImageElement | null): BucketMask | null {
     const key = `${maskKey(layer)}:${walls()}`
     const cached = masks.get(key)
     if (cached) return cached
 
-    const mask = buildMask(layer, layer.tolerance, layer.color, base, template.value)
+    const mask = buildMask(layer, layer.tolerance, layer.color, base, seams(), layer.mode)
     if (!mask) return null
 
     masks.set(key, mask)
@@ -55,11 +66,12 @@ export function useBucketMasks() {
     tolerance: number,
     color: string,
     base: HTMLImageElement | null,
+    mode: FillMode = 'colour',
   ): BucketMask | null {
-    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${color}:${walls()}`
+    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${color}:${mode}:${walls()}`
     if (hovered?.key === key) return hovered.mask
 
-    const mask = buildMask(point, tolerance, color, base, template.value)
+    const mask = buildMask(point, tolerance, color, base, seams(), mode)
     hovered = mask ? { key, mask } : null
     return mask
   }
@@ -82,14 +94,20 @@ function buildMask(
   color: string,
   base: HTMLImageElement | null,
   template: HTMLImageElement | null,
+  mode: FillMode = 'colour',
 ): BucketMask | null {
   if (!base) return null
 
   const source = pixelsOf(base)
   if (!source) return null
 
+  const paint = parseHexColor(color)
+  // A tint has no seed to spread from, so the UV walls have nothing to stop.
   const walls = template ? barrierOf(template, source) : undefined
-  const region = floodFillMask(source, seed, tolerance, parseHexColor(color), walls)
+  const region =
+    mode === 'sheet'
+      ? paintedMask(source, paint)
+      : floodFillMask(source, seed, tolerance, paint, walls, mode)
   if (region.width === 0 || region.height === 0) return null
 
   const canvas = document.createElement('canvas')
@@ -146,7 +164,8 @@ function cachedPixels() {
 }
 
 function maskKey(layer: BucketLayer) {
-  return `${layer.id}:${Math.round(layer.x)}:${Math.round(layer.y)}:${layer.tolerance}:${layer.color}`
+  const seed = `${Math.round(layer.x)}:${Math.round(layer.y)}`
+  return `${layer.id}:${seed}:${layer.tolerance}:${layer.color}:${layer.mode ?? 'colour'}`
 }
 
 /// Reading a texture back costs a full draw, so each base image is sampled once
