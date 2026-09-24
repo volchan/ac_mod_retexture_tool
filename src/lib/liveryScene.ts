@@ -44,6 +44,35 @@ export function createLiveryScene(
   model: LiveryModel,
   onTextureError?: (name: string) => void,
 ): LiveryScene {
+  // Everything allocated below is a GPU resource, and the caller can only
+  // release what it was handed: a throw partway through would leave a context,
+  // a geometry and forty textures with nobody left holding them.
+  try {
+    return buildScene(canvas, model, onTextureError)
+  } catch (e) {
+    disposeContext(canvas)
+    throw e
+  }
+}
+
+// ------------------------------------------------------------------------------
+// MARK: HELPERS
+// ------------------------------------------------------------------------------
+
+/// Gives up the WebGL context a half-built scene left behind. A browser keeps
+/// only a handful of them alive and drops the oldest when a new one is asked
+/// for, so a leak here costs the viewer that is still open.
+function disposeContext(canvas: HTMLCanvasElement) {
+  const context = canvas.getContext('webgl2') ?? canvas.getContext('webgl')
+  const lose = (context as WebGLRenderingContext | null)?.getExtension('WEBGL_lose_context')
+  lose?.loseContext()
+}
+
+function buildScene(
+  canvas: HTMLCanvasElement,
+  model: LiveryModel,
+  onTextureError?: (name: string) => void,
+): LiveryScene {
   const geometry = buildGeometry(model.mesh)
   const settled: Promise<void>[] = []
   const loaded: Texture[] = model.textures.map((entry) => {
@@ -130,10 +159,6 @@ export function createLiveryScene(
     },
   }
 }
-
-// ------------------------------------------------------------------------------
-// MARK: HELPERS
-// ------------------------------------------------------------------------------
 
 function materialFor(
   group: LiveryModel['groups'][number],
