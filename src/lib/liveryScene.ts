@@ -1,6 +1,7 @@
 import {
   ACESFilmicToneMapping,
   AmbientLight,
+  CanvasTexture,
   Mesh,
   MeshStandardMaterial,
   PerspectiveCamera,
@@ -33,10 +34,20 @@ export interface LiveryScene {
   dispose: () => void
 }
 
-/// JPEG cannot carry the alpha the viewer renders with, and an unpainted
-/// background would come out black. A studio grey rather than white: half the
-/// cars in a GT field are mostly white, and on paper they have no edges.
-const CAPTURE_BACKGROUND = 0xd8dade
+/// JPEG cannot carry the alpha the viewer renders with, so a capture has to
+/// stand on something. A dark studio, lighter behind the car and falling away
+/// at the corners, which is what AC's own previews sit on — and half a GT field
+/// is mostly white, with no edges at all against paper.
+const BACKDROP_CENTRE = '#4a505a'
+const BACKDROP_EDGE = '#15171b'
+
+/// What the corners fall to, as a share of the frame's half-diagonal.
+const BACKDROP_SPREAD = 0.75
+
+/// The flat colour a capture stands on where no gradient can be drawn, which is
+/// a canvas with no 2D context — a headless run rather than anything a user
+/// meets.
+const CAPTURE_BACKGROUND = 0x22252b
 
 /// How much of the room reaches the car. This is the exposure knob, not the
 /// lamps and not the tone mapping: the room lights every surface at once, so at
@@ -154,11 +165,15 @@ function buildScene(
       // viewer's device ratio would only make the file four times heavier.
       renderer.setPixelRatio(1)
       renderer.setClearColor(CAPTURE_BACKGROUND, 1)
+      // Only for the shot: the viewer is a panel in a window that has its own
+      // background, and painting one behind the car would box it in.
+      scene.background = backdrop(width, height)
       this.resize(width, height)
       renderer.render(scene, camera)
 
       const shot = canvas.toDataURL('image/jpeg', quality)
 
+      scene.background = null
       renderer.setPixelRatio(pixelRatio)
       renderer.setClearColor(CAPTURE_BACKGROUND, 0)
       this.resize(restore.x, restore.y)
@@ -173,6 +188,36 @@ function buildScene(
       renderer.dispose()
     },
   }
+}
+
+/// The studio the car is photographed in: a pool of light behind it, falling
+/// away towards the corners, drawn at the size of the shot so the gradient is
+/// round rather than stretched to the frame.
+function backdrop(width: number, height: number): CanvasTexture | null {
+  const plate = document.createElement('canvas')
+  plate.width = width
+  plate.height = height
+
+  const context = plate.getContext('2d')
+  if (!context) return null
+
+  const spread = Math.hypot(width, height) * BACKDROP_SPREAD
+  const light = context.createRadialGradient(
+    width / 2,
+    height / 2,
+    0,
+    width / 2,
+    height / 2,
+    spread,
+  )
+  light.addColorStop(0, BACKDROP_CENTRE)
+  light.addColorStop(1, BACKDROP_EDGE)
+  context.fillStyle = light
+  context.fillRect(0, 0, width, height)
+
+  const texture = new CanvasTexture(plate)
+  texture.colorSpace = SRGBColorSpace
+  return texture
 }
 
 function materialFor(

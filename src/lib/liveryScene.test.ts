@@ -4,7 +4,15 @@ import type { LiveryModel } from '@/types/index'
 
 /// What the renderer was last handed, so the scene's own lighting is readable
 /// without a GPU.
-let rendered: { environment: unknown; environmentIntensity: number } | null = null
+interface RenderedScene {
+  environment: unknown
+  environmentIntensity: number
+  background: unknown
+}
+
+/// What the renderer was handed, as it was at the time and as it is now.
+let rendered: RenderedScene | null = null
+let live: RenderedScene | null = null
 
 const { renderer, loader, buildGeometry, frameHero } = vi.hoisted(() => ({
   renderer: {
@@ -13,8 +21,11 @@ const { renderer, loader, buildGeometry, frameHero } = vi.hoisted(() => ({
     getSize: vi.fn(() => ({ x: 800, y: 450 })),
     setSize: vi.fn(),
     setClearColor: vi.fn(),
-    render: vi.fn((scene: { environment: unknown; environmentIntensity: number }) => {
-      rendered = scene
+    render: vi.fn((scene: RenderedScene) => {
+      // Copied as well as held: the scene puts its backdrop away afterwards, so
+      // a reference alone would show it already gone.
+      rendered = { ...scene }
+      live = scene
     }),
     dispose: vi.fn(),
     toneMapping: 0,
@@ -83,6 +94,13 @@ describe('createLiveryScene', () => {
     vi.clearAllMocks()
     loader.settle = []
     rendered = null
+    live = null
+    // jsdom draws nothing, and the backdrop is a gradient on a 2D context.
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createRadialGradient: () => ({ addColorStop: vi.fn() }),
+      fillRect: vi.fn(),
+      fillStyle: '',
+    } as unknown as CanvasRenderingContext2D)
     buildGeometry.mockImplementation(() => new BufferGeometry())
   })
 
@@ -167,6 +185,17 @@ describe('createLiveryScene', () => {
       const [colour] = renderer.setClearColor.mock.calls[0]
       expect(renderer.setClearColor).toHaveBeenNthCalledWith(1, colour, 1)
       expect(renderer.setClearColor).toHaveBeenLastCalledWith(colour, 0)
+    })
+
+    /// The viewer is a panel in a window that has its own background, and a
+    /// backdrop left standing behind the car would box it in.
+    it('puts the studio up for the shot and takes it down after', () => {
+      const scene = createLiveryScene(canvas(), model())
+
+      scene.capture(1024, 575)
+
+      expect(rendered?.background).not.toBeNull()
+      expect(live?.background).toBeNull()
     })
   })
 
