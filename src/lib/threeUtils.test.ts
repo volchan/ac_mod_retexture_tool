@@ -43,13 +43,15 @@ function shot(geometry = car(), aspect = 1024 / 575) {
   return bounds
 }
 
+/// Measured from where the camera is actually pointed, not from the middle of
+/// the shape: re-aiming to centre the picture moves the two apart.
 function framed(place: typeof frameCamera) {
   const camera = new PerspectiveCamera(38, 16 / 9, 0.05, 100)
+  const controls = stubControls()
   const geometry = car()
-  place(camera, stubControls(), geometry)
+  place(camera, controls, geometry)
 
-  const centre = geometry.boundingSphere?.center ?? new Vector3()
-  const offset = camera.position.clone().sub(centre)
+  const offset = camera.position.clone().sub(controls.target)
   return {
     distance: offset.length(),
     /// How far above the car the camera sits, in degrees.
@@ -101,7 +103,7 @@ describe('frameHero', () => {
   it('shoots from near the roof line rather than from above', () => {
     const { pitch } = framed(frameHero)
 
-    expect(pitch).toBeGreaterThan(8)
+    expect(pitch).toBeGreaterThan(10)
     expect(pitch).toBeLessThan(22)
     expect(pitch).toBeLessThan(framed(frameCamera).pitch)
   })
