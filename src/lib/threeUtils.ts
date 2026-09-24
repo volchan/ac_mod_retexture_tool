@@ -39,8 +39,8 @@ export function frameCamera(
 
 /// How AC's own previews are shot: from ahead and off to one side, high enough
 /// to see along the bonnet and the roof without the car reading as a floor plan.
-/// The Y component is the height — 0.26 is about 15 degrees up.
-const HERO_VIEW = new Vector3(0.62, 0.26, 0.78).normalize()
+/// The Y component is the height — 0.32 is about 18 degrees up.
+const HERO_VIEW = new Vector3(0.62, 0.32, 0.78).normalize()
 
 /// Air left around the car, as a share of the distance it takes to fit it.
 const HERO_MARGIN = 1.06
