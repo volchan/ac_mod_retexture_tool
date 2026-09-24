@@ -1,4 +1,5 @@
 import { ref, shallowRef } from 'vue'
+import { queuedOverrides } from '@/composables/useSkinPreviewShot'
 import { getLiveryModel } from '@/lib/tauri'
 import type { LiveryModel, Texture } from '@/types/index'
 
@@ -49,15 +50,4 @@ export function useLiveryPreview() {
   }
 
   return { isOpen, isLoading, error, model, shown, open, close }
-}
-
-// ------------------------------------------------------------------------------
-// MARK: HELPERS
-// ------------------------------------------------------------------------------
-
-function queuedOverrides(textures: Texture[]): [string, string][] {
-  return textures.flatMap((texture) => {
-    const source = texture.replacement?.sourcePath
-    return source ? [[texture.name, source] as [string, string]] : []
-  })
 }

@@ -2,11 +2,14 @@
 import { ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useMod } from '@/composables/useMod'
-import { useSkinArt } from '@/composables/useSkinArt'
+import { PREVIEW_SIZE, useSkinArt } from '@/composables/useSkinArt'
 import { useSkinMeta } from '@/composables/useSkinMeta'
+import { captureSkinPreview } from '@/composables/useSkinPreviewShot'
+import { useTextures } from '@/composables/useTextures'
 
 const { mod, activeSkin } = useMod()
-const { badgeColours, badgeError, paintBadge, saveBadge, isSaving } = useSkinArt()
+const { badgeColours, badgeError, paintBadge, saveBadge, savePreview, isSaving } = useSkinArt()
+const { textures } = useTextures()
 const {
   meta,
   openedFolderName,
@@ -32,6 +35,9 @@ watch(
 )
 
 const badge = ref<HTMLCanvasElement | null>(null)
+/// Building the car for the preview takes seconds and writes nothing while it
+/// runs, so the button has to say so on its own.
+const isCapturing = ref(false)
 
 /// Redrawn from the colours the livery wears and the number as it is typed, so
 /// the sidebar shows what AC's entry list will show rather than a stale file.
@@ -49,7 +55,10 @@ function onFieldInput(key: (typeof FIELDS)[number]['key']) {
   if (key === 'number' && meta.value) syncFolderToNumber(meta.value.number)
 }
 
-async function saveBadgeToSkin() {
+/// Writes both images AC shows for a skin. The badge is drawn from the colours
+/// already sampled; the preview needs the car built and photographed, which is
+/// why this waits on a render nothing else asked for.
+async function saveArtToSkin() {
   const carPath = mod.value?.path
   const skin = activeSkin.value?.name
   if (!carPath || !skin) return
@@ -61,6 +70,29 @@ async function saveBadgeToSkin() {
     toast.error('Could not save the badge', {
       description: e instanceof Error ? e.message : String(e),
     })
+    return
+  }
+
+  // Reported apart from the badge: the badge is already on disk by here, and a
+  // failed render must not read as nothing having been written.
+  isCapturing.value = true
+  try {
+    const { shot, failed } = await captureSkinPreview(carPath, skin, textures.value, PREVIEW_SIZE)
+    await savePreview(carPath, skin, shot)
+
+    if (failed.length > 0) {
+      toast.warning(`Saved the preview with ${failed.length} textures missing`, {
+        description: failed.join(', '),
+      })
+    } else {
+      toast.success('Saved this skin\u2019s preview')
+    }
+  } catch (e) {
+    toast.error('Could not save the preview', {
+      description: e instanceof Error ? e.message : String(e),
+    })
+  } finally {
+    isCapturing.value = false
   }
 }
 
@@ -84,8 +116,9 @@ defineExpose({
   badge,
   badgeError,
   isSaving,
+  isCapturing,
   onFieldInput,
-  saveBadgeToSkin,
+  saveArtToSkin,
   emit,
 })
 </script>
@@ -137,10 +170,10 @@ defineExpose({
         </p>
         <button
           class="text-[11px] font-medium underline underline-offset-2 disabled:opacity-50"
-          :disabled="isSaving || !activeSkin"
-          @click="saveBadgeToSkin"
+          :disabled="isSaving || isCapturing || !activeSkin"
+          @click="saveArtToSkin"
         >
-          {{ isSaving ? 'Saving\u2026' : 'Save to skin' }}
+          {{ isCapturing ? 'Rendering\u2026' : isSaving ? 'Saving\u2026' : 'Save badge and preview' }}
         </button>
       </div>
     </div>
