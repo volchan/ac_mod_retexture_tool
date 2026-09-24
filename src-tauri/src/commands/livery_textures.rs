@@ -17,7 +17,7 @@ use crate::parsers::kn5_mesh::Kn5Geometry;
 /// Samplers worth uploading to a preview: the paint, and the panel creases.
 /// Matched case-insensitively — the casing here is only what a KN5 usually
 /// writes, not what it has to.
-const DIFFUSE_SAMPLER: &str = "txDiffuse";
+pub(crate) const DIFFUSE_SAMPLER: &str = "txDiffuse";
 const NORMAL_SAMPLER: &str = "txNormal";
 
 /// One texture of the car, and the address the webview fetches it at.

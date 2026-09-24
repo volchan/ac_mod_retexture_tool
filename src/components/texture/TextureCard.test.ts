@@ -232,3 +232,24 @@ describe('TextureCard', () => {
     expect(wrapper.get('[aria-label="Edit livery"]').attributes('disabled')).toBeDefined()
   })
 })
+
+describe('pointing at the livery sheet', () => {
+  /// A car carries over a hundred sheets, and the one that is the livery looks
+  /// like any other in a grid of thumbnails — on the F40 it is the one called
+  /// `Carpaint_skin2.dds`, three screens down under "From the car".
+  it('marks the sheet the car wears its livery on', () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture(), isSelected: false, isLivery: true },
+    })
+
+    expect(wrapper.text()).toContain('Livery')
+  })
+
+  it('leaves every other sheet unmarked', () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture(), isSelected: false },
+    })
+
+    expect(wrapper.text()).not.toContain('Livery')
+  })
+})

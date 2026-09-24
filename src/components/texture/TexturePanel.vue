@@ -11,6 +11,7 @@ import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useLiveryEditor } from '@/composables/useLiveryEditor'
 import { useMod } from '@/composables/useMod'
+import { useSkinArt } from '@/composables/useSkinArt'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { openTexturePreviewWindow, scanImportFolder } from '@/lib/tauri'
@@ -76,6 +77,7 @@ const {
 } = useTextures()
 
 const { activeSkin } = useMod()
+const { liveryTextureId } = useSkinArt()
 const { openFor: openLiveryEditor } = useLiveryEditor()
 
 async function handleEdit(texture: Texture) {
@@ -262,6 +264,7 @@ defineExpose({
   ImportConfirmDialog,
   ImportDropZone,
   TextureCard,
+  liveryTextureId,
   Progress,
   handleOpenDetail,
   handleEdit,
@@ -353,6 +356,7 @@ defineExpose({
             :key="texture.id"
             :texture="texture"
             :is-selected="selected.has(texture.id)"
+            :is-livery="texture.id === liveryTextureId"
             :density="density"
             @toggle-select="handleToggleSelect(texture.id)"
             @open-detail="handleOpenDetail(texture.id)"

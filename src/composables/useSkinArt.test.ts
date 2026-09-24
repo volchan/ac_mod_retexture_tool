@@ -7,11 +7,15 @@ import type { Texture } from '@/types/index'
 import { liveryTexture, useSkinArt } from './useSkinArt'
 import { useTextures } from './useTextures'
 
-const { writeSkinArt } = vi.hoisted(() => ({ writeSkinArt: vi.fn(async () => '/written/path') }))
+const { writeSkinArt, sampleTextureColours, mainLiveryTexture } = vi.hoisted(() => ({
+  writeSkinArt: vi.fn(async () => '/written/path'),
+  sampleTextureColours: vi.fn(async () => ['#ea6e14', '#0c0c0c']),
+  mainLiveryTexture: vi.fn(async () => null as string | null),
+}))
 
 vi.mock('@/lib/tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/tauri')>()
-  return { ...actual, writeSkinArt }
+  return { ...actual, writeSkinArt, sampleTextureColours, mainLiveryTexture }
 })
 
 async function withSetup<T>(composable: () => T): Promise<{ result: T; unmount: () => void }> {
@@ -45,34 +49,79 @@ function texture(overrides: Partial<Texture> = {}): Texture {
 }
 
 /// Which texture the badge would speak for, by id.
-function pickedId() {
-  return liveryTexture(useTextures().textures.value)?.id
+function pickedId(sheet?: string) {
+  return liveryTexture(useTextures().textures.value, sheet)?.id
 }
 
 describe('useSkinArt', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     writeSkinArt.mockClear()
+    sampleTextureColours.mockClear()
+    mainLiveryTexture.mockClear()
     stubCanvas()
     useTextures().textures.value = []
   })
 
-  /// Sampling needs a decoded image, which jsdom never produces, so what is
-  /// covered here is which texture is reached for — the sampling itself is
-  /// tested where it lives.
-  it('falls back while no livery texture has been decoded', async () => {
+  it('falls back while no texture has been decoded', async () => {
     const { result, unmount } = await withSetup(() => useSkinArt())
 
     expect(result.badgeColours.value).toEqual(FALLBACK_COLOURS)
     unmount()
   })
 
-  it('leaves a livery the categoriser could not place without a colour', async () => {
-    useTextures().textures.value = [texture({ category: 'other', previewUrl: '' })]
+  /// The backend counts the colours because it holds the full-resolution
+  /// pixels: what reaches the webview is a 128 pixel thumbnail whose stripes
+  /// have already been averaged into their neighbours.
+  it('asks the backend for the file on disk, not the thumbnail it holds', async () => {
+    useTextures().textures.value = [
+      texture({ path: '/cars/gtm/skins/blue/body.dds', previewUrl: 'data:image/png;base64,tiny' }),
+    ]
     const { result, unmount } = await withSetup(() => useSkinArt())
     await nextTick()
 
-    expect(result.badgeColours.value).toEqual(FALLBACK_COLOURS)
+    expect(sampleTextureColours).toHaveBeenCalledWith({
+      kind: 'file',
+      path: '/cars/gtm/skins/blue/body.dds',
+    })
+    expect(result.badgeColours.value).toEqual(['#ea6e14', '#0c0c0c'])
+    unmount()
+  })
+
+  /// A stock Kunos car keeps every texture inside its KN5 and leaves only the
+  /// painted ones on disk, so a path is no answer for most of them.
+  it('reads a texture out of the KN5 when that is where it lives', async () => {
+    useTextures().textures.value = [
+      texture({
+        name: 'f40_body.dds',
+        source: 'carOverride',
+        path: '/cars/ks_ferrari_f40/f40.kn5',
+        kn5File: '/cars/ks_ferrari_f40/f40.kn5',
+      }),
+    ]
+    const { unmount } = await withSetup(() => useSkinArt())
+    await nextTick()
+
+    expect(sampleTextureColours).toHaveBeenCalledWith({
+      kind: 'embedded',
+      kn5: '/cars/ks_ferrari_f40/f40.kn5',
+      name: 'f40_body.dds',
+    })
+    unmount()
+  })
+
+  /// What the queue is about to write outranks the KN5 it came from: the badge
+  /// shows what a repack would produce, not what shipped.
+  it('speaks for the image a queued replacement is about to write', async () => {
+    useTextures().textures.value = [
+      texture({
+        replacement: { sourcePath: '/art/body.png', previewUrl: 'data:,', width: 1, height: 1 },
+      }),
+    ]
+    const { unmount } = await withSetup(() => useSkinArt())
+    await nextTick()
+
+    expect(sampleTextureColours).toHaveBeenCalledWith({ kind: 'file', path: '/art/body.png' })
     unmount()
   })
 
@@ -97,6 +146,68 @@ describe('useSkinArt', () => {
     await result.savePreview('/cars/gtm', 'racing_blue', 'data:image/jpeg;base64,U0hPVA==')
 
     expect(writeSkinArt).toHaveBeenCalledWith('/cars/gtm', 'racing_blue', 'preview', 'U0hPVA==')
+    unmount()
+  })
+
+  /// Nothing rescans the skin folder after a write, so the panel would keep
+  /// showing the image that was replaced, at the size it used to be.
+  it('puts the written preview back into the texture list', async () => {
+    useTextures().textures.value = [
+      texture({
+        id: 'old-preview',
+        name: 'preview.jpg',
+        path: 'skins/racing_blue/preview.jpg',
+        category: 'preview',
+        width: 1920,
+        height: 1080,
+        format: 'JPEG',
+        previewUrl: 'data:image/jpeg;base64,T0xE',
+      }),
+    ]
+    const { result, unmount } = await withSetup(() => useSkinArt())
+
+    await result.savePreview('/cars/gtm', 'racing_blue', 'data:image/jpeg;base64,U0hPVA==')
+
+    expect(useTextures().textures.value).toHaveLength(1)
+    expect(useTextures().textures.value[0]).toMatchObject({
+      id: 'old-preview',
+      width: 1024,
+      height: 575,
+      previewUrl: 'data:image/jpeg;base64,U0hPVA==',
+    })
+    unmount()
+  })
+
+  it('lists a badge the skin did not have before', async () => {
+    useTextures().textures.value = []
+    const { result, unmount } = await withSetup(() => useSkinArt())
+
+    await result.saveBadge('/cars/gtm', 'racing_blue', '24')
+
+    expect(useTextures().textures.value).toMatchObject([
+      {
+        name: 'livery.png',
+        path: 'skins/racing_blue/livery.png',
+        category: 'preview',
+        source: 'skin',
+        format: 'PNG',
+        width: 128,
+        height: 128,
+      },
+    ])
+    unmount()
+  })
+
+  /// A list showing an image no file answers for is worse than one showing the
+  /// image that is still there.
+  it('leaves the list alone when the write failed', async () => {
+    useTextures().textures.value = []
+    writeSkinArt.mockRejectedValueOnce(new Error('disk full'))
+    const { result, unmount } = await withSetup(() => useSkinArt())
+
+    await expect(result.saveBadge('/cars/gtm', 'racing_blue', '24')).rejects.toThrow('disk full')
+
+    expect(useTextures().textures.value).toEqual([])
     unmount()
   })
 
@@ -168,6 +279,82 @@ describe('useSkinArt', () => {
       expect(pickedId()).toBe('mine')
     })
 
+    /// The car's own model names the texture on its bodywork, and nothing else
+    /// can: a mask ships at the livery's exact resolution, so measuring the
+    /// files ends in a tie the decoder's order breaks — which drew a black and
+    /// white badge off a series mask for an orange car.
+    it('takes the sheet the car model names, whatever its size', () => {
+      useTextures().textures.value = [
+        texture({ id: 'mask', name: 'EXT_Series_Mask.png', width: 7168, height: 3584 }),
+        texture({ id: 'livery', name: '2026_Chassis_P.dds', width: 7168, height: 3584 }),
+      ]
+
+      expect(pickedId('2026_chassis_p.dds')).toBe('livery')
+    })
+
+    /// A stock car keeps its livery in the KN5 and its skins repaint only the
+    /// plates and the crew, so the sheet the model names is not one the skin
+    /// owns — and restricting to owned files marked the number plate.
+    it('takes the sheet the model names even when the skin never touched it', () => {
+      useTextures().textures.value = [
+        texture({ id: 'plate', name: 'Plate_D.dds', source: 'skin' }),
+        texture({
+          id: 'livery',
+          name: 'Skin_00.dds',
+          source: 'carOverride',
+          kn5File: '/cars/gtr/gtr.kn5',
+        }),
+      ]
+
+      expect(pickedId('skin_00.dds')).toBe('livery')
+    })
+
+    it('falls back to size when the model names a sheet this car has not decoded', () => {
+      useTextures().textures.value = [
+        texture({ id: 'small', width: 512, height: 512 }),
+        texture({ id: 'big', width: 4096, height: 4096 }),
+      ]
+
+      expect(pickedId('something_else.dds')).toBe('big')
+    })
+
+    /// A skin spells a texture however the artist typed it, and the model
+    /// however the exporter did.
+    it('matches the model spelling against the skin spelling', () => {
+      useTextures().textures.value = [
+        texture({ id: 'mask', name: 'EXT_Series_Mask.png', width: 7168, height: 3584 }),
+        texture({ id: 'livery', name: 'Body.DDS', width: 512, height: 512 }),
+      ]
+
+      expect(pickedId('body.dds')).toBe('livery')
+    })
+
+    /// Before the model has been read there is nothing to filter on, and an
+    /// empty set must not be taken for a car that wears no colour at all.
+    it('picks on size alone while the model has not been read', () => {
+      useTextures().textures.value = [
+        texture({ id: 'small', width: 512, height: 512 }),
+        texture({ id: 'big', width: 4096, height: 4096 }),
+      ]
+
+      expect(pickedId()).toBe('big')
+    })
+
+    it('falls back to the sheet the author painted when the model names none', () => {
+      useTextures().textures.value = [
+        texture({ id: 'mask', name: 'EXT_Series_Mask.png', width: 7168, height: 3584 }),
+        texture({
+          id: 'livery',
+          name: '2026_Chassis_P.dds',
+          width: 7168,
+          height: 3584,
+          replacement: { sourcePath: '/art/body.png', previewUrl: 'data:,', width: 1, height: 1 },
+        }),
+      ]
+
+      expect(pickedId()).toBe('livery')
+    })
+
     it('counts a queued replacement as a sheet the skin paints on', () => {
       useTextures().textures.value = [
         texture({ id: 'donor', source: 'kn5', width: 4096, height: 4096 }),
@@ -188,27 +375,31 @@ describe('useSkinArt', () => {
     /// A badge that quietly gives up looks exactly like a car painted grey, and
     /// the sidebar had been showing one for a fully painted livery.
     it('says why it fell back rather than showing grey in silence', async () => {
-      useTextures().textures.value = [texture({ previewUrl: 'data:image/png;base64,broken' })]
-      vi.stubGlobal(
-        'Image',
-        class {
-          onerror: (() => void) | null = null
-          set src(_value: string) {
-            queueMicrotask(() => this.onerror?.())
-          }
-        },
-      )
+      useTextures().textures.value = [texture()]
+      sampleTextureColours.mockRejectedValueOnce(new Error('unsupported file type: kn5'))
 
       const { result, unmount } = await withSetup(() => useSkinArt())
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(result.badgeColours.value).toEqual(FALLBACK_COLOURS)
-      expect(result.badgeError.value).toMatch(/Could not read/)
+      expect(result.badgeError.value).toMatch(/unsupported file type/)
+      unmount()
+    })
+
+    /// A sheet with nothing opaque on it is a real answer, and one the badge
+    /// cannot paint — saying so beats a grey badge that looks like a grey car.
+    it('says so when the sheet has no paint on it', async () => {
+      useTextures().textures.value = [texture()]
+      sampleTextureColours.mockResolvedValueOnce([])
+
+      const { result, unmount } = await withSetup(() => useSkinArt())
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(result.badgeError.value).toMatch(/Nothing painted/)
       unmount()
     })
 
     it('has nothing to say while no texture has been decoded', async () => {
-      vi.unstubAllGlobals()
       const { result, unmount } = await withSetup(() => useSkinArt())
 
       expect(result.badgeError.value).toBeNull()

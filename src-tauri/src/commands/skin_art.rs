@@ -8,7 +8,11 @@ use std::path::{Path, PathBuf};
 use base64::engine::general_purpose;
 use base64::Engine;
 
+use crate::commands::image_source::ensure_readable_image;
+use crate::parsers::kn5::Kn5File;
 use crate::commands::skin::{ensure_safe_folder_name, MAX_SKIN_ART_BYTES, SKINS_DIR};
+use crate::converters::dds::decode_to_image;
+use crate::converters::dominant::dominant_colours;
 use crate::errors::AppError;
 
 /// Which image is being written. An enum rather than a file name: the caller is
@@ -48,9 +52,62 @@ pub async fn write_skin_art(
     .map_err(|e| e.to_string())
 }
 
+/// Where a texture's bytes are. A car keeps most of its textures inside the KN5
+/// and only the painted ones as files, so a path on disk answers for some of
+/// them and nothing at all for the rest.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum TextureBytes {
+    File { path: String },
+    Embedded { kn5: String, name: String },
+}
+
+/// The colours a texture wears, most-worn first, for the badge to be painted in.
+///
+/// Counted here rather than in the webview because this is where the pixels
+/// already are: what crosses the IPC boundary is a 128 pixel thumbnail, and a
+/// 7168 wide sheet reduced that far blends every stripe into its neighbour.
+#[tauri::command]
+pub async fn sample_texture_colours(
+    texture: TextureBytes,
+    wanted: u32,
+) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let image = decode_to_image(&texture_bytes(&texture)?)?;
+        Ok::<Vec<String>, AppError>(dominant_colours(&image, wanted as usize))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
+
+/// Every read here names the file it failed on. A bare "No such file or
+/// directory" says nothing about which of a car's sixty textures went missing,
+/// and the answer is the whole diagnosis.
+fn texture_bytes(texture: &TextureBytes) -> Result<Vec<u8>, AppError> {
+    match texture {
+        TextureBytes::File { path } => {
+            let path = Path::new(path);
+            ensure_readable_image(path)?;
+            std::fs::read(path)
+                .map_err(|e| AppError::InvalidInput(format!("cannot read {}: {e}", path.display())))
+        }
+        TextureBytes::Embedded { kn5, name } => {
+            let kn5_path = Path::new(kn5);
+            let file = Kn5File::open(kn5_path).map_err(|e| {
+                AppError::InvalidInput(format!("cannot read {}: {e}", kn5_path.display()))
+            })?;
+
+            file.get_texture_data(name).map(<[u8]>::to_vec).ok_or_else(|| {
+                AppError::InvalidInput(format!("{} holds no texture {name}", kn5_path.display()))
+            })
+        }
+    }
+}
 
 fn write_art(car: &Path, skin: &str, art: SkinArt, payload: &str) -> Result<PathBuf, AppError> {
     ensure_safe_folder_name(skin)?;
@@ -162,6 +219,44 @@ mod tests {
         let result = write_art(car.path(), "racing_blue", SkinArt::Livery, "not base64!!");
 
         assert!(result.is_err());
+    }
+
+    /// A bare "No such file or directory" says nothing about which of a car's
+    /// sixty textures went missing, and the answer is the whole diagnosis.
+    #[test]
+    fn a_texture_that_is_not_there_is_named_in_the_error() {
+        let missing = TextureBytes::File {
+            path: "/cars/gtm/skins/blue/body.dds".to_string(),
+        };
+
+        let Err(err) = texture_bytes(&missing) else {
+            panic!("a missing file must be refused");
+        };
+        assert!(err.to_string().contains("body.dds"), "got {err}");
+    }
+
+    #[test]
+    fn a_file_that_is_not_an_image_is_refused_before_it_is_read() {
+        let kn5 = TextureBytes::File {
+            path: "/cars/gtm/gtm.kn5".to_string(),
+        };
+
+        assert!(texture_bytes(&kn5).is_err());
+    }
+
+    /// A stock Kunos car keeps every texture inside its KN5, so the model can
+    /// name one that no file on disk answers for.
+    #[test]
+    fn a_kn5_that_is_not_there_is_named_too() {
+        let embedded = TextureBytes::Embedded {
+            kn5: "/cars/ks_ferrari_f40/f40.kn5".to_string(),
+            name: "f40_body.dds".to_string(),
+        };
+
+        let Err(err) = texture_bytes(&embedded) else {
+            panic!("a missing kn5 must be refused");
+        };
+        assert!(err.to_string().contains("f40.kn5"), "got {err}");
     }
 
     #[test]

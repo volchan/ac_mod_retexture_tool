@@ -8,6 +8,8 @@ const props = defineProps<{
   texture: Texture
   isSelected: boolean
   density?: TextureDensity
+  /// The sheet the car wears its livery on, out of the hundred-odd it carries.
+  isLivery?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -101,6 +103,15 @@ defineExpose({
       class="absolute top-1.5 left-1.5 w-4 h-4 rounded-[4px] bg-primary flex items-center justify-center z-10"
     >
       <CheckIcon :size="10" class="text-primary-foreground" stroke-width="3" />
+    </div>
+
+    <!-- The livery sheet, so it is findable in a grid of look-alike thumbnails -->
+    <div
+      v-if="props.isLivery"
+      class="absolute top-1.5 left-1.5 z-10 rounded-[3px] border border-sky-200 bg-sky-50 px-1.5 py-px text-[9.5px] font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+      title="The sheet this car wears its livery on"
+    >
+      Livery
     </div>
 
     <!-- Replacement / mismatch badge -->

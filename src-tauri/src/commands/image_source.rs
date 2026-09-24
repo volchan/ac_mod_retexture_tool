@@ -36,7 +36,11 @@ pub fn ensure_readable_image(path: &Path) -> Result<(), AppError> {
         )));
     }
 
-    let size = std::fs::metadata(path)?.len();
+    // Named rather than passed through: a car holds sixty textures, and a bare
+    // "No such file or directory" leaves the one that went missing unnamed.
+    let size = std::fs::metadata(path)
+        .map_err(|e| AppError::InvalidInput(format!("cannot read {}: {e}", path.display())))?
+        .len();
     if size > MAX_IMAGE_BYTES {
         return Err(AppError::InvalidInput(format!(
             "file too large: {size} bytes (max 64 MB)"

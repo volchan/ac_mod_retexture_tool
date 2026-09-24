@@ -114,6 +114,26 @@ export async function writeSkinArt(
   return invoke('write_skin_art', { carPath, skin, art, payload })
 }
 
+/// The file this car wears its livery on, as the KN5 names it. Measured from the
+/// model, because the files cannot answer it: a mask ships at the livery's own
+/// resolution and looks identical from the outside.
+export async function mainLiveryTexture(carPath: string): Promise<string | null> {
+  return invoke('main_livery_texture', { carPath })
+}
+
+/// Where a texture's bytes are. A car keeps most of its textures inside the KN5
+/// and only the painted ones as files on disk.
+export type TextureBytes =
+  | { kind: 'file'; path: string }
+  | { kind: 'embedded'; kn5: string; name: string }
+
+/// The colours a texture wears, most-worn first. Counted on the backend, where
+/// the full-resolution pixels are: a `previewUrl` is a 128 pixel thumbnail, and
+/// a livery sheet reduced that far has had its stripes averaged away.
+export async function sampleTextureColours(texture: TextureBytes, wanted = 2): Promise<string[]> {
+  return invoke('sample_texture_colours', { texture, wanted })
+}
+
 export async function cancelDecode(): Promise<void> {
   return invoke('cancel_decode')
 }
