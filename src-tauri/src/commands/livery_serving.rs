@@ -58,11 +58,18 @@ impl LiveryTextures {
 /// Decoding here rather than in the command spreads forty textures over the
 /// webview's own parallel fetches, and keeps not one of them in memory after the
 /// response is written.
+///
+/// The CORS header is not decoration: this scheme is a different origin from the
+/// page, three asks for every texture with `crossOrigin="anonymous"`, and an
+/// image refused that way still becomes a texture — one that samples black. A
+/// car drawn from those is a silhouette, which reads as a paint job rather than
+/// as a failure.
 pub fn serve_texture(state: &LiveryTextureState, path: &str) -> Response<Vec<u8>> {
     match read_texture(state, path) {
         Some(png) => Response::builder()
             .header("Content-Type", "image/png")
             .header("Cache-Control", "no-cache")
+            .header("Access-Control-Allow-Origin", "*")
             .body(png)
             .unwrap_or_else(|_| not_found()),
         None => not_found(),

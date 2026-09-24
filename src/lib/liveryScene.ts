@@ -1,8 +1,10 @@
 import {
+  ACESFilmicToneMapping,
   AmbientLight,
   Mesh,
   MeshStandardMaterial,
   PerspectiveCamera,
+  PMREMGenerator,
   Scene,
   SRGBColorSpace,
   type Texture,
@@ -11,12 +13,20 @@ import {
   WebGLRenderer,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { buildGeometry, frameCamera, keyLight } from '@/lib/threeUtils'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import { buildGeometry, frameCamera, frameHero, keyLight } from '@/lib/threeUtils'
 import type { LiveryModel } from '@/types/index'
 
 export interface LiveryScene {
+  /// Settles once every texture has loaded or given up. A capture taken before
+  /// this resolves draws an untextured car.
+  ready: Promise<void>
   render: () => void
   resize: (width: number, height: number) => void
+  /// Puts the camera where AC shoots its own previews. The dialog leaves the
+  /// framing to whoever is orbiting it; a capture taken with nobody watching
+  /// has to choose one, and the orbit default is a distant view from above.
+  frameHero: () => void
   /// The car as it is framed right now, at the size asked for, as a JPEG data
   /// URL. The viewer's own size is restored before this returns.
   capture: (width: number, height: number, quality?: number) => string
@@ -35,9 +45,12 @@ export function createLiveryScene(
   onTextureError?: (name: string) => void,
 ): LiveryScene {
   const geometry = buildGeometry(model.mesh)
-  const loaded: Texture[] = model.textures.map((entry) =>
-    loadTexture(entry.url, () => onTextureError?.(entry.name)),
-  )
+  const settled: Promise<void>[] = []
+  const loaded: Texture[] = model.textures.map((entry) => {
+    const { texture, done } = loadTexture(entry.url, () => onTextureError?.(entry.name))
+    settled.push(done)
+    return texture
+  })
 
   const materials = model.groups.map((group, index) => {
     // Konva and the KN5 both count V upwards, so the merged buffer carries the
@@ -48,7 +61,7 @@ export function createLiveryScene(
 
   const scene = new Scene()
   scene.add(new Mesh(geometry, materials))
-  scene.add(new AmbientLight(0xffffff, 1.4))
+  scene.add(new AmbientLight(0xffffff, 0.35))
   scene.add(keyLight(1.2, [3, 5, 4]), keyLight(0.6, [-4, 2, -3]))
 
   // `preserveDrawingBuffer` is what lets a capture read the canvas back at all:
@@ -61,15 +74,28 @@ export function createLiveryScene(
   })
   renderer.setPixelRatio(window.devicePixelRatio)
 
+  // Car paint is a mirror before it is a colour, and lamps alone give it nothing
+  // to reflect: the panels come out flat and the glass comes out grey. A room is
+  // something to reflect, which is what the shots AC ships are lit with. Filmic
+  // tone mapping keeps the highlight off a white flank from clipping to paper.
+  renderer.toneMapping = ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.15
+  const environment = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04)
+  scene.environment = environment.texture
+
   const camera = new PerspectiveCamera(38, 1, 0.05, 100)
   const controls = new OrbitControls(camera, canvas)
   controls.enableDamping = true
   frameCamera(camera, controls, geometry)
 
   return {
+    ready: Promise.all(settled).then(() => undefined),
     render() {
       controls.update()
       renderer.render(scene, camera)
+    },
+    frameHero() {
+      frameHero(camera, controls, geometry)
     },
     resize(width, height) {
       camera.aspect = width / Math.max(height, 1)
@@ -99,6 +125,7 @@ export function createLiveryScene(
       for (const texture of loaded) texture.dispose()
       for (const material of materials) material.dispose()
       geometry.dispose()
+      environment.dispose()
       renderer.dispose()
     },
   }
@@ -125,8 +152,23 @@ function materialFor(
   })
 }
 
-function loadTexture(url: string, onError: () => void): Texture {
-  const texture = new TextureLoader().load(url, undefined, undefined, onError)
+/// A texture that will not load is reported and then waited on no longer: a
+/// single missing file must not hold a capture open for ever.
+function loadTexture(url: string, onError: () => void): { texture: Texture; done: Promise<void> } {
+  let settle = () => {}
+  const done = new Promise<void>((resolve) => {
+    settle = resolve
+  })
+
+  const texture = new TextureLoader().load(
+    url,
+    () => settle(),
+    undefined,
+    () => {
+      onError()
+      settle()
+    },
+  )
   texture.flipY = false
-  return texture
+  return { texture, done }
 }
