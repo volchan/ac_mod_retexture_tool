@@ -38,8 +38,8 @@ export interface LiveryScene {
 /// stand on something. A dark studio, lighter behind the car and falling away
 /// at the corners, which is what AC's own previews sit on — and half a GT field
 /// is mostly white, with no edges at all against paper.
-const BACKDROP_CENTRE = '#4a505a'
-const BACKDROP_EDGE = '#15171b'
+const BACKDROP_CENTRE = '#26292f'
+const BACKDROP_EDGE = '#000000'
 
 /// What the corners fall to, as a share of the frame's half-diagonal.
 const BACKDROP_SPREAD = 0.75
@@ -47,7 +47,7 @@ const BACKDROP_SPREAD = 0.75
 /// The flat colour a capture stands on where no gradient can be drawn, which is
 /// a canvas with no 2D context — a headless run rather than anything a user
 /// meets.
-const CAPTURE_BACKGROUND = 0x22252b
+const CAPTURE_BACKGROUND = 0x000000
 
 /// How much of the room reaches the car. This is the exposure knob, not the
 /// lamps and not the tone mapping: the room lights every surface at once, so at
