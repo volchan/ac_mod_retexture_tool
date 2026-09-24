@@ -7,8 +7,15 @@ import type {
   TextLayer,
 } from '@/types/index'
 
+/// Angles a rotation settles on when it comes close, so a decal meant to sit
+/// straight sits straight: freehand rotation never lands on a round number, and
+/// a sticker one degree off reads as a mistake on a car that is symmetrical.
+const ROTATION_SNAPS = Array.from({ length: 24 }, (_, step) => step * 15)
+
 export const transformerConfig = {
   rotateEnabled: true,
+  rotationSnaps: ROTATION_SNAPS,
+  rotationSnapTolerance: 5,
   keepRatio: false,
   borderStroke: '#38bdf8',
   anchorStroke: '#38bdf8',
@@ -96,7 +103,8 @@ function curvedTextConfig(layer: TextLayer, context: LayerRenderContext) {
 
 /// Konva anchors an ellipse at its centre and a rectangle at its corner; the
 /// offset moves the anchor so both are placed by their top-left corner and the
-/// transformer behaves the same on either.
+/// transformer behaves the same on either. Fixed, never folded with the scale:
+/// see `placement`.
 function shapeConfig(layer: ShapeLayer, context: LayerRenderContext) {
   const common = {
     ...placement(layer, context),
@@ -116,13 +124,23 @@ function shapeConfig(layer: ShapeLayer, context: LayerRenderContext) {
     ...common,
     radiusX: layer.width / 2,
     radiusY: layer.height / 2,
-    offsetX: (layer.scaleX < 0 ? 1 : -1) * (layer.width / 2),
-    offsetY: (layer.scaleY < 0 ? 1 : -1) * (layer.height / 2),
+    offsetX: -layer.width / 2,
+    offsetY: -layer.height / 2,
   }
 }
 
+/// Where the node sits, and what it turns around.
+///
+/// The offset never moves with the scale. Folding it back on a mirror looks
+/// tidy on a still layer and wrecks every gesture: the transformer works out
+/// each drag from the node's own anchor, and a document that re-renders mid-drag
+/// would hand it a node whose anchor had jumped a full box width the moment the
+/// scale crossed zero — the handle stops matching the corner, the layer shrinks
+/// to nothing over a few drags, and rotation swings it around the far corner.
+///
+/// Konva mirrors about the anchor and moves `x` itself to keep the opposite
+/// handle where it was, which is the same result the folding was reaching for.
 function placement(layer: ImageLayer | TextLayer | ShapeLayer, context: LayerRenderContext) {
-  const box = layerBox(layer)
   return {
     id: layer.id,
     x: layer.x,
@@ -131,17 +149,11 @@ function placement(layer: ImageLayer | TextLayer | ShapeLayer, context: LayerRen
     scaleY: layer.scaleY,
     rotation: layer.rotation,
     opacity: layer.opacity,
-    // A negative scale reflects across the anchor; the offset folds it back.
-    offsetX: layer.scaleX < 0 ? box.width : 0,
-    offsetY: layer.scaleY < 0 ? box.height : 0,
+    offsetX: 0,
+    offsetY: 0,
     draggable: context.interactive,
     listening: context.interactive,
   }
-}
-
-function layerBox(layer: ImageLayer | TextLayer | ShapeLayer) {
-  if (layer.type === 'text') return textBounds(layer.value, layer.fontSize, layer.fontFamily)
-  return { width: layer.width, height: layer.height }
 }
 
 function imageConfig(layer: ImageLayer, context: LayerRenderContext) {

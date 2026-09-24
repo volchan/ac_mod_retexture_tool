@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EditorLayer } from '@/types/index'
-import { layerConfig, strokeConfigs } from './editorConfig'
+import { layerConfig, strokeConfigs, transformerConfig } from './editorConfig'
 
 const context = { image: null, interactive: true }
 
@@ -38,6 +38,25 @@ const fill: EditorLayer = {
   blend: 'multiply',
 }
 
+describe('transformerConfig', () => {
+  /// Freehand rotation never lands on a round number, and a sticker a degree
+  /// off reads as a mistake on a car that is symmetrical.
+  it('settles on the round angles all the way round', () => {
+    expect(transformerConfig.rotationSnaps).toContain(0)
+    expect(transformerConfig.rotationSnaps).toContain(45)
+    expect(transformerConfig.rotationSnaps).toContain(180)
+    expect(transformerConfig.rotationSnaps).toContain(315)
+    expect(transformerConfig.rotationSnapTolerance).toBeGreaterThan(0)
+  })
+
+  it('snaps to nothing it cannot reach by dragging', () => {
+    for (const angle of transformerConfig.rotationSnaps) {
+      expect(angle).toBeGreaterThanOrEqual(0)
+      expect(angle).toBeLessThan(360)
+    }
+  })
+})
+
 describe('layerConfig', () => {
   it('carries an image layer placement and bitmap through', () => {
     const bitmap = {} as HTMLImageElement
@@ -68,23 +87,26 @@ describe('layerConfig', () => {
     expect(layerConfig(fill, context).listening).toBe(false)
   })
 
-  it('keeps a mirrored image in the same box as before the flip', () => {
+  /// The transformer works out each drag from the node's own anchor, and the
+  /// document re-renders mid-drag: an anchor that jumped a box width the moment
+  /// the scale crossed zero left the handles off the corners, shrank the layer
+  /// over a few drags, and swung rotation around the far corner.
+  it('holds a mirrored image on the same anchor as an unmirrored one', () => {
     const flipped = layerConfig({ ...image, scaleX: -2 }, context)
-    expect(flipped).toMatchObject({ scaleX: -2, offsetX: 64, offsetY: 0 })
+    expect(flipped).toMatchObject({ scaleX: -2, offsetX: 0, offsetY: 0 })
   })
 
-  it('offsets vertically when flipped on the other axis', () => {
+  it('holds the anchor on the other axis too', () => {
     const flipped = layerConfig({ ...image, scaleY: -3 }, context)
-    expect(flipped).toMatchObject({ scaleY: -3, offsetX: 0, offsetY: 32 })
+    expect(flipped).toMatchObject({ scaleY: -3, offsetX: 0, offsetY: 0 })
   })
 
-  it('folds a mirrored text back over its own glyphs', () => {
+  it('holds a mirrored text on its anchor', () => {
     const flipped = layerConfig({ ...text, scaleX: -1 }, context)
-    expect(flipped.offsetX).toBeGreaterThan(0)
-    expect(flipped).toMatchObject({ scaleX: -1, offsetY: 0 })
+    expect(flipped).toMatchObject({ scaleX: -1, offsetX: 0, offsetY: 0 })
   })
 
-  it('holds a mirrored ellipse on its centre by swapping the offset sign', () => {
+  it('places an ellipse by its corner whichever way it is mirrored', () => {
     const ellipse: EditorLayer = {
       ...common,
       ...placement,
@@ -98,7 +120,7 @@ describe('layerConfig', () => {
       cornerRadius: 0,
     }
     expect(layerConfig(ellipse, context)).toMatchObject({ offsetX: -32, offsetY: -16 })
-    expect(layerConfig({ ...ellipse, scaleX: -2 }, context)).toMatchObject({ offsetX: 32 })
+    expect(layerConfig({ ...ellipse, scaleX: -2 }, context)).toMatchObject({ offsetX: -32 })
   })
 
   it('leaves an unmirrored image at its own origin', () => {
