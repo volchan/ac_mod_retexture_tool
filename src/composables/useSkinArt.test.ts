@@ -5,6 +5,7 @@ import { FALLBACK_COLOURS } from '@/lib/liveryBadge'
 import { STUBBED_DATA_URL, stubCanvas } from '@/test-fixtures/canvas'
 import type { Texture } from '@/types/index'
 import { liveryTexture, useSkinArt } from './useSkinArt'
+import { useSkinPicker } from './useSkinPicker'
 import { useTextures } from './useTextures'
 
 const { writeSkinArt, sampleTextureColours, mainLiveryTexture } = vi.hoisted(() => ({
@@ -146,6 +147,20 @@ describe('useSkinArt', () => {
     await result.savePreview('/cars/gtm', 'racing_blue', 'data:image/jpeg;base64,U0hPVA==')
 
     expect(writeSkinArt).toHaveBeenCalledWith('/cars/gtm', 'racing_blue', 'preview', 'U0hPVA==')
+    unmount()
+  })
+
+  /// A badge that quietly falls back to grey looks exactly like a car painted
+  /// grey, and the model is read from a folder the user only just picked.
+  it('says so when the car model will not name its livery sheet', async () => {
+    mainLiveryTexture.mockRejectedValueOnce(new Error('no model in this folder'))
+    const { result, unmount } = await withSetup(() => useSkinArt())
+
+    useSkinPicker().carPath.value = '/cars/broken'
+    await nextTick()
+    await Promise.resolve()
+
+    expect(result.badgeError.value).toBe('no model in this folder')
     unmount()
   })
 
