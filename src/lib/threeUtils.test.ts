@@ -21,6 +21,28 @@ function stubControls() {
   return { target: new Vector3(), update: () => {} } as unknown as OrbitControls
 }
 
+/// Places the camera the way the scene does, and hands back what it sees.
+function shot(geometry = car(), aspect = 1024 / 575) {
+  const camera = new PerspectiveCamera(38, aspect, 0.05, 100)
+  const controls = stubControls()
+
+  frameHero(camera, controls, geometry)
+  camera.lookAt(controls.target)
+  camera.updateMatrixWorld()
+  camera.updateProjectionMatrix()
+
+  const positions = geometry.getAttribute('position')
+  const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
+  for (let at = 0; at < positions.count; at += 1) {
+    const seen = new Vector3().fromBufferAttribute(positions, at).project(camera)
+    bounds.minX = Math.min(bounds.minX, seen.x)
+    bounds.maxX = Math.max(bounds.maxX, seen.x)
+    bounds.minY = Math.min(bounds.minY, seen.y)
+    bounds.maxY = Math.max(bounds.maxY, seen.y)
+  }
+  return bounds
+}
+
 function framed(place: typeof frameCamera) {
   const camera = new PerspectiveCamera(38, 16 / 9, 0.05, 100)
   const geometry = car()
@@ -35,30 +57,26 @@ function framed(place: typeof frameCamera) {
   }
 }
 
-/// Where a point lands in the picture: -1 to 1 on both axes, anything outside
-/// is off the edge of the frame.
-function onScreen(camera: PerspectiveCamera, point: Vector3) {
-  camera.updateMatrixWorld()
-  camera.updateProjectionMatrix()
-  const projected = point.clone().project(camera)
-  return Math.max(Math.abs(projected.x), Math.abs(projected.y))
-}
-
 describe('frameHero', () => {
   /// The wing, the splitter and the outer wheel are what stick out furthest,
   /// and a framing that guesses its distance is a framing that cuts them off.
   it('leaves the whole car inside the frame', () => {
-    const camera = new PerspectiveCamera(38, 1024 / 575, 0.05, 100)
-    const geometry = car()
+    const seen = shot()
 
-    frameHero(camera, stubControls(), geometry)
-    camera.lookAt(geometry.boundingBox?.getCenter(new Vector3()) ?? new Vector3())
+    expect(seen.minX).toBeGreaterThanOrEqual(-1)
+    expect(seen.maxX).toBeLessThanOrEqual(1)
+    expect(seen.minY).toBeGreaterThanOrEqual(-1)
+    expect(seen.maxY).toBeLessThanOrEqual(1)
+  })
 
-    const positions = geometry.getAttribute('position')
-    for (let at = 0; at < positions.count; at += 1) {
-      const corner = new Vector3().fromBufferAttribute(positions, at)
-      expect(onScreen(camera, corner)).toBeLessThanOrEqual(1)
-    }
+  /// The middle of a car is not the middle of its picture: the near end is
+  /// closer to the lens than the far end, so it takes more of the width, and
+  /// aiming at the centre of the shape leaves it off to one side.
+  it('centres the car on what the lens sees, not on the shape', () => {
+    const seen = shot()
+
+    expect((seen.minX + seen.maxX) / 2).toBeCloseTo(0, 1)
+    expect((seen.minY + seen.maxY) / 2).toBeCloseTo(0, 1)
   })
 
   /// A tall frame has to stand further back than a wide one to fit the same
@@ -88,14 +106,17 @@ describe('frameHero', () => {
     expect(pitch).toBeLessThan(framed(frameCamera).pitch)
   })
 
-  it('looks at the car', () => {
+  /// Re-aiming to centre the picture moves the aim off the middle of the shape,
+  /// but never off the car: an aim outside it would be the sign of a correction
+  /// that ran away rather than settled.
+  it('aims inside the car rather than past it', () => {
     const camera = new PerspectiveCamera(38, 16 / 9, 0.05, 100)
     const controls = stubControls()
     const geometry = car()
 
     frameHero(camera, controls, geometry)
 
-    expect(controls.target).toEqual(geometry.boundingSphere?.center)
+    expect(geometry.boundingBox?.containsPoint(controls.target)).toBe(true)
   })
 
   /// An empty geometry has no box to fit, and the camera must still end up

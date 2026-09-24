@@ -34,8 +34,22 @@ export interface LiveryScene {
 }
 
 /// JPEG cannot carry the alpha the viewer renders with, and an unpainted
-/// background would come out black. AC's own previews sit on a pale studio grey.
-const CAPTURE_BACKGROUND = 0xf2f2f2
+/// background would come out black. A studio grey rather than white: half the
+/// cars in a GT field are mostly white, and on paper they have no edges.
+const CAPTURE_BACKGROUND = 0xd8dade
+
+/// How much of the room reaches the car. This is the exposure knob, not the
+/// lamps and not the tone mapping: the room lights every surface at once, so at
+/// full strength it burns a white flank to paper and takes the panel lines with
+/// it, and turning the lamps down barely shows.
+const ENVIRONMENT = 0.55
+
+/// What the lamps are worth once the room is doing the lighting: the highlight
+/// down an edge, and nothing else.
+const AMBIENT = 0.15
+const KEY_LIGHT = 0.55
+const FILL_LIGHT = 0.25
+const EXPOSURE = 1.0
 
 /// The whole car wearing the whole skin: one draw per material, orbitable, and
 /// read-only — unlike the editor's preview there is nothing here to pick at.
@@ -90,8 +104,8 @@ function buildScene(
 
   const scene = new Scene()
   scene.add(new Mesh(geometry, materials))
-  scene.add(new AmbientLight(0xffffff, 0.35))
-  scene.add(keyLight(1.2, [3, 5, 4]), keyLight(0.6, [-4, 2, -3]))
+  scene.add(new AmbientLight(0xffffff, AMBIENT))
+  scene.add(keyLight(KEY_LIGHT, [3, 5, 4]), keyLight(FILL_LIGHT, [-4, 2, -3]))
 
   // `preserveDrawingBuffer` is what lets a capture read the canvas back at all:
   // without it the buffer is cleared on composite and toDataURL sees black.
@@ -108,9 +122,10 @@ function buildScene(
   // something to reflect, which is what the shots AC ships are lit with. Filmic
   // tone mapping keeps the highlight off a white flank from clipping to paper.
   renderer.toneMapping = ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.15
+  renderer.toneMappingExposure = EXPOSURE
   const environment = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04)
   scene.environment = environment.texture
+  scene.environmentIntensity = ENVIRONMENT
 
   const camera = new PerspectiveCamera(38, 1, 0.05, 100)
   const controls = new OrbitControls(camera, canvas)

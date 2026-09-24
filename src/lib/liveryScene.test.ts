@@ -1,6 +1,10 @@
-import { BufferGeometry } from 'three'
+import { ACESFilmicToneMapping, BufferGeometry } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LiveryModel } from '@/types/index'
+
+/// What the renderer was last handed, so the scene's own lighting is readable
+/// without a GPU.
+let rendered: { environment: unknown; environmentIntensity: number } | null = null
 
 const { renderer, loader, buildGeometry, frameHero } = vi.hoisted(() => ({
   renderer: {
@@ -9,7 +13,9 @@ const { renderer, loader, buildGeometry, frameHero } = vi.hoisted(() => ({
     getSize: vi.fn(() => ({ x: 800, y: 450 })),
     setSize: vi.fn(),
     setClearColor: vi.fn(),
-    render: vi.fn(),
+    render: vi.fn((scene: { environment: unknown; environmentIntensity: number }) => {
+      rendered = scene
+    }),
     dispose: vi.fn(),
     toneMapping: 0,
     toneMappingExposure: 1,
@@ -76,6 +82,7 @@ describe('createLiveryScene', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     loader.settle = []
+    rendered = null
     buildGeometry.mockImplementation(() => new BufferGeometry())
   })
 
@@ -113,11 +120,23 @@ describe('createLiveryScene', () => {
   })
 
   /// Car paint is a mirror before it is a colour, and lamps alone give it
-  /// nothing to reflect.
+  /// nothing to reflect. Filmic tone mapping is what keeps the highlight off a
+  /// white flank from clipping to paper once it has a room to reflect.
   it('lights the car with something to reflect', () => {
     createLiveryScene(canvas(), model())
 
-    expect(renderer.toneMappingExposure).toBeGreaterThan(1)
+    expect(renderer.toneMapping).toBe(ACESFilmicToneMapping)
+    expect(renderer.toneMappingExposure).toBeLessThanOrEqual(1)
+  })
+
+  /// The room lights every surface at once, so at full strength it burns a white
+  /// flank to paper — and half a GT field is mostly white.
+  it('holds the room back from blowing the paint out', () => {
+    const scene = createLiveryScene(canvas(), model())
+    scene.render()
+
+    expect(rendered?.environmentIntensity).toBeLessThan(1)
+    expect(rendered?.environment).not.toBeNull()
   })
 
   describe('capture', () => {
@@ -145,8 +164,9 @@ describe('createLiveryScene', () => {
       const scene = createLiveryScene(canvas(), model())
 
       expect(scene.capture(1024, 575)).toBe('data:image/jpeg;base64,U0hPVA==')
-      expect(renderer.setClearColor).toHaveBeenNthCalledWith(1, 0xf2f2f2, 1)
-      expect(renderer.setClearColor).toHaveBeenLastCalledWith(0xf2f2f2, 0)
+      const [colour] = renderer.setClearColor.mock.calls[0]
+      expect(renderer.setClearColor).toHaveBeenNthCalledWith(1, colour, 1)
+      expect(renderer.setClearColor).toHaveBeenLastCalledWith(colour, 0)
     })
   })
 
