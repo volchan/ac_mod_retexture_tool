@@ -17,6 +17,7 @@ import { useLibrary } from '@/composables/useLibrary'
 import { useLiveryEditor } from '@/composables/useLiveryEditor'
 import { useLiveryPreview } from '@/composables/useLiveryPreview'
 import { useMod } from '@/composables/useMod'
+import { useSkinArt } from '@/composables/useSkinArt'
 import { useSkinMeta } from '@/composables/useSkinMeta'
 import { useSkinPicker } from '@/composables/useSkinPicker'
 import { useTestInGame } from '@/composables/useTestInGame'
@@ -215,6 +216,7 @@ async function handleExportSkin() {
   isExporting.value = true
   const pending = toast.loading(`Packing ${skinMeta.value.folderName}…`)
   try {
+    const art = await artForExport(mod.value.path, activeSkin.value.name, skinMeta.value.number)
     await exportSkin({
       carPath: mod.value.path,
       skinFolder: activeSkin.value.name,
@@ -222,12 +224,32 @@ async function handleExportSkin() {
       meta: skinMeta.value,
       full: exportFull.value,
       replacements: replacementOptsOf(textures.value),
+      art,
     })
     toast.success(`Exported ${skinMeta.value.folderName}`, { id: pending })
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e), { id: pending })
   } finally {
     isExporting.value = false
+  }
+}
+
+/// The pictures the archive ships. A car that will not render is a reason to
+/// say so, not to keep the skin from shipping: the textures are the skin.
+async function artForExport(carPath: string, skin: string, raceNumber: string) {
+  try {
+    const { art, failed } = await useSkinArt().renderArt(carPath, skin, raceNumber)
+    if (failed.length > 0) {
+      toast.warning(`Preview drawn with ${failed.length} textures missing`, {
+        description: failed.join(', '),
+      })
+    }
+    return art
+  } catch (e) {
+    toast.warning('Exported without a preview', {
+      description: e instanceof Error ? e.message : String(e),
+    })
+    return undefined
   }
 }
 

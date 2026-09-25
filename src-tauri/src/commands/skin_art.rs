@@ -25,7 +25,7 @@ pub enum SkinArt {
 }
 
 impl SkinArt {
-    fn file_name(self) -> &'static str {
+    pub(crate) fn file_name(self) -> &'static str {
         match self {
             Self::Preview => "preview.jpg",
             Self::Livery => "livery.png",
@@ -116,19 +116,7 @@ fn texture_bytes(texture: &TextureBytes) -> Result<Vec<u8>, AppError> {
 
 fn write_art(car: &Path, skin: &str, art: SkinArt, payload: &str) -> Result<PathBuf, AppError> {
     ensure_safe_folder_name(skin)?;
-
-    let bytes = general_purpose::STANDARD
-        .decode(payload)
-        .map_err(|e| AppError::InvalidInput(format!("skin art is not base64: {e}")))?;
-
-    // The payload crosses IPC as a string, so its size is whatever the webview
-    // sent; a badge is a few KB and a preview a hundred.
-    if bytes.len() as u64 > MAX_SKIN_ART_BYTES {
-        return Err(AppError::InvalidInput(format!(
-            "skin art too large: {} bytes",
-            bytes.len()
-        )));
-    }
+    let bytes = decode_art(payload)?;
 
     let skin_dir = car.join(SKINS_DIR).join(skin);
     if !skin_dir.is_dir() {
@@ -141,6 +129,24 @@ fn write_art(car: &Path, skin: &str, art: SkinArt, payload: &str) -> Result<Path
     let path = skin_dir.join(art.file_name());
     std::fs::write(&path, bytes)?;
     Ok(path)
+}
+
+/// The bytes behind a skin image the webview handed over as bare base64.
+///
+/// The payload crosses IPC as a string, so its size is whatever the webview
+/// sent; a badge is a few KB and a preview a hundred.
+pub(crate) fn decode_art(payload: &str) -> Result<Vec<u8>, AppError> {
+    let bytes = general_purpose::STANDARD
+        .decode(payload)
+        .map_err(|e| AppError::InvalidInput(format!("skin art is not base64: {e}")))?;
+
+    if bytes.len() as u64 > MAX_SKIN_ART_BYTES {
+        return Err(AppError::InvalidInput(format!(
+            "skin art too large: {} bytes",
+            bytes.len()
+        )));
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]

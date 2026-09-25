@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { useSkinMeta } from '@/composables/useSkinMeta'
 import { useSkinPicker } from '@/composables/useSkinPicker'
+import { captureSkinPreview } from '@/composables/useSkinPreviewShot'
 import { useTextures } from '@/composables/useTextures'
 import { BADGE_SIZE, drawLiveryBadge, FALLBACK_COLOURS } from '@/lib/liveryBadge'
 import {
@@ -9,7 +10,7 @@ import {
   type TextureBytes,
   writeSkinArt,
 } from '@/lib/tauri'
-import type { Texture } from '@/types/index'
+import type { SkinArtPayload, Texture } from '@/types/index'
 
 /// The two images AC shows for a skin: the entry-list badge, drawn from the
 /// colours the livery wears, and the selection-screen preview, captured from
@@ -100,15 +101,34 @@ export function useSkinArt() {
   /// than read off whatever canvas the panel is showing, so what lands on disk
   /// does not depend on the sidebar being open.
   async function saveBadge(carPath: string, skin: string, raceNumber: string): Promise<string> {
+    return save(carPath, skin, 'livery', badgeDataUrl(raceNumber), {
+      width: BADGE_SIZE,
+      height: BADGE_SIZE,
+    })
+  }
+
+  /// Both images for an archive, drawn now and written nowhere: the export
+  /// carries them, so a renamed skin gets its own pictures without a folder on
+  /// disk to save them into first. `failed` names the textures the preview
+  /// had to do without.
+  async function renderArt(
+    carPath: string,
+    skin: string,
+    raceNumber: string,
+  ): Promise<{ art: SkinArtPayload; failed: string[] }> {
+    const { shot, failed } = await captureSkinPreview(carPath, skin, textures.value, PREVIEW_SIZE)
+    return {
+      art: { preview: payloadOf(shot), livery: payloadOf(badgeDataUrl(raceNumber)) },
+      failed,
+    }
+  }
+
+  function badgeDataUrl(raceNumber: string): string {
     const canvas = document.createElement('canvas')
     canvas.width = BADGE_SIZE
     canvas.height = BADGE_SIZE
     drawLiveryBadge(canvas, badgeColours.value, raceNumber)
-
-    return save(carPath, skin, 'livery', canvas.toDataURL('image/png'), {
-      width: BADGE_SIZE,
-      height: BADGE_SIZE,
-    })
+    return canvas.toDataURL('image/png')
   }
 
   /// Writes `preview.jpg` from a capture the viewer already took — this has no
@@ -125,6 +145,7 @@ export function useSkinArt() {
     paintBadge,
     saveBadge,
     savePreview,
+    renderArt,
     isSaving,
   }
 }

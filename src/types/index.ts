@@ -62,6 +62,14 @@ export interface SkinExportOptions {
   /** Ship every file of the skin, rather than only what changed. */
   full: boolean
   replacements: TextureReplacementOpt[]
+  /** Badge and preview drawn for this export, as bare base64. Left out when
+   * the car could not be rendered; the archive then ships without pictures. */
+  art?: SkinArtPayload
+}
+
+export interface SkinArtPayload {
+  preview: string
+  livery: string
 }
 
 /** The ui_skin.json fields the workspace lets an author edit, plus the folder

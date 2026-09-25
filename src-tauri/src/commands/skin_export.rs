@@ -6,6 +6,7 @@ use crate::commands::repack::{
     copy_dir_recursive, create_zip_archive, patch_kn5, write_replacement,
 };
 use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
+use crate::commands::skin_art::{decode_art, SkinArt};
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
 use crate::models::skin::SkinMeta;
@@ -26,6 +27,18 @@ pub struct SkinExportOptions {
     /// Ship every file of the skin, rather than only what changed.
     pub full: bool,
     pub replacements: Vec<TextureReplacementOpt>,
+    /// The badge and preview drawn for this export, when the webview could
+    /// render them. A copied skin carries the images of the skin it was copied
+    /// from, and a renamed one has no folder on disk to have saved them into.
+    pub art: Option<SkinArtPayload>,
+}
+
+/// Both display images as bare base64, the way a canvas hands them over.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkinArtPayload {
+    pub preview: String,
+    pub livery: String,
 }
 
 /// Writes a standalone skin archive that unzips straight into an Assetto Corsa
@@ -91,6 +104,9 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
     }
 
     apply_replacements(&source, &skin_dst, &opts.replacements)?;
+    if let Some(art) = &opts.art {
+        write_art_into(&skin_dst, art)?;
+    }
 
     write_skin_meta(&skin_dst, &opts.meta)?;
 
@@ -99,6 +115,17 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
         std::fs::create_dir_all(parent)?;
     }
     create_zip_archive(staging.path(), output, &|_, _, _| {})
+}
+
+/// After the copy, so a fresh picture replaces whatever the source skin had.
+fn write_art_into(skin_dst: &Path, art: &SkinArtPayload) -> Result<(), AppError> {
+    for (which, payload) in [
+        (SkinArt::Preview, &art.preview),
+        (SkinArt::Livery, &art.livery),
+    ] {
+        std::fs::write(skin_dst.join(which.file_name()), decode_art(payload)?)?;
+    }
+    Ok(())
 }
 
 /// A texture that lives inside one of the skin's own KN5 files has to go back
@@ -212,7 +239,64 @@ pub(crate) mod tests {
             meta: meta("super_silver"),
             full,
             replacements: vec![],
+            art: None,
         }
+    }
+
+    fn encoded(bytes: &[u8]) -> String {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    }
+
+    /// The copied skin brings the donor's preview and badge with it, and a
+    /// partial export brings none: either way the pictures in the archive have
+    /// to be the ones drawn for this skin.
+    #[test]
+    fn export_ships_the_art_drawn_for_it_over_whatever_the_source_had() {
+        for full in [true, false] {
+            let root = car_with_skin(&["preview.jpg", "livery.png", "ui_skin.json"]);
+            let out = root.path().join("skin.zip");
+            let mut opts = options(root.path(), &out, full);
+            opts.meta.folder_name = "27_super_silver".to_string();
+            opts.art = Some(SkinArtPayload {
+                preview: encoded(b"fresh preview"),
+                livery: encoded(b"fresh badge"),
+            });
+
+            export_skin_inner(&opts).unwrap();
+
+            let prefix = "content/cars/ks_nissan_gtr/skins/27_super_silver/";
+            let file = std::fs::File::open(&out).unwrap();
+            let mut zip = zip::ZipArchive::new(file).unwrap();
+            for (name, expected) in [
+                ("preview.jpg", "fresh preview"),
+                ("livery.png", "fresh badge"),
+            ] {
+                let mut bytes = Vec::new();
+                zip.by_name(&format!("{prefix}{name}"))
+                    .unwrap()
+                    .read_to_end(&mut bytes)
+                    .unwrap();
+                assert_eq!(bytes, expected.as_bytes(), "{name} with full={full}");
+            }
+        }
+    }
+
+    #[test]
+    fn export_refuses_art_that_is_not_base64() {
+        let root = car_with_skin(&["ui_skin.json"]);
+        let out = root.path().join("skin.zip");
+        let mut opts = options(root.path(), &out, true);
+        opts.art = Some(SkinArtPayload {
+            preview: "not base64!".to_string(),
+            livery: encoded(b"badge"),
+        });
+
+        assert!(export_skin_inner(&opts).is_err());
+        assert!(
+            !out.exists(),
+            "nothing half-written lands at the output path"
+        );
     }
 
     /// Windows and macOS hand `UI_Skin.json` back for `ui_skin.json`, so a skin

@@ -5,7 +5,7 @@ import { useSkinMeta } from '@/composables/useSkinMeta'
 import { FALLBACK_COLOURS } from '@/lib/liveryBadge'
 import { STUBBED_DATA_URL, stubCanvas } from '@/test-fixtures/canvas'
 import type { Texture } from '@/types/index'
-import { liveryTexture, useSkinArt } from './useSkinArt'
+import { liveryTexture, PREVIEW_SIZE, useSkinArt } from './useSkinArt'
 import { useSkinPicker } from './useSkinPicker'
 import { useTextures } from './useTextures'
 
@@ -14,6 +14,11 @@ const { writeSkinArt, sampleTextureColours, mainLiveryTexture } = vi.hoisted(() 
   sampleTextureColours: vi.fn(async () => ['#ea6e14', '#0c0c0c']),
   mainLiveryTexture: vi.fn(async () => null as string | null),
 }))
+
+const captureSkinPreview = vi.hoisted(() =>
+  vi.fn(async () => ({ shot: 'data:image/jpeg;base64,U0hPVA==', failed: ['glass.dds'] })),
+)
+vi.mock('@/composables/useSkinPreviewShot', () => ({ captureSkinPreview }))
 
 vi.mock('@/lib/tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/tauri')>()
@@ -159,6 +164,21 @@ describe('useSkinArt', () => {
     )
     expect(writeSkinArt).not.toHaveBeenCalled()
     expect(result.isSaving.value).toBe(false)
+    unmount()
+  })
+
+  /// The archive carries its own pictures, so nothing is written to disk here:
+  /// a renamed skin has no folder to write into, and the donor's must not be.
+  it('renders both images for an export without writing either', async () => {
+    const { result, unmount } = await withSetup(() => useSkinArt())
+
+    const { art, failed } = await result.renderArt('/cars/gtm', 'racing_blue', '24')
+
+    expect(captureSkinPreview).toHaveBeenCalledWith('/cars/gtm', 'racing_blue', [], PREVIEW_SIZE)
+    expect(art.preview).toBe('U0hPVA==')
+    expect(art.livery).toBe(STUBBED_DATA_URL.split(',')[1])
+    expect(failed).toEqual(['glass.dds'])
+    expect(writeSkinArt).not.toHaveBeenCalled()
     unmount()
   })
 
