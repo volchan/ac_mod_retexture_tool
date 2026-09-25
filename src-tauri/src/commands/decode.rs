@@ -1,4 +1,6 @@
+use crate::commands::skin::ensure_safe_folder_name;
 use crate::converters::dds;
+use crate::errors::AppError;
 use crate::models::mod_info::ModType;
 use crate::models::texture::{TextureCategory, TextureEntry, TextureSource};
 use crate::parsers::kn5::Kn5File;
@@ -287,16 +289,25 @@ fn skin_texture_names(car_path: &Path, skin: &str) -> std::collections::HashSet<
 /// A KN5 sitting *inside* the skin folder is the opposite case. Mods ship extra
 /// parts that way — light strips, wing variants — and their textures travel with
 /// the skin, so they are the author's to edit.
-fn kn5_files_to_scan(path: &Path, skin_folder: Option<&str>) -> Vec<walkdir::DirEntry> {
+///
+/// The skin name comes from the webview: one that climbs out of `skins/` would
+/// have this walk every KN5 under `content/` instead.
+fn kn5_files_to_scan(
+    path: &Path,
+    skin_folder: Option<&str>,
+) -> Result<Vec<walkdir::DirEntry>, AppError> {
     let root = match skin_folder {
-        Some(skin) => path.join("skins").join(skin),
+        Some(skin) => {
+            ensure_safe_folder_name(skin)?;
+            path.join("skins").join(skin)
+        }
         None => path.to_path_buf(),
     };
-    walkdir::WalkDir::new(root)
+    Ok(walkdir::WalkDir::new(root)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("kn5"))
-        .collect()
+        .collect())
 }
 
 /// Skin folders hold textures the car loads plus `preview`/`livery` display
@@ -339,7 +350,7 @@ pub async fn decode_mod_textures(
         ModType::Track
     };
 
-    let kn5_files = kn5_files_to_scan(path, skin_folder.as_deref());
+    let kn5_files = kn5_files_to_scan(path, skin_folder.as_deref()).map_err(|e| e.to_string())?;
 
     let total = kn5_files.len();
 
@@ -843,8 +854,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("ks_nissan_gtr.kn5"), b"data").unwrap();
 
-        assert!(kn5_files_to_scan(dir.path(), Some("missing_skin")).is_empty());
-        assert_eq!(kn5_files_to_scan(dir.path(), None).len(), 1);
+        assert!(kn5_files_to_scan(dir.path(), Some("missing_skin"))
+            .unwrap()
+            .is_empty());
+        assert_eq!(kn5_files_to_scan(dir.path(), None).unwrap().len(), 1);
     }
 
     #[test]
@@ -857,7 +870,7 @@ mod tests {
         std::fs::write(skin.join("led_strip_1.kn5"), b"model").unwrap();
         std::fs::write(dir.path().join("car.kn5"), b"model").unwrap();
 
-        let found = kn5_files_to_scan(dir.path(), Some("01_red"));
+        let found = kn5_files_to_scan(dir.path(), Some("01_red")).unwrap();
 
         assert_eq!(found.len(), 1);
         assert_eq!(
@@ -865,6 +878,18 @@ mod tests {
             "led_strip_1.kn5",
             "the car's own model stays out of a skin workspace"
         );
+    }
+
+    /// The name is joined onto `skins/` and comes over IPC, so a climbing one
+    /// would turn a skin scan into a walk of every car under `content/`.
+    #[test]
+    fn a_skin_scoped_scan_refuses_a_name_that_climbs_out_of_skins() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("car.kn5"), b"model").unwrap();
+
+        for name in ["..", "../..", "a/b", "..\\x"] {
+            assert!(kn5_files_to_scan(dir.path(), Some(name)).is_err(), "{name}");
+        }
     }
 
     #[test]
