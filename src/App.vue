@@ -23,6 +23,7 @@ import { useTestInGame } from '@/composables/useTestInGame'
 import { useTextureFilter } from '@/composables/useTextureFilter'
 import { useTextures } from '@/composables/useTextures'
 import { useTheme } from '@/composables/useTheme'
+import { replacementOptsOf } from '@/lib/replacementOpts'
 import { exportSkin, onLiveryEditorRequest, showSaveDialog } from '@/lib/tauri'
 import type { SkinEntry, TextureReplacementOpt } from '@/types/index'
 import LibraryView from '@/views/LibraryView.vue'
@@ -201,17 +202,7 @@ async function handleRepack() {
   if (!outputPath) return
 
   repackOutputPath.value = outputPath
-  repackReplacements.value = textures.value
-    .filter((t) => t.replacement != null)
-    .map((t) => ({
-      textureId: t.id,
-      sourcePath: t.replacement?.sourcePath ?? '',
-      kn5File: t.source === 'kn5' ? t.path : undefined,
-      textureName: t.name,
-      skinFolder: t.skinFolder,
-      originalFormat: t.format,
-      heroImagePath: t.category === 'preview' ? t.path : undefined,
-    }))
+  repackReplacements.value = replacementOptsOf(textures.value)
   repackOpen.value = true
 }
 
@@ -230,15 +221,7 @@ async function handleExportSkin() {
       outputPath,
       meta: skinMeta.value,
       full: exportFull.value,
-      replacements: textures.value
-        .filter((t) => t.replacement != null)
-        .map((t) => ({
-          textureId: t.id,
-          sourcePath: t.replacement?.sourcePath ?? '',
-          textureName: t.name,
-          skinFolder: t.skinFolder,
-          originalFormat: t.format,
-        })),
+      replacements: replacementOptsOf(textures.value),
     })
     toast.success(`Exported ${skinMeta.value.folderName}`, { id: pending })
   } catch (e) {
@@ -268,20 +251,8 @@ async function handleCmdAction(action: string) {
 }
 
 async function handleLaunchTest() {
-  const replacements = textures.value
-    .filter((t) => t.replacement != null)
-    .map((t) => ({
-      textureId: t.id,
-      sourcePath: t.replacement?.sourcePath ?? '',
-      // Use full absolute path so strip_prefix works for nested KN5 subdirectories
-      kn5File: t.source === 'kn5' ? t.path : undefined,
-      textureName: t.name,
-      skinFolder: t.skinFolder,
-      originalFormat: t.format,
-      heroImagePath: t.category === 'preview' ? t.path : undefined,
-    }))
   try {
-    await launchTest(replacements)
+    await launchTest(replacementOptsOf(textures.value))
   } catch (e) {
     toast.error(typeof e === 'string' ? e : String(e))
   }

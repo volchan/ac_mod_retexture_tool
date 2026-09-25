@@ -2,8 +2,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::commands::repack::{copy_dir_recursive, write_replacement};
+use crate::commands::repack::copy_dir_recursive;
 use crate::commands::skin::{ensure_safe_folder_name, write_skin_meta};
+use crate::commands::skin_export::apply_replacements;
 use crate::commands::test_in_game::{ac_documents_cfg, back_up_race_ini, build_race_ini, DirGuard};
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
@@ -115,11 +116,10 @@ fn stage_preview_skin(
     opts: &SkinTestOptions,
 ) -> Result<(), AppError> {
     copy_dir_recursive(source, preview_path)?;
-
-    for replacement in &opts.replacements {
-        write_replacement(preview_path, replacement)?;
-    }
-
+    // The same rule as an export: a texture inside a model the skin ships is
+    // patched into the copied model, since the game reads the model's copy and
+    // never a loose file beside it.
+    apply_replacements(source, preview_path, &opts.replacements)?;
     write_skin_meta(preview_path, &opts.meta)
 }
 
@@ -130,6 +130,7 @@ fn preview_skin_name(skin_folder: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::skin_export::tests::minimal_kn5;
 
     fn meta() -> SkinMeta {
         SkinMeta {
@@ -252,6 +253,55 @@ mod tests {
         let preview = car.join("skins/super_silver__toolkit_preview");
         assert!(stage_with_guard(&source, &preview, &opts).is_err());
         assert!(!preview.exists(), "the staged folder must not survive");
+    }
+
+    /// A light strip or wing variant the skin ships as its own KN5 carries its
+    /// textures inside: the preview has to drive the patched model, not a loose
+    /// file the model never opens.
+    #[test]
+    fn staging_patches_a_texture_inside_a_model_the_skin_ships() {
+        let root = tempfile::tempdir().unwrap();
+        let car = root.path().join("ks_nissan_gtr");
+        let source = car.join("skins/super_silver");
+        std::fs::create_dir_all(&source).unwrap();
+        let kn5 = source.join("led_strip_1.kn5");
+        std::fs::write(&kn5, minimal_kn5("LED_Strip.dds", b"old pixels")).unwrap();
+        let painted = root.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&painted)
+            .unwrap();
+
+        let mut opts = options(&car);
+        opts.replacements = vec![TextureReplacementOpt {
+            texture_id: "tex".to_string(),
+            source_path: painted.to_string_lossy().to_string(),
+            kn5_file: Some(kn5.to_string_lossy().to_string()),
+            texture_name: "LED_Strip.dds".to_string(),
+            skin_folder: Some("super_silver".to_string()),
+            original_format: "PNG".to_string(),
+            hero_image_path: None,
+        }];
+        let preview = car.join("skins/super_silver__toolkit_preview");
+
+        stage_preview_skin(&source, &preview, &opts).unwrap();
+
+        let staged = crate::parsers::Kn5File::open(&preview.join("led_strip_1.kn5")).unwrap();
+        assert_ne!(
+            staged.get_texture_data("LED_Strip.dds"),
+            Some(b"old pixels".as_ref()),
+            "the copied model wears the edit"
+        );
+        assert!(
+            !preview.join("LED_Strip.dds").exists(),
+            "a loose copy would be a file the model never looks for"
+        );
+        assert_eq!(
+            crate::parsers::Kn5File::open(&kn5)
+                .unwrap()
+                .get_texture_data("LED_Strip.dds"),
+            Some(b"old pixels".as_ref()),
+            "the author's own model is left alone"
+        );
     }
 
     #[test]

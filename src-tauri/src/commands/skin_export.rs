@@ -90,7 +90,7 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
         }
     }
 
-    apply_replacements(&source, &skin_dst, opts)?;
+    apply_replacements(&source, &skin_dst, &opts.replacements)?;
 
     write_skin_meta(&skin_dst, &opts.meta)?;
 
@@ -104,15 +104,18 @@ fn export_skin_inner(opts: &SkinExportOptions) -> Result<(), AppError> {
 /// A texture that lives inside one of the skin's own KN5 files has to go back
 /// into that file: writing it loose beside the model would ship a texture the
 /// model never looks for.
-fn apply_replacements(
+///
+/// `skin_dst` is a copy of `skin_source` — the export staging folder, or the
+/// throwaway skin Test in Game drives — so the models are patched in the copy.
+pub(crate) fn apply_replacements(
     skin_source: &Path,
     skin_dst: &Path,
-    opts: &SkinExportOptions,
+    replacements: &[TextureReplacementOpt],
 ) -> Result<(), AppError> {
     let mut per_kn5: std::collections::HashMap<&str, Vec<&TextureReplacementOpt>> =
         std::collections::HashMap::new();
 
-    for replacement in &opts.replacements {
+    for replacement in replacements {
         match replacement.kn5_file.as_deref() {
             Some(kn5) if ships_with_the_skin(skin_source, kn5) => {
                 per_kn5.entry(kn5).or_default().push(replacement)
@@ -175,7 +178,7 @@ fn files_to_ship(source: &Path, opts: &SkinExportOptions) -> Vec<PathBuf> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::collections::BTreeSet;
     use std::io::Read;
@@ -258,7 +261,7 @@ mod tests {
             .collect()
     }
 
-    fn minimal_kn5(texture: &str, data: &[u8]) -> Vec<u8> {
+    pub(crate) fn minimal_kn5(texture: &str, data: &[u8]) -> Vec<u8> {
         let mut buf: Vec<u8> = Vec::new();
         buf.extend_from_slice(b"sc6969");
         buf.extend_from_slice(&5u32.to_le_bytes());

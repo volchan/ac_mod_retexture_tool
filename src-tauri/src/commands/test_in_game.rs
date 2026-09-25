@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::commands::repack::{encode_replacement, find_kn5_in_copy, patch_kn5};
+use crate::commands::repack::{find_kn5_in_copy, patch_kn5, write_replacement};
+use crate::commands::skin::ensure_safe_folder_name;
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
 
@@ -214,13 +215,13 @@ fn apply_replacements(
         patch_kn5(&preview_kn5, group)?;
     }
 
+    // Both segments come over IPC and are joined onto the preview copy, which
+    // the guard deletes afterwards: a climbing one would write, and later
+    // remove, outside it.
     for r in replacements {
         if let Some(skin_folder) = &r.skin_folder {
-            let dst = preview_root
-                .join("skins")
-                .join(skin_folder)
-                .join(&r.texture_name);
-            std::fs::write(&dst, encode_replacement(r)?)?;
+            ensure_safe_folder_name(skin_folder)?;
+            write_replacement(&preview_root.join("skins").join(skin_folder), r)?;
         }
     }
 
@@ -398,6 +399,34 @@ mod tests {
             fs::read_to_string(dst.join("sub/nested.txt")).unwrap(),
             "world"
         );
+    }
+
+    #[test]
+    fn apply_replacements_refuses_a_skin_replacement_that_climbs_out() {
+        let tmp = TempDir::new().unwrap();
+        let preview = tmp.path().join("preview");
+        fs::create_dir_all(preview.join("skins/red")).unwrap();
+        let source = tmp.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&source)
+            .unwrap();
+        let replacement = |folder: &str, name: &str| TextureReplacementOpt {
+            texture_id: "tex".to_string(),
+            source_path: source.to_string_lossy().to_string(),
+            kn5_file: None,
+            texture_name: name.to_string(),
+            skin_folder: Some(folder.to_string()),
+            original_format: "PNG".to_string(),
+            hero_image_path: None,
+        };
+
+        for (folder, name) in [("../..", "x.dds"), ("red", "../../x.dds")] {
+            assert!(
+                apply_replacements(&preview, "", &[replacement(folder, name)]).is_err(),
+                "{folder}/{name} must be refused"
+            );
+        }
+        assert!(!tmp.path().join("x.dds").exists());
     }
 
     #[test]
