@@ -21,11 +21,16 @@ export function useUndoStack<T>(read: () => T, write: (snapshot: T) => void) {
     pending.value = snapshot(read())
   }
 
+  /// A snapshot nothing changed since is dropped rather than recorded: every
+  /// field holds on focus and releases on blur, and tabbing through the panel
+  /// would otherwise spend one undo step per field it passed.
   function commit() {
     if (holding.value || pending.value === null) return
-    past.value = [...past.value, pending.value].slice(-HISTORY_LIMIT)
-    future.value = []
+    const before = pending.value
     pending.value = null
+    if (unchanged(before, read())) return
+    past.value = [...past.value, before].slice(-HISTORY_LIMIT)
+    future.value = []
   }
 
   function undo() {
@@ -73,4 +78,11 @@ export function useUndoStack<T>(read: () => T, write: (snapshot: T) => void) {
 /// Reactive proxies cannot be structurally cloned, so unwrap before copying.
 function snapshot<T>(value: T): T {
   return structuredClone(toRaw(value))
+}
+
+/// Whole-document snapshots are a few kilobytes of plain data, so a serialised
+/// comparison is cheaper than a structural walk and exact enough for a stack
+/// that only ever asks "did anything move".
+function unchanged<T>(before: T, now: T): boolean {
+  return JSON.stringify(before) === JSON.stringify(toRaw(now))
 }

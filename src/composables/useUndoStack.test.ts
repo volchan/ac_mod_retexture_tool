@@ -54,6 +54,24 @@ describe('useUndoStack', () => {
     expect(stack.canUndo.value).toBe(false)
   })
 
+  /// Every property field holds on focus and releases on blur: tabbing across
+  /// the panel must not leave a trail of identical snapshots to undo through.
+  it('spends no entry on a begin and commit that changed nothing', () => {
+    const { state, stack } = setup(['a'])
+    stack.begin()
+    stack.commit()
+    stack.hold()
+    stack.release()
+
+    expect(stack.canUndo.value).toBe(false)
+
+    stack.begin()
+    state.value = ['a', 'b']
+    stack.commit()
+    stack.undo()
+    expect(state.value).toEqual(['a'])
+  })
+
   it('ignores a commit that follows no begin', () => {
     const { stack } = setup(['a'])
     stack.commit()
