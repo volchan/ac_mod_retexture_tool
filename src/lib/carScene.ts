@@ -31,6 +31,8 @@ export interface CarScene {
   render: () => void
   resize: (width: number, height: number) => void
   setTexture: (source: HTMLCanvasElement) => void
+  /// The widest sheet this GPU will take as one texture.
+  maxTextureSize: () => number
   /// `x` and `y` are fractions of the canvas, so the caller need not know its size.
   pick: (x: number, y: number) => CarHover | null
   /// Puts the marker on the panel that wears a given point of the texture.
@@ -106,11 +108,17 @@ export function createCarScene(canvas: HTMLCanvasElement, data: CarMeshData): Ca
       marker.visible = found !== null
       if (found) marker.position.set(found[0], found[1], found[2])
     },
+    maxTextureSize() {
+      return renderer.capabilities.maxTextureSize
+    },
     setTexture(source) {
       texture?.dispose()
       const next = new CanvasTexture(source)
       next.colorSpace = SRGBColorSpace
       next.flipY = false
+      // A flank seen at an angle is what a livery mostly is, and without this
+      // the mipmap chosen for it smears a sponsor into a stripe.
+      next.anisotropy = renderer.capabilities.getMaxAnisotropy()
       next.needsUpdate = true
       texture = next
       material.map = next

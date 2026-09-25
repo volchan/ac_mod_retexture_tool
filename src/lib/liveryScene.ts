@@ -125,6 +125,10 @@ function buildScene(
     preserveDrawingBuffer: true,
   })
   renderer.setPixelRatio(window.devicePixelRatio)
+  // A flank seen at an angle is what a livery mostly is, and without this the
+  // mipmap chosen for it smears a sponsor into a stripe.
+  const anisotropy = renderer.capabilities.getMaxAnisotropy()
+  for (const texture of loaded) texture.anisotropy = anisotropy
 
   // Car paint is a mirror before it is a colour, and lamps alone give it nothing
   // to reflect: the panels come out flat and the glass comes out grey. A room is

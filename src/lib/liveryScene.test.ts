@@ -30,9 +30,13 @@ const { renderer, loader, buildGeometry, frameHero } = vi.hoisted(() => ({
     dispose: vi.fn(),
     toneMapping: 0,
     toneMappingExposure: 1,
+    capabilities: { getMaxAnisotropy: () => 16 },
   },
   /// Every load is held so a test can decide, per texture, whether it arrives.
-  loader: { settle: [] as Array<(ok: boolean) => void> },
+  loader: {
+    settle: [] as Array<(ok: boolean) => void>,
+    textures: [] as Array<{ anisotropy: number }>,
+  },
   buildGeometry: vi.fn(() => new BufferGeometry()),
   frameHero: vi.fn(),
 }))
@@ -52,7 +56,9 @@ vi.mock('three', async (importOriginal) => {
     TextureLoader: class {
       load(_url: string, onLoad: () => void, _p: unknown, onError: () => void) {
         loader.settle.push((ok: boolean) => (ok ? onLoad() : onError()))
-        return { dispose: vi.fn(), colorSpace: '', flipY: true }
+        const texture = { dispose: vi.fn(), colorSpace: '', flipY: true, anisotropy: 1 }
+        loader.textures.push(texture)
+        return texture
       }
     },
   }
@@ -93,6 +99,7 @@ describe('createLiveryScene', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     loader.settle = []
+    loader.textures = []
     rendered = null
     live = null
     // jsdom draws nothing, and the backdrop is a gradient on a 2D context.
@@ -146,6 +153,14 @@ describe('createLiveryScene', () => {
 
     expect(renderer.toneMapping).toBe(ACESFilmicToneMapping)
     expect(renderer.toneMappingExposure).toBeLessThanOrEqual(1)
+  })
+
+  /// A flank is seen at an angle far more often than head on, and the mipmap
+  /// picked for it smears the sponsor unless the sampler is told to work harder.
+  it('samples every sheet as sharply as the GPU allows', () => {
+    createLiveryScene(canvas(), model(['body.dds', 'wing.dds']))
+
+    expect(loader.textures.map((texture) => texture.anisotropy)).toEqual([16, 16])
   })
 
   /// The room lights every surface at once, so at full strength it burns a white

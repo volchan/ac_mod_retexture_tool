@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useElementSize, useRafFn } from '@vueuse/core'
+import { useDebounceFn, useElementSize, useRafFn } from '@vueuse/core'
 import type Konva from 'konva'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { type CarHover, type CarScene, createCarScene } from '@/lib/carScene'
@@ -18,9 +18,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{ hover: [CarHover | null] }>()
 
-// The livery is redrawn at a fraction of its real size: a 7168 pixel texture
-// takes seconds to flatten, and the preview is a few hundred pixels wide.
-const PREVIEW_WIDTH = 2048
+// Flattening an 8192 pixel sheet takes seconds, and a brush stroke asks for it
+// on every event. So the car is redrawn twice: at once at a size the stroke can
+// afford, and again at the sheet's own size once the hand has paused — a
+// sponsor placed 280 pixels wide keeps 280 pixels, not the 70 a fixed cap left
+// it, which read as a blur the moment the car was orbited close.
+const QUICK_WIDTH = 2048
+const SETTLE_MS = 300
 
 const host = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -43,7 +47,7 @@ watch([canvas, () => props.mesh], ([element]) => {
   scene = createCarScene(element, props.mesh)
   scene.resize(width.value, height.value)
   resume()
-  refreshTexture()
+  refreshTexture(sharpRatio())
 })
 
 watch([width, height], ([w, h]) => scene?.resize(w, h))
@@ -60,7 +64,14 @@ watch(
 
 /// Each edit rebuilds the livery, so the car shows what was just painted rather
 /// than what the texture looked like when the panel opened.
-watch(() => props.revision, refreshTexture)
+const refreshSharp = useDebounceFn(() => refreshTexture(sharpRatio()), SETTLE_MS)
+watch(
+  () => props.revision,
+  () => {
+    refreshTexture(quickRatio())
+    void refreshSharp()
+  },
+)
 
 onBeforeUnmount(() => {
   pause()
@@ -91,11 +102,20 @@ defineExpose({ host, canvas, handlePointerMove, handlePointerLeave })
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
 
-function refreshTexture() {
+function refreshTexture(ratio: number) {
   const stage = props.stage
   if (!stage || !scene || props.textureWidth === 0) return
-  const ratio = Math.min(1, PREVIEW_WIDTH / props.textureWidth)
   scene.setTexture(stageToCanvas(stage, props.textureWidth, props.textureHeight, ratio))
+}
+
+function quickRatio() {
+  return Math.min(1, QUICK_WIDTH / props.textureWidth)
+}
+
+/// The sheet's own size, unless the GPU will not hold a texture that wide.
+function sharpRatio() {
+  const widest = scene?.maxTextureSize() ?? QUICK_WIDTH
+  return Math.min(1, widest / Math.max(props.textureWidth, props.textureHeight))
 }
 </script>
 
