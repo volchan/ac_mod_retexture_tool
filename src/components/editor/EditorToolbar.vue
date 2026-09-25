@@ -119,8 +119,7 @@ defineExpose({
         type="range"
         min="1"
         max="256"
-        class="h-24 w-8"
-        style="writing-mode: vertical-lr; direction: rtl"
+        class="h-24 w-8 [direction:rtl] [writing-mode:vertical-lr]"
         title="Brush size"
       />
       <span class="text-[10px] tabular-nums text-muted-foreground">{{ brushSize }}</span>
@@ -139,8 +138,7 @@ defineExpose({
         type="range"
         min="0"
         max="255"
-        class="h-24 w-8"
-        style="writing-mode: vertical-lr; direction: rtl"
+        class="h-24 w-8 [direction:rtl] [writing-mode:vertical-lr]"
         title="How far a pixel's colour may differ from the one clicked"
       />
       <span class="text-[10px] tabular-nums text-muted-foreground">{{ fillTolerance }}</span>
