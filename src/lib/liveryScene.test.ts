@@ -211,6 +211,15 @@ describe('createLiveryScene', () => {
     })
   })
 
+  /// A preview quietly standing on flat black looks like a choice, and the
+  /// caller is about to write it over the one the skin already had.
+  it('says so when the backdrop cannot be drawn', () => {
+    vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue(null)
+    const scene = createLiveryScene(canvas(), model())
+
+    expect(() => scene.capture(1024, 575)).toThrow('backdrop')
+  })
+
   it('frames the car on demand rather than on every render', () => {
     const scene = createLiveryScene(canvas(), model())
     expect(frameHero).not.toHaveBeenCalled()

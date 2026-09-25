@@ -44,9 +44,7 @@ const BACKDROP_EDGE = '#000000'
 /// What the corners fall to, as a share of the frame's half-diagonal.
 const BACKDROP_SPREAD = 0.75
 
-/// The flat colour a capture stands on where no gradient can be drawn, which is
-/// a canvas with no 2D context — a headless run rather than anything a user
-/// meets.
+/// What the renderer clears to behind the backdrop.
 const CAPTURE_BACKGROUND = 0x000000
 
 /// How much of the room reaches the car. This is the exposure knob, not the
@@ -169,19 +167,20 @@ function buildScene(
       // background, and painting one behind the car would box it in.
       const studio = backdrop(width, height)
       scene.background = studio
-      this.resize(width, height)
-      renderer.render(scene, camera)
 
-      const shot = canvas.toDataURL('image/jpeg', quality)
-
-      // Built for this frame and no other: the dialog's camera button can be
-      // pressed all day, and a megabyte of video memory a press adds up.
-      scene.background = null
-      studio?.dispose()
-      renderer.setPixelRatio(pixelRatio)
-      renderer.setClearColor(CAPTURE_BACKGROUND, 0)
-      this.resize(restore.x, restore.y)
-      return shot
+      try {
+        this.resize(width, height)
+        renderer.render(scene, camera)
+        return canvas.toDataURL('image/jpeg', quality)
+      } finally {
+        // Built for this frame and no other: the dialog's camera button can be
+        // pressed all day, and a megabyte of video memory a press adds up.
+        scene.background = null
+        studio.dispose()
+        renderer.setPixelRatio(pixelRatio)
+        renderer.setClearColor(CAPTURE_BACKGROUND, 0)
+        this.resize(restore.x, restore.y)
+      }
     },
     dispose() {
       controls.dispose()
@@ -197,13 +196,17 @@ function buildScene(
 /// The studio the car is photographed in: a pool of light behind it, falling
 /// away towards the corners, drawn at the size of the shot so the gradient is
 /// round rather than stretched to the frame.
-function backdrop(width: number, height: number): CanvasTexture | null {
+function backdrop(width: number, height: number): CanvasTexture {
   const plate = document.createElement('canvas')
   plate.width = width
   plate.height = height
 
+  // Said rather than swallowed: a preview quietly standing on flat black looks
+  // like a choice, and the caller is about to write it over one the skin had.
   const context = plate.getContext('2d')
-  if (!context) return null
+  if (!context) {
+    throw new Error('this browser will not draw the preview backdrop')
+  }
 
   const spread = Math.hypot(width, height) * BACKDROP_SPREAD
   const light = context.createRadialGradient(
