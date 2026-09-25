@@ -28,6 +28,9 @@ function stubCanvas() {
     getImageData: vi.fn(() => pixels),
     createImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4 * 4 * 4) })),
     putImageData: vi.fn(),
+    fillRect: vi.fn(),
+    globalCompositeOperation: 'source-over',
+    fillStyle: '',
   }
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
     context as unknown as CanvasRenderingContext2D,
@@ -61,6 +64,23 @@ describe('useBucketMasks', () => {
     const base = baseImage()
     const layer = bucket('a')
     expect(maskFor(layer, base)).toBe(maskFor(layer, base))
+  })
+
+  /// The flood is the cost; the colour is a repaint. Dragging the picker must
+  /// not re-flood a 4K sheet on every tick.
+  it('recolours the same mask rather than refilling it', () => {
+    const context = stubCanvas()
+    const { maskFor } = useBucketMasks()
+    const base = baseImage()
+    const red = maskFor(bucket('a'), base)
+    context.putImageData.mockClear()
+
+    const blue = maskFor(bucket('a', { color: '#0000ff' }), base)
+
+    expect(blue).toBe(red)
+    expect(context.putImageData).not.toHaveBeenCalled()
+    expect(context.fillRect).toHaveBeenCalledTimes(1)
+    expect(context.fillStyle).toBe('rgb(0 0 255)')
   })
 
   it('recomputes when the seed moves', () => {

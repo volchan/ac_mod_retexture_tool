@@ -14,11 +14,11 @@ import type { BucketLayer } from '@/types/index'
 /// mask the same render that rebuilt it, and re-fill every bucket every frame.
 const MASK_BUDGET_PIXELS = 64_000_000
 
-const masks = new Map<string, BucketMask>()
+const masks = new Map<string, CachedMask>()
 const basePixels = new WeakMap<HTMLImageElement, Pixels>()
 const barriers = new WeakMap<HTMLImageElement, Uint8Array>()
 
-let hovered: { key: string; mask: BucketMask } | null = null
+let hovered: { key: string; mask: CachedMask } | null = null
 
 /// A filled region as Konva draws it: the cropped bitmap, and where on the
 /// texture its top-left corner belongs.
@@ -26,6 +26,12 @@ export interface BucketMask {
   canvas: HTMLCanvasElement
   x: number
   y: number
+}
+
+/// What the cache holds: the mask plus the colour it is painted in, so a
+/// recolour is told apart from a refill.
+interface CachedMask extends BucketMask {
+  color: string
 }
 
 /// Turns a bucket layer into the bitmap Konva draws. Flood filling a 4K texture
@@ -48,7 +54,7 @@ export function useBucketMasks() {
   function maskFor(layer: BucketLayer, base: HTMLImageElement | null): BucketMask | null {
     const key = `${maskKey(layer)}:${walls()}`
     const cached = masks.get(key)
-    if (cached) return cached
+    if (cached) return tinted(cached, layer.color)
 
     const mask = buildMask(layer, layer.tolerance, layer.color, base, seams(), layer.mode)
     if (!mask) return null
@@ -68,8 +74,8 @@ export function useBucketMasks() {
     base: HTMLImageElement | null,
     mode: FillMode = 'colour',
   ): BucketMask | null {
-    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${color}:${mode}:${walls()}`
-    if (hovered?.key === key) return hovered.mask
+    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${mode}:${walls()}`
+    if (hovered?.key === key) return tinted(hovered.mask, color)
 
     const mask = buildMask(point, tolerance, color, base, seams(), mode)
     hovered = mask ? { key, mask } : null
@@ -95,7 +101,7 @@ function buildMask(
   base: HTMLImageElement | null,
   template: HTMLImageElement | null,
   mode: FillMode = 'colour',
-): BucketMask | null {
+): CachedMask | null {
   if (!base) return null
 
   const source = pixelsOf(base)
@@ -120,7 +126,25 @@ function buildMask(
   image.data.set(region.data)
   context.putImageData(image, 0, 0)
 
-  return { canvas, x: region.x, y: region.y }
+  return { canvas, x: region.x, y: region.y, color }
+}
+
+/// The mask in the colour asked for. The shape is the expensive part and does
+/// not depend on the colour, so a recolour repaints the bitmap in place —
+/// dragging the colour picker over a 4K sheet must not flood it on every tick.
+function tinted(mask: CachedMask, color: string): CachedMask {
+  if (mask.color === color) return mask
+
+  const context = mask.canvas.getContext('2d')
+  if (!context) return mask
+  const { r, g, b } = parseHexColor(color)
+  // `source-in` keeps the alpha the fill left and replaces every colour under it.
+  context.globalCompositeOperation = 'source-in'
+  context.fillStyle = `rgb(${r} ${g} ${b})`
+  context.fillRect(0, 0, mask.canvas.width, mask.canvas.height)
+  context.globalCompositeOperation = 'source-over'
+  mask.color = color
+  return mask
 }
 
 /// The template is drawn as opaque lines on transparent pixels, so its alpha
@@ -163,9 +187,10 @@ function cachedPixels() {
   return total
 }
 
+/// Everything that changes the shape, and nothing that only changes its colour.
 function maskKey(layer: BucketLayer) {
   const seed = `${Math.round(layer.x)}:${Math.round(layer.y)}`
-  return `${layer.id}:${seed}:${layer.tolerance}:${layer.color}:${layer.mode ?? 'colour'}`
+  return `${layer.id}:${seed}:${layer.tolerance}:${layer.mode ?? 'colour'}`
 }
 
 /// Reading a texture back costs a full draw, so each base image is sampled once
