@@ -168,7 +168,12 @@ defineExpose({
         <p v-if="badgeError" class="text-[10.5px] text-destructive">
           Grey: {{ badgeError }}
         </p>
+        <p v-if="isFork" class="text-[10.5px] text-muted-foreground">
+          Export first, then open the new skin to save its badge and preview — not into
+          {{ openedFolderName }}.
+        </p>
         <button
+          v-else
           class="text-[11px] font-medium underline underline-offset-2 disabled:opacity-50"
           :disabled="isSaving || isCapturing || !activeSkin"
           @click="saveArtToSkin"

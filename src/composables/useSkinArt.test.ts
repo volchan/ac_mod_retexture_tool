@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick } from 'vue'
+import { useSkinMeta } from '@/composables/useSkinMeta'
 import { FALLBACK_COLOURS } from '@/lib/liveryBadge'
 import { STUBBED_DATA_URL, stubCanvas } from '@/test-fixtures/canvas'
 import type { Texture } from '@/types/index'
@@ -57,6 +58,7 @@ function pickedId(sheet?: string) {
 describe('useSkinArt', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    useSkinMeta().reset()
     writeSkinArt.mockClear()
     sampleTextureColours.mockClear()
     mainLiveryTexture.mockClear()
@@ -138,6 +140,25 @@ describe('useSkinArt', () => {
       'livery',
       STUBBED_DATA_URL.split(',')[1],
     )
+    unmount()
+  })
+
+  /// The skin on disk is the donor; the fork it is being renamed into does not
+  /// exist yet. Only its own images may be replaced.
+  it('will not write into the skin a fork was opened from', async () => {
+    const { result, unmount } = await withSetup(() => useSkinArt())
+    const { load, meta } = useSkinMeta()
+    load({ name: 'ks_default', previewUrl: null, textureCount: 1 })
+    if (meta.value) meta.value.folderName = '27_ks_default'
+
+    await expect(result.saveBadge('/cars/gtm', 'ks_default', '27')).rejects.toThrow(
+      /27_ks_default is a new skin/,
+    )
+    await expect(result.savePreview('/cars/gtm', 'ks_default', STUBBED_DATA_URL)).rejects.toThrow(
+      /name it ks_default again/,
+    )
+    expect(writeSkinArt).not.toHaveBeenCalled()
+    expect(result.isSaving.value).toBe(false)
     unmount()
   })
 

@@ -168,6 +168,17 @@ describe('SkinMetaPanel', () => {
     expect(wrapper.find('[aria-label="Entry list badge"]').exists()).toBe(true)
   })
 
+  /// The images would land in the skin the fork was opened from — the donor's
+  /// own badge and preview, inside the AC install.
+  it('withholds the save while the folder is renamed', async () => {
+    const wrapper = await panelFor(makeSkin())
+    metaOf(wrapper).folderName = 'other_name'
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('Save badge and preview')
+    expect(wrapper.text()).toContain('not into super_silver')
+  })
+
   it('has nothing to save the badge to until a skin is open', async () => {
     const wrapper = await panelFor(makeSkin())
     useMod().activeSkin.value = null

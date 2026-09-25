@@ -1,4 +1,5 @@
 import { computed, ref, watch } from 'vue'
+import { useSkinMeta } from '@/composables/useSkinMeta'
 import { useSkinPicker } from '@/composables/useSkinPicker'
 import { useTextures } from '@/composables/useTextures'
 import { BADGE_SIZE, drawLiveryBadge, FALLBACK_COLOURS } from '@/lib/liveryBadge'
@@ -184,6 +185,16 @@ async function save(
   dataUrl: string,
   size: { width: number; height: number },
 ): Promise<string> {
+  // A renamed folder is a new skin that exists only once exported, and `skin`
+  // is the one it was opened from: writing there would replace the donor's own
+  // images inside the AC install, which nothing else in this tool touches.
+  const { isFork, openedFolderName, meta } = useSkinMeta()
+  if (isFork.value) {
+    throw new Error(
+      `${meta.value?.folderName} is a new skin — export it, or name it ${openedFolderName.value} again to update that one`,
+    )
+  }
+
   isSaving.value = true
   try {
     const written = await writeSkinArt(carPath, skin, art, payloadOf(dataUrl))
