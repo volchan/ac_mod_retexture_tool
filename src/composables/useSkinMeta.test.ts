@@ -153,32 +153,41 @@ describe('syncFolderToNumber', () => {
     return folder
   }
 
-  it('puts the number in front of the name the author chose', async () => {
-    expect(await metaAfter('racing_blue', '24')).toBe('24_racing_blue')
+  it('puts the number after the name the author chose', async () => {
+    expect(await metaAfter('racing_blue', '24')).toBe('racing_blue_24')
   })
 
-  /// Typing a second digit would otherwise stack prefixes: 2_51_racing_blue.
+  /// Typing a second digit would otherwise stack suffixes: racing_blue_51_2.
   it('replaces a number already there rather than stacking another', async () => {
-    expect(await metaAfter('51_racing_blue', '24')).toBe('24_racing_blue')
+    expect(await metaAfter('racing_blue_51', '24')).toBe('racing_blue_24')
   })
 
   it('replaces a number carrying a letter, as an entry list allows', async () => {
-    expect(await metaAfter('51A_racing_blue', '24')).toBe('24_racing_blue')
+    expect(await metaAfter('racing_blue_51A', '24')).toBe('racing_blue_24')
   })
 
-  /// The prefix has to start with a digit, or the first word of every skin name
+  /// How a grid is laid out on disk: the team or the skin's index comes first
+  /// and only the last segment is the driver's number.
+  it('leaves a leading team or index alone and swaps the number that closes the name', async () => {
+    expect(await metaAfter('0_Nissan_12', '24')).toBe('0_Nissan_24')
+    expect(await metaAfter('JRM_230', '24')).toBe('JRM_24')
+    expect(await metaAfter('01_red', '24')).toBe('01_red_24')
+  })
+
+  /// The suffix has to start with a digit, or the last word of every skin name
   /// would be eaten as if it were a number.
-  it('leaves a name whose first word is a word alone', async () => {
-    expect(await metaAfter('rosso_corsa', '24')).toBe('24_rosso_corsa')
+  it('leaves a name whose last word is a word alone', async () => {
+    expect(await metaAfter('rosso_corsa', '24')).toBe('rosso_corsa_24')
+    expect(await metaAfter('red_v2', '24')).toBe('red_v2_24')
   })
 
-  it('strips the prefix back off when the number is cleared', async () => {
-    expect(await metaAfter('24_racing_blue', '')).toBe('racing_blue')
-    expect(await metaAfter('24_racing_blue', '   ')).toBe('racing_blue')
+  it('strips the suffix back off when the number is cleared', async () => {
+    expect(await metaAfter('racing_blue_24', '')).toBe('racing_blue')
+    expect(await metaAfter('racing_blue_24', '   ')).toBe('racing_blue')
   })
 
   it('keeps a number AC would read but a folder name would not hold', async () => {
-    expect(await metaAfter('racing_blue', '# 24')).toBe('24_racing_blue')
+    expect(await metaAfter('racing_blue', '# 24')).toBe('racing_blue_24')
   })
 
   it('names the folder after the number alone when nothing else is left', async () => {

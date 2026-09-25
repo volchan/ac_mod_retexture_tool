@@ -142,7 +142,7 @@ describe('SkinMetaPanel', () => {
     const number = wrapper.get('[aria-label="Number"]')
     await number.setValue('24')
 
-    expect(metaOf(wrapper).folderName).toBe('24_racing_blue')
+    expect(metaOf(wrapper).folderName).toBe('racing_blue_24')
   })
 
   it('leaves the folder alone when another field is typed into', async () => {

@@ -67,25 +67,27 @@ export function useSkinMeta() {
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
 
-/// A folder already carrying a race number wears it as a leading `24_` or
-/// `51A_`, or is the bare number itself. That prefix is swapped rather than
-/// stacked when the number changes. It has to start with a digit: `rosso_corsa`
-/// names a colour, not car number rosso.
-const LEADING_NUMBER = /^\d[A-Za-z0-9]*(_(?=.)|$)/
+/// A folder already carrying a race number wears it as its last segment — the
+/// way a grid is laid out on disk: `nismo_88`, `JRM_230`, `0_Nissan_12`, where
+/// whatever comes first is the team or the skin's own index and the number the
+/// driver chose closes the name. That suffix is swapped rather than stacked
+/// when the number changes. It has to start with a digit: `racing_blue` ends
+/// in a colour, not in car number blue.
+const TRAILING_NUMBER = /(^|_)\d[A-Za-z0-9]*$/
 
 /// Anything the folder name may not hold, collapsed so a number typed with a
 /// space or a hash still produces a name AC can read.
 const UNUSABLE_IN_FOLDER = /[^A-Za-z0-9]+/g
 
-/** `24` over `rosso_corsa` gives `24_rosso_corsa`; over `51_rosso_corsa` it
- * replaces the 51 rather than stacking another prefix. An empty number strips
- * the prefix back off. */
+/** `24` over `racing_blue` gives `racing_blue_24`; over `racing_blue_51` it
+ * replaces the 51 rather than stacking another suffix. An empty number strips
+ * the suffix back off. */
 function numbered(folderName: string, raceNumber: string): string {
-  const base = folderName.replace(LEADING_NUMBER, '')
-  const prefix = raceNumber.trim().replace(UNUSABLE_IN_FOLDER, '')
+  const base = folderName.replace(TRAILING_NUMBER, '')
+  const suffix = raceNumber.trim().replace(UNUSABLE_IN_FOLDER, '')
 
-  if (!prefix) return base
-  return base ? `${prefix}_${base}` : prefix
+  if (!suffix) return base
+  return base ? `${base}_${suffix}` : suffix
 }
 
 const FOLDER_NAME_PATTERN = /^[A-Za-z0-9._-]+$/
