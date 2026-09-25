@@ -9,6 +9,11 @@ use crate::errors::AppError;
 
 const EDITS_DIR: &str = "livery_edits";
 
+/// What the webview may hand over as a flattened sheet. The largest livery AC
+/// ships is 7168x3584, under 100 MB of raw pixels and far less as PNG; this
+/// only has to stop a runaway payload, not judge the image.
+const MAX_EDIT_BYTES: usize = 256 * 1024 * 1024;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveryEditSave {
@@ -23,9 +28,15 @@ pub struct LiveryEditSave {
 /// Writes an edited texture to the app's own data directory. The edit never lands
 /// in the Assetto Corsa install: it becomes a replacement the export pipeline
 /// picks up like any imported PNG.
+///
+/// Off the async runtime: decoding and writing a full-resolution sheet takes
+/// long enough to stall every other command in flight.
 #[tauri::command]
 pub async fn save_livery_edit(app: AppHandle, opts: LiveryEditSave) -> Result<String, String> {
-    save_livery_edit_inner(&app, &opts).map_err(|e| e.to_string())
+    tokio::task::spawn_blocking(move || save_livery_edit_inner(&app, &opts))
+        .await
+        .map_err(|e| format!("Task failed: {e}"))?
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -35,7 +46,9 @@ pub async fn load_livery_document(
 ) -> Result<Option<String>, String> {
     let dir = edits_dir(&app).map_err(|e| e.to_string())?;
     let path = dir.join(format!("{}.json", sanitize(&texture_key)));
-    Ok(std::fs::read_to_string(path).ok())
+    tokio::task::spawn_blocking(move || std::fs::read_to_string(path).ok())
+        .await
+        .map_err(|e| format!("Task failed: {e}"))
 }
 
 // ------------------------------------------------------------------------------
@@ -49,13 +62,26 @@ fn save_livery_edit_inner(app: &AppHandle, opts: &LiveryEditSave) -> Result<Stri
     let stem = sanitize(&opts.texture_key);
     let png_path = dir.join(format!("{stem}.png"));
 
-    let bytes = general_purpose::STANDARD
-        .decode(strip_data_url(&opts.png_base64))
-        .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+    let bytes = decode_sheet(&opts.png_base64)?;
     std::fs::write(&png_path, bytes)?;
     std::fs::write(dir.join(format!("{stem}.json")), &opts.document_json)?;
 
     Ok(png_path.to_string_lossy().to_string())
+}
+
+/// Sized before it is decoded: the check is the whole point, and decoding a
+/// runaway string first would cost the memory it is there to refuse.
+fn decode_sheet(png_base64: &str) -> Result<Vec<u8>, AppError> {
+    let payload = strip_data_url(png_base64);
+    if payload.len() / 4 * 3 > MAX_EDIT_BYTES {
+        return Err(AppError::InvalidInput(format!(
+            "edited texture too large: about {} MB",
+            payload.len() / 4 * 3 / (1024 * 1024)
+        )));
+    }
+    general_purpose::STANDARD
+        .decode(payload)
+        .map_err(|e| AppError::ImageDecode(e.to_string()))
 }
 
 fn edits_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
@@ -151,6 +177,26 @@ mod tests {
             sanitize("skins/red_01/body.dds"),
             sanitize("skins/red_01/body.dds")
         );
+    }
+
+    #[test]
+    fn decode_sheet_accepts_a_data_url_and_bare_base64_alike() {
+        assert_eq!(
+            decode_sheet("data:image/png;base64,AAAB").unwrap(),
+            vec![0, 0, 1]
+        );
+        assert_eq!(decode_sheet("AAAB").unwrap(), vec![0, 0, 1]);
+    }
+
+    /// Refused on the encoded length, before any of it is decoded.
+    #[test]
+    fn decode_sheet_refuses_a_payload_past_the_cap_without_decoding_it() {
+        let oversized = "A".repeat(MAX_EDIT_BYTES / 3 * 4 + 4);
+
+        let Err(AppError::InvalidInput(message)) = decode_sheet(&oversized) else {
+            panic!("an oversized sheet must be refused as input");
+        };
+        assert!(message.contains("too large"), "{message}");
     }
 
     #[test]
