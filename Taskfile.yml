@@ -23,9 +23,13 @@ tasks:
     cmd: bunx biome check .
 
   lint:backend:
-    desc: Lint Rust with Clippy
+    desc: Lint Rust with Clippy and check formatting
     dir: "{{.TAURI_DIR}}"
-    cmd: cargo clippy --all-targets -- -D warnings
+    cmds:
+      # What CI runs. `task format` writes the same thing, but nothing ran it,
+      # so the first place the diff showed up was a red pipeline.
+      - cargo fmt --all -- --check
+      - cargo clippy --all-targets -- -D warnings
 
   # --- Formatting ---
 
