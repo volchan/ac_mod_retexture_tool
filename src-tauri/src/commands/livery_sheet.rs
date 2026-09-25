@@ -107,7 +107,9 @@ fn shell_of(meshes: &[&UvMesh]) -> f32 {
 
 fn surface_of(mesh: &UvMesh) -> f32 {
     mesh.indices
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .filter_map(|face| {
             let a = *mesh.positions.get(face[0] as usize)?;
             let b = *mesh.positions.get(face[1] as usize)?;
