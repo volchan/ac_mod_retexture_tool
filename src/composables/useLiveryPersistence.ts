@@ -4,7 +4,7 @@ import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import { useTextures } from '@/composables/useTextures'
 import { isHexColor } from '@/lib/floodFill'
 import { textureStableKey } from '@/lib/replacementStore'
-import { flattenStage, thumbnailRatio } from '@/lib/stageExport'
+import { stageToCanvas, thumbnailOf, thumbnailRatio } from '@/lib/stageExport'
 import { loadLiveryDocument, saveLiveryEdit } from '@/lib/tauri'
 import type { EditorLayer, LiveryDocument, Texture } from '@/types/index'
 
@@ -25,12 +25,13 @@ export function useLiveryPersistence() {
     isSaving.value = true
     try {
       const { width, height } = texture
-      const full = flattenStage(stage, width, height)
-      const thumbnail = flattenStage(stage, width, height, thumbnailRatio(width))
+      // One render of the stage; the tile's thumbnail is cut from it.
+      const sheet = stageToCanvas(stage, width, height)
+      const thumbnail = thumbnailOf(sheet, thumbnailRatio(width))
 
       const sourcePath = await saveLiveryEdit({
         textureKey: textureStableKey(texture.name, texture.path),
-        pngBase64: full,
+        pngBase64: sheet.toDataURL('image/png'),
         documentJson: JSON.stringify(document.value),
       })
 

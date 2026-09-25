@@ -1,18 +1,5 @@
 import type Konva from 'konva'
 
-/// Renders the stage at texture resolution rather than at the zoom the user
-/// happens to be at, and without the selection handles, which are chrome rather
-/// than part of the livery.
-export function flattenStage(
-  stage: Konva.Stage,
-  width: number,
-  height: number,
-  pixelRatio = 1,
-): string {
-  const sheet = { x: 0, y: 0, width, height }
-  return withoutChrome(stage, sheet, pixelRatio, (options) => stage.toDataURL(options))
-}
-
 /// The colour the livery actually shows at one texture pixel, guides and markers
 /// excluded. Rendered as a one pixel crop rather than read back from the visible
 /// layer: the sheet is drawn at whatever zoom the user is at, and the overlays
@@ -28,9 +15,12 @@ export function pickColor(stage: Konva.Stage, x: number, y: number): string | nu
   return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
 }
 
-/// The same flattening without the PNG round trip. Encoding a 7168 pixel texture
-/// and decoding it back into an Image costs hundreds of milliseconds, which the
-/// 3D preview cannot afford while the user is still drawing the stroke.
+/// Renders the stage at texture resolution rather than at the zoom the user
+/// happens to be at, and without the selection handles, which are chrome rather
+/// than part of the livery. A canvas rather than a PNG: encoding a 7168 pixel
+/// texture and decoding it back into an Image costs hundreds of milliseconds,
+/// which the 3D preview cannot afford while the user is still drawing the
+/// stroke, and a save encodes it once from here.
 export function stageToCanvas(
   stage: Konva.Stage,
   width: number,
@@ -87,4 +77,17 @@ function withoutChrome<T>(
 /// A thumbnail wide enough for the texture tile, whatever the texture's own size.
 export function thumbnailRatio(width: number, maxSize = 256) {
   return width === 0 ? 1 : Math.min(1, maxSize / width)
+}
+
+/// The tile's copy of an already flattened sheet. Scaled off the canvas rather
+/// than rendered again: flattening a 7168 pixel stage takes seconds, and the
+/// thumbnail is the same picture smaller.
+export function thumbnailOf(sheet: HTMLCanvasElement, ratio: number): string {
+  const thumbnail = document.createElement('canvas')
+  thumbnail.width = Math.max(1, Math.round(sheet.width * ratio))
+  thumbnail.height = Math.max(1, Math.round(sheet.height * ratio))
+  const context = thumbnail.getContext('2d')
+  if (!context) throw new Error('this browser will not draw the texture thumbnail')
+  context.drawImage(sheet, 0, 0, thumbnail.width, thumbnail.height)
+  return thumbnail.toDataURL('image/png')
 }

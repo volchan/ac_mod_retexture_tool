@@ -1,6 +1,6 @@
 import type Konva from 'konva'
 import { describe, expect, it, vi } from 'vitest'
-import { flattenStage, pickColor, thumbnailRatio } from './stageExport'
+import { pickColor, stageToCanvas, thumbnailOf, thumbnailRatio } from './stageExport'
 
 function fakeStage(
   transformer?: { nodes: (v?: unknown[]) => unknown[] },
@@ -39,25 +39,25 @@ function fakeStage(
   }
 }
 
-describe('flattenStage', () => {
+describe('stageToCanvas', () => {
   it('exports the full texture at scale one, whatever the current zoom', () => {
     const { stage, seen } = fakeStage()
-    flattenStage(stage as unknown as Konva.Stage, 2048, 1024)
+    stageToCanvas(stage as unknown as Konva.Stage, 2048, 1024)
     expect(seen[0]).toMatchObject({ x: 0, width: 2048, height: 1024, scaleX: 1, pixelRatio: 1 })
   })
 
   it('puts the viewport back where the user left it', () => {
     const { stage, state } = fakeStage()
-    flattenStage(stage as unknown as Konva.Stage, 2048, 1024)
+    stageToCanvas(stage as unknown as Konva.Stage, 2048, 1024)
     expect(state).toEqual({ scaleX: 0.25, scaleY: 0.25, x: 40, y: 90 })
   })
 
   it('restores the viewport even when the export throws', () => {
     const { stage, state } = fakeStage()
-    stage.toDataURL = () => {
+    stage.toCanvas = () => {
       throw new Error('canvas tainted')
     }
-    expect(() => flattenStage(stage as unknown as Konva.Stage, 512, 512)).toThrow('canvas tainted')
+    expect(() => stageToCanvas(stage as unknown as Konva.Stage, 512, 512)).toThrow('canvas tainted')
     expect(state).toEqual({ scaleX: 0.25, scaleY: 0.25, x: 40, y: 90 })
   })
 
@@ -68,7 +68,7 @@ describe('flattenStage', () => {
       return attached
     })
     const { stage } = fakeStage({ nodes })
-    flattenStage(stage as unknown as Konva.Stage, 512, 512)
+    stageToCanvas(stage as unknown as Konva.Stage, 512, 512)
     expect(nodes).toHaveBeenCalledWith([])
     expect(nodes).toHaveBeenLastCalledWith(attached)
   })
@@ -83,12 +83,12 @@ describe('flattenStage', () => {
       },
     }
     const { stage } = fakeStage(undefined, guide)
-    stage.toDataURL = () => {
+    stage.toCanvas = () => {
       duringExport.push(visible)
-      return 'data:image/png;base64,AAA'
+      return { getContext: () => null }
     }
 
-    flattenStage(stage as unknown as Konva.Stage, 512, 512)
+    stageToCanvas(stage as unknown as Konva.Stage, 512, 512)
 
     expect(duringExport).toEqual([false])
     expect(visible).toBe(true)
@@ -96,8 +96,34 @@ describe('flattenStage', () => {
 
   it('honours a requested pixel ratio for thumbnails', () => {
     const { stage, seen } = fakeStage()
-    flattenStage(stage as unknown as Konva.Stage, 2048, 2048, 0.125)
+    stageToCanvas(stage as unknown as Konva.Stage, 2048, 2048, 0.125)
     expect(seen[0].pixelRatio).toBe(0.125)
+  })
+})
+
+describe('thumbnailOf', () => {
+  /// The sheet is rendered once; the tile's copy is scaled off that render
+  /// rather than the stage being flattened a second time.
+  it('scales the flattened sheet down without rendering it again', () => {
+    const drawImage = vi.fn()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage,
+    } as unknown as CanvasRenderingContext2D)
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,T')
+    const sheet = { width: 2048, height: 1024 } as HTMLCanvasElement
+
+    expect(thumbnailOf(sheet, 0.125)).toBe('data:image/png;base64,T')
+    expect(drawImage).toHaveBeenCalledWith(sheet, 0, 0, 256, 128)
+    vi.restoreAllMocks()
+  })
+
+  it('says so when the browser will not draw it', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+
+    expect(() => thumbnailOf({ width: 8, height: 8 } as HTMLCanvasElement, 1)).toThrow(
+      'will not draw',
+    )
+    vi.restoreAllMocks()
   })
 })
 

@@ -10,8 +10,10 @@ vi.mock('@/composables/useTextures', () => ({
   useTextures: () => ({ applyReplacements }),
 }))
 
+const stageToCanvas = vi.fn(() => ({ toDataURL: () => 'data:png,ratio-1' }))
 vi.mock('@/lib/stageExport', () => ({
-  flattenStage: vi.fn((_stage, _w, _h, ratio = 1) => `data:png,ratio-${ratio}`),
+  stageToCanvas: (...args: unknown[]) => stageToCanvas(...args),
+  thumbnailOf: (_sheet: unknown, ratio: number) => `data:png,ratio-${ratio}`,
   thumbnailRatio: () => 0.125,
 }))
 
@@ -77,6 +79,14 @@ describe('useLiveryPersistence', () => {
     )
     const call = vi.mocked(saveLiveryEdit).mock.calls[0][0]
     expect(JSON.parse(call.documentJson)).toMatchObject({ textureId: 'tex1' })
+  })
+
+  /// Flattening a 7168 pixel stage takes seconds; the thumbnail is cut from
+  /// the one render rather than paid for twice.
+  it('renders the stage once for both the file and the thumbnail', async () => {
+    await useLiveryPersistence().save(stage, texture)
+    expect(stageToCanvas).toHaveBeenCalledTimes(1)
+    expect(stageToCanvas).toHaveBeenCalledWith(stage, 2048, 1024)
   })
 
   it('attaches the saved file as the texture replacement', async () => {
