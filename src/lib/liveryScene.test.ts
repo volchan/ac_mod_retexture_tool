@@ -1,4 +1,4 @@
-import { ACESFilmicToneMapping, BufferGeometry } from 'three'
+import { ACESFilmicToneMapping, BufferGeometry, CanvasTexture } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LiveryModel } from '@/types/index'
 
@@ -96,6 +96,7 @@ describe('createLiveryScene', () => {
     rendered = null
     live = null
     // jsdom draws nothing, and the backdrop is a gradient on a 2D context.
+    vi.spyOn(CanvasTexture.prototype, 'dispose').mockImplementation(vi.fn())
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       createRadialGradient: () => ({ addColorStop: vi.fn() }),
       fillRect: vi.fn(),
@@ -196,6 +197,17 @@ describe('createLiveryScene', () => {
 
       expect(rendered?.background).not.toBeNull()
       expect(live?.background).toBeNull()
+    })
+
+    /// The dialog's camera button can be pressed all day, and the backdrop is
+    /// built fresh for each frame: a megabyte of video memory a press adds up.
+    it('lets go of the studio it built for the frame', () => {
+      const scene = createLiveryScene(canvas(), model())
+
+      scene.capture(1024, 575)
+
+      const studio = rendered?.background as { dispose: () => void } | null
+      expect(vi.mocked(studio?.dispose)).toHaveBeenCalled()
     })
   })
 

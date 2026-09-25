@@ -167,13 +167,17 @@ function buildScene(
       renderer.setClearColor(CAPTURE_BACKGROUND, 1)
       // Only for the shot: the viewer is a panel in a window that has its own
       // background, and painting one behind the car would box it in.
-      scene.background = backdrop(width, height)
+      const studio = backdrop(width, height)
+      scene.background = studio
       this.resize(width, height)
       renderer.render(scene, camera)
 
       const shot = canvas.toDataURL('image/jpeg', quality)
 
+      // Built for this frame and no other: the dialog's camera button can be
+      // pressed all day, and a megabyte of video memory a press adds up.
       scene.background = null
+      studio?.dispose()
       renderer.setPixelRatio(pixelRatio)
       renderer.setClearColor(CAPTURE_BACKGROUND, 0)
       this.resize(restore.x, restore.y)

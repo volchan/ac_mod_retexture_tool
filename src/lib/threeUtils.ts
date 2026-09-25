@@ -22,6 +22,10 @@ export function buildGeometry(data: CarMeshData): BufferGeometry {
 
 /// Pulls the camera back far enough for the whole panel set to fit, whatever the
 /// car: a formula car and a GT car differ by more than a fixed distance allows.
+/// Metres to stand back from a car that measures nothing, so the lens ends up
+/// outside whatever it is rather than in the middle of it.
+const SIZELESS_RADIUS = 3
+
 export function frameCamera(
   camera: PerspectiveCamera,
   controls: OrbitControls,
@@ -29,7 +33,10 @@ export function frameCamera(
 ) {
   const sphere = geometry.boundingSphere
   const centre = sphere ? sphere.center : new Vector3()
-  const radius = sphere?.radius ?? 3
+  // A geometry with no size to it is framed the same as one with no bounds at
+  // all: both leave the distance undecided, and zero puts the lens inside it.
+  const measured = sphere?.radius ?? 0
+  const radius = measured > 0 ? measured : SIZELESS_RADIUS
 
   const distance = radius / Math.sin((camera.fov * Math.PI) / 360)
   camera.position.set(centre.x + distance * 0.6, centre.y + distance * 0.45, centre.z + distance)
@@ -85,6 +92,13 @@ export function frameHero(
   const frustum = frustumOf(camera)
   const target = box.getCenter(new Vector3())
   let distance = fitDistance(geometry, target, view, frustum)
+
+  // A car with no width to fit is one vertex, or the same vertex a thousand
+  // times: the fit comes back zero and would stand the camera inside it.
+  if (distance <= 0) {
+    frameCamera(camera, controls, geometry)
+    return
+  }
 
   for (let pass = 1; pass < HERO_PASSES; pass += 1) {
     const seen = projectedCentre(geometry, target, view, frustum, distance)

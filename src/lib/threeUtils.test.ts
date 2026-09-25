@@ -121,6 +121,19 @@ describe('frameHero', () => {
     expect(geometry.boundingBox?.containsPoint(controls.target)).toBe(true)
   })
 
+  /// One vertex, or the same vertex a thousand times, fits at any distance —
+  /// including none, which would stand the camera inside the car.
+  it('stands back from a car with no width to fit', () => {
+    const camera = new PerspectiveCamera(38, 16 / 9, 0.05, 100)
+    const point = new BufferGeometry()
+    point.setAttribute('position', new BufferAttribute(new Float32Array([1, 1, 1]), 3))
+    point.computeBoundingSphere()
+
+    frameHero(camera, stubControls(), point)
+
+    expect(camera.position.distanceTo(new Vector3(1, 1, 1))).toBeGreaterThan(0.5)
+  })
+
   /// An empty geometry has no box to fit, and the camera must still end up
   /// somewhere other than inside the car.
   it('still stands back from a geometry with nothing in it', () => {
