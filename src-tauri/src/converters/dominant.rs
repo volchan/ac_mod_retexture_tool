@@ -217,7 +217,11 @@ mod tests {
 
     #[test]
     fn the_minority_colour_is_still_named() {
-        assert!(orange_and_black()[1].starts_with("#e"), "{:?}", orange_and_black());
+        assert!(
+            orange_and_black()[1].starts_with("#e"),
+            "{:?}",
+            orange_and_black()
+        );
     }
 
     /// A car atlas is mostly holes — the panels are islands on an empty sheet,
@@ -240,7 +244,10 @@ mod tests {
         let dark = Rgba([40, 40, 40, 255]);
         let darker = Rgba([54, 54, 54, 255]);
 
-        assert_eq!(dominant_colours(&sheet(&[(dark, 70), (darker, 30)]), 2).len(), 1);
+        assert_eq!(
+            dominant_colours(&sheet(&[(dark, 70), (darker, 30)]), 2).len(),
+            1
+        );
     }
 
     #[test]
@@ -248,7 +255,10 @@ mod tests {
         let blue = Rgba([30, 60, 200, 255]);
         let red = Rgba([200, 30, 30, 255]);
 
-        assert_eq!(dominant_colours(&sheet(&[(red, 60), (blue, 40)]), 2).len(), 2);
+        assert_eq!(
+            dominant_colours(&sheet(&[(red, 60), (blue, 40)]), 2).len(),
+            2
+        );
     }
 
     #[test]

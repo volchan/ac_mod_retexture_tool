@@ -9,11 +9,11 @@ use base64::engine::general_purpose;
 use base64::Engine;
 
 use crate::commands::image_source::ensure_readable_image;
-use crate::parsers::kn5::Kn5File;
 use crate::commands::skin::{ensure_safe_folder_name, MAX_SKIN_ART_BYTES, SKINS_DIR};
 use crate::converters::dds::decode_to_image;
 use crate::converters::dominant::dominant_colours;
 use crate::errors::AppError;
+use crate::parsers::kn5::Kn5File;
 
 /// Which image is being written. An enum rather than a file name: the caller is
 /// the webview, and a name from there would choose any file in the skin folder.
@@ -102,9 +102,14 @@ fn texture_bytes(texture: &TextureBytes) -> Result<Vec<u8>, AppError> {
                 AppError::InvalidInput(format!("cannot read {}: {e}", kn5_path.display()))
             })?;
 
-            file.get_texture_data(name).map(<[u8]>::to_vec).ok_or_else(|| {
-                AppError::InvalidInput(format!("{} holds no texture {name}", kn5_path.display()))
-            })
+            file.get_texture_data(name)
+                .map(<[u8]>::to_vec)
+                .ok_or_else(|| {
+                    AppError::InvalidInput(format!(
+                        "{} holds no texture {name}",
+                        kn5_path.display()
+                    ))
+                })
         }
     }
 }

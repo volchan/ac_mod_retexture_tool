@@ -2,7 +2,9 @@
 //! badge against the sheet it was drawn from.
 
 fn main() {
-    let path = std::env::args().nth(1).expect("usage: dominantdump <image>");
+    let path = std::env::args()
+        .nth(1)
+        .expect("usage: dominantdump <image>");
     let bytes = std::fs::read(&path).unwrap();
     let image = ac_mod_toolkit_lib::converters::dds::decode_to_image(&bytes).unwrap();
 

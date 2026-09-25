@@ -100,7 +100,9 @@ fn shell_of(meshes: &[&UvMesh]) -> f32 {
         }
     }
 
-    (0..3).map(|axis| (high[axis] - low[axis]).max(0.0)).product()
+    (0..3)
+        .map(|axis| (high[axis] - low[axis]).max(0.0))
+        .product()
 }
 
 fn surface_of(mesh: &UvMesh) -> f32 {
@@ -136,7 +138,6 @@ fn diffuse_of(material: &Material) -> Option<String> {
         .find(|(sampler, _)| sampler.eq_ignore_ascii_case(DIFFUSE_SAMPLER))
         .map(|(_, texture)| texture.clone())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -199,7 +200,10 @@ mod tests {
             ("carbon1_diffuse.dds", [2.0, 1.0, 5.3], 23.70),
         ]);
 
-        assert_eq!(livery_texture(&model).as_deref(), Some("carbon1_diffuse.dds"));
+        assert_eq!(
+            livery_texture(&model).as_deref(),
+            Some("carbon1_diffuse.dds")
+        );
     }
 
     /// A body and the carbon over it share the same shell, so the tie falls to
@@ -224,7 +228,10 @@ mod tests {
             textures: vec![("txMask".to_string(), "EXT_Series_Mask.png".to_string())],
         });
 
-        assert_eq!(livery_texture(&model).as_deref(), Some("2026_Chassis_P.dds"));
+        assert_eq!(
+            livery_texture(&model).as_deref(),
+            Some("2026_Chassis_P.dds")
+        );
     }
 
     #[test]
