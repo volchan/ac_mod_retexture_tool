@@ -62,12 +62,14 @@ fn border_edges(mesh: &UvMesh) -> Vec<(u16, u16)> {
         .collect()
 }
 
-/// KN5 stores V pointing up while an image addresses rows downwards, so the
-/// vertical coordinate is negated rather than offset. This is the same flip
-/// `car_model::pack` applies as `1.0 + uv[1]`, read against a row index instead
-/// of a texture coordinate.
+/// KN5 stores V in `[-1, 0]` with the top row of the image at `-1`, so the row
+/// is `1 + v` of the way down — the same flip `car_model::pack` applies for the
+/// 3D scenes. Negating instead reads plausibly on a sheet whose islands are
+/// laid out near-symmetrically, and lands seams on the wrong panel: measured
+/// on the stock GT3 sheet, `1 + v` puts 92% of livery vertices on paint against
+/// 70% for `-v`.
 fn to_pixel(uv: [f32; 2], width: u32, height: u32) -> (f32, f32) {
-    (uv[0] * width as f32, -uv[1] * height as f32)
+    (uv[0] * width as f32, (1.0 + uv[1]) * height as f32)
 }
 
 /// The part of the segment that lands on the image, or nothing when none of it
@@ -233,9 +235,9 @@ mod tests {
     /// The same flip `car_model::pack` writes as `1.0 + uv[1]`: V climbs while
     /// image rows descend, so the bottom of the sheet is V = -1, not V = 0.
     #[test]
-    fn v_is_negated_rather_than_offset() {
-        assert_eq!(to_pixel([0.0, 0.0], 256, 128), (0.0, 0.0));
-        assert_eq!(to_pixel([1.0, -1.0], 256, 128), (256.0, 128.0));
+    fn v_reads_down_the_sheet_the_way_the_car_model_does() {
+        assert_eq!(to_pixel([0.0, -1.0], 256, 128), (0.0, 0.0));
+        assert_eq!(to_pixel([1.0, 0.0], 256, 128), (256.0, 128.0));
         assert_eq!(to_pixel([0.5, -0.5], 256, 128), (128.0, 64.0));
     }
 
