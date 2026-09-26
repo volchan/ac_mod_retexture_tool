@@ -208,6 +208,24 @@ describe('ModInfoPanel', () => {
     expect(wrapper.emitted('repack')).toBeTruthy()
   })
 
+  it('offers the 3D view on a car, whether or not anything is queued', async () => {
+    const wrapper = mount(ModInfoPanel, { props: { mod: carMod } })
+    await nextTick()
+    const btn = wrapper.findAll('button').find((b) => b.text().includes('View in 3D'))
+
+    await btn?.trigger('click')
+
+    expect(btn?.attributes('disabled')).toBeUndefined()
+    expect(wrapper.emitted('view-3d')).toBeTruthy()
+  })
+
+  it('hides the 3D view on a track, which wears no skin', async () => {
+    const wrapper = mount(ModInfoPanel, { props: { mod: trackMod } })
+    await nextTick()
+
+    expect(wrapper.findAll('button').some((b) => b.text().includes('View in 3D'))).toBe(false)
+  })
+
   it('shows dashes for empty author, version, and no description', () => {
     const mod: Mod = {
       ...carMod,

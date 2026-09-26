@@ -1,0 +1,213 @@
+import { useUvTemplate } from '@/composables/useUvTemplate'
+import {
+  type FillMode,
+  floodFillMask,
+  type Pixels,
+  paintedMask,
+  parseHexColor,
+} from '@/lib/floodFill'
+import type { BucketLayer } from '@/types/index'
+
+/// Budgeted in pixels rather than entries: a fill is cropped to the panel it
+/// covers, so a sheet of small ones all stay cached where a handful of
+/// full-sheet fills do not. An entry limit below the layer count would evict a
+/// mask the same render that rebuilt it, and re-fill every bucket every frame.
+const MASK_BUDGET_PIXELS = 64_000_000
+
+const masks = new Map<string, CachedMask>()
+const basePixels = new WeakMap<HTMLImageElement, Pixels>()
+const barriers = new WeakMap<HTMLImageElement, Uint8Array>()
+
+let hovered: { key: string; mask: CachedMask } | null = null
+
+/// A filled region as Konva draws it: the cropped bitmap, and where on the
+/// texture its top-left corner belongs.
+export interface BucketMask {
+  canvas: HTMLCanvasElement
+  x: number
+  y: number
+}
+
+/// What the cache holds: the mask plus the colour it is painted in, so a
+/// recolour is told apart from a refill.
+interface CachedMask extends BucketMask {
+  color: string
+}
+
+/// Turns a bucket layer into the bitmap Konva draws. Flood filling a 4K texture
+/// costs tens of milliseconds, so results are memoised under a key built from the
+/// parameters that change the shape — moving the seed or widening the tolerance
+/// invalidates the entry, recolouring reuses it.
+export function useBucketMasks() {
+  const { image: template, isEnabled } = useUvTemplate()
+
+  /// The seams a fill may not cross, and only while they are on screen. A wall
+  /// the user cannot see is a fill that stops for no reason — and the seam
+  /// itself is never filled, so painting over one means turning the overlay off.
+  const seams = () => (isEnabled.value ? template.value : null)
+
+  /// The seams are what a fill stops at, so a mask filled without them describes
+  /// a different region than the same layer filled with them. Toggling the UV
+  /// overlay has to miss the cache rather than redraw the pre-barrier shape.
+  const walls = () => (seams() ? 'uv' : 'raw')
+
+  function maskFor(layer: BucketLayer, base: HTMLImageElement | null): BucketMask | null {
+    const key = `${maskKey(layer)}:${walls()}`
+    const cached = masks.get(key)
+    if (cached) return tinted(cached, layer.color)
+
+    const mask = buildMask(layer, layer.tolerance, layer.color, base, seams(), layer.mode)
+    if (!mask) return null
+
+    masks.set(key, mask)
+    evictOldest()
+    return mask
+  }
+
+  /// The region the bucket would fill if the user clicked here. One slot rather
+  /// than the cache: the pointer visits a new region every time it moves, and
+  /// every one of those would otherwise crowd out a mask a layer still draws.
+  function previewMask(
+    point: { x: number; y: number },
+    tolerance: number,
+    color: string,
+    base: HTMLImageElement | null,
+    mode: FillMode = 'colour',
+  ): BucketMask | null {
+    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${mode}:${walls()}`
+    if (hovered?.key === key) return tinted(hovered.mask, color)
+
+    const mask = buildMask(point, tolerance, color, base, seams(), mode)
+    hovered = mask ? { key, mask } : null
+    return mask
+  }
+
+  function clearMasks() {
+    masks.clear()
+    hovered = null
+  }
+
+  return { maskFor, previewMask, clearMasks }
+}
+
+// ------------------------------------------------------------------------------
+// MARK: HELPERS
+// ------------------------------------------------------------------------------
+
+function buildMask(
+  seed: { x: number; y: number },
+  tolerance: number,
+  color: string,
+  base: HTMLImageElement | null,
+  template: HTMLImageElement | null,
+  mode: FillMode = 'colour',
+): CachedMask | null {
+  if (!base) return null
+
+  const source = pixelsOf(base)
+  if (!source) return null
+
+  const paint = parseHexColor(color)
+  // A tint has no seed to spread from, so the UV walls have nothing to stop.
+  const walls = template ? barrierOf(template, source) : undefined
+  const region =
+    mode === 'sheet'
+      ? paintedMask(source, paint)
+      : floodFillMask(source, seed, tolerance, paint, walls, mode)
+  if (region.width === 0 || region.height === 0) return null
+
+  const canvas = document.createElement('canvas')
+  canvas.width = region.width
+  canvas.height = region.height
+  const context = canvas.getContext('2d')
+  if (!context) return null
+
+  const image = context.createImageData(region.width, region.height)
+  image.data.set(region.data)
+  context.putImageData(image, 0, 0)
+
+  return { canvas, x: region.x, y: region.y, color }
+}
+
+/// The mask in the colour asked for. The shape is the expensive part and does
+/// not depend on the colour, so a recolour repaints the bitmap in place —
+/// dragging the colour picker over a 4K sheet must not flood it on every tick.
+function tinted(mask: CachedMask, color: string): CachedMask {
+  if (mask.color === color) return mask
+
+  const context = mask.canvas.getContext('2d')
+  if (!context) return mask
+  const { r, g, b } = parseHexColor(color)
+  // `source-in` keeps the alpha the fill left and replaces every colour under it.
+  context.globalCompositeOperation = 'source-in'
+  context.fillStyle = `rgb(${r} ${g} ${b})`
+  context.fillRect(0, 0, mask.canvas.width, mask.canvas.height)
+  context.globalCompositeOperation = 'source-over'
+  mask.color = color
+  return mask
+}
+
+/// The template is drawn as opaque lines on transparent pixels, so its alpha
+/// channel already is the wall map the fill needs.
+function barrierOf(template: HTMLImageElement, source: Pixels): Uint8Array | undefined {
+  const cached = barriers.get(template)
+  if (cached) return cached
+
+  const canvas = document.createElement('canvas')
+  canvas.width = source.width
+  canvas.height = source.height
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) return undefined
+
+  context.drawImage(template, 0, 0, source.width, source.height)
+  const { data } = context.getImageData(0, 0, source.width, source.height)
+
+  const walls = new Uint8Array(source.width * source.height)
+  for (let pixel = 0; pixel < walls.length; pixel += 1) {
+    walls[pixel] = data[pixel * 4 + 3] > 0 ? 1 : 0
+  }
+  barriers.set(template, walls)
+  return walls
+}
+
+/// Insertion order is eviction order: the mask untouched for longest goes first.
+function evictOldest() {
+  while (masks.size > 1 && cachedPixels() > MASK_BUDGET_PIXELS) {
+    const oldest = masks.keys().next()
+    if (oldest.done) return
+    masks.delete(oldest.value)
+  }
+}
+
+function cachedPixels() {
+  let total = 0
+  for (const mask of masks.values()) {
+    total += mask.canvas.width * mask.canvas.height
+  }
+  return total
+}
+
+/// Everything that changes the shape, and nothing that only changes its colour.
+function maskKey(layer: BucketLayer) {
+  const seed = `${Math.round(layer.x)}:${Math.round(layer.y)}`
+  return `${layer.id}:${seed}:${layer.tolerance}:${layer.mode ?? 'colour'}`
+}
+
+/// Reading a texture back costs a full draw, so each base image is sampled once
+/// and every bucket on it shares the result.
+function pixelsOf(base: HTMLImageElement): Pixels | null {
+  const cached = basePixels.get(base)
+  if (cached) return cached
+
+  const canvas = document.createElement('canvas')
+  canvas.width = base.naturalWidth
+  canvas.height = base.naturalHeight
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context || canvas.width === 0 || canvas.height === 0) return null
+
+  context.drawImage(base, 0, 0)
+  const image = context.getImageData(0, 0, canvas.width, canvas.height)
+  const pixels: Pixels = { data: image.data, width: canvas.width, height: canvas.height }
+  basePixels.set(base, pixels)
+  return pixels
+}

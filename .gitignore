@@ -9,5 +9,6 @@ src-tauri/gen/
 src-tauri/resources/models/*
 src-tauri/binaries/upscayl-bin-*
 .DS_Store
+tmp/*
 
 ruvector.db

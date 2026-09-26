@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::commands::repack::{find_kn5_in_copy, patch_kn5};
-use crate::converters::dds;
+use crate::commands::repack::{find_kn5_in_copy, patch_kn5, write_replacement};
+use crate::commands::skin::ensure_safe_folder_name;
 use crate::errors::AppError;
 use crate::models::repack::TextureReplacementOpt;
 
@@ -39,14 +39,14 @@ pub async fn test_in_game(
     .map_err(|e: AppError| e.to_string())
 }
 
-fn ac_documents_cfg() -> Result<std::path::PathBuf, AppError> {
+pub(crate) fn ac_documents_cfg() -> Result<std::path::PathBuf, AppError> {
     // AC reads race.ini from Documents\Assetto Corsa\cfg, not the Steam install folder
     let docs = dirs::document_dir()
         .ok_or_else(|| AppError::NotFound("Cannot locate Documents folder".to_string()))?;
     Ok(docs.join("Assetto Corsa").join("cfg"))
 }
 
-struct DirGuard(std::path::PathBuf);
+pub(crate) struct DirGuard(pub std::path::PathBuf);
 
 impl Drop for DirGuard {
     fn drop(&mut self) {
@@ -56,7 +56,11 @@ impl Drop for DirGuard {
     }
 }
 
-fn restore_race_ini(race_ini: &Path, bak: &Path, had_original: bool) -> Result<(), AppError> {
+pub(crate) fn restore_race_ini(
+    race_ini: &Path,
+    bak: &Path,
+    had_original: bool,
+) -> Result<(), AppError> {
     if had_original {
         std::fs::rename(bak, race_ini)?;
     } else {
@@ -68,15 +72,37 @@ fn restore_race_ini(race_ini: &Path, bak: &Path, had_original: bool) -> Result<(
     Ok(())
 }
 
-struct RaceIniGuard {
+pub(crate) struct RaceIniGuard {
     race_ini: std::path::PathBuf,
     bak: std::path::PathBuf,
     had_original: bool,
     finished: bool,
 }
 
+/// Backs `race.ini` up under a name no other run will pick, and hands back the
+/// guard that puts it back.
+///
+/// Both commands wrote `race.bak`. A track test started while a skin test was
+/// still running backed up the *generated* `race.ini` rather than the author's,
+/// and whichever finished last restored that — losing the real one for good.
+///
+/// The backup stays on disk under a `.bak` extension so it is still findable by
+/// hand if the app dies while the game is up.
+pub(crate) fn back_up_race_ini(race_ini: &Path) -> Result<RaceIniGuard, AppError> {
+    let bak = race_ini.with_extension(format!("{}.bak", uuid::Uuid::new_v4()));
+    let had_original = race_ini.exists();
+    if had_original {
+        std::fs::copy(race_ini, &bak)?;
+    }
+    Ok(RaceIniGuard::new(race_ini.to_path_buf(), bak, had_original))
+}
+
 impl RaceIniGuard {
-    fn new(race_ini: std::path::PathBuf, bak: std::path::PathBuf, had_original: bool) -> Self {
+    pub(crate) fn new(
+        race_ini: std::path::PathBuf,
+        bak: std::path::PathBuf,
+        had_original: bool,
+    ) -> Self {
         Self {
             race_ini,
             bak,
@@ -85,7 +111,7 @@ impl RaceIniGuard {
         }
     }
 
-    fn finish(mut self) -> Result<(), AppError> {
+    pub(crate) fn finish(mut self) -> Result<(), AppError> {
         self.finished = true;
         restore_race_ini(&self.race_ini, &self.bak, self.had_original)
     }
@@ -155,19 +181,14 @@ fn run_session(
 
     std::fs::create_dir_all(cfg_dir)?;
 
-    // Write backup to disk so it survives a Tauri process crash while AC is running
-    let bak_path = race_ini_path.with_extension("bak");
-    let had_original = race_ini_path.exists();
-    if had_original {
-        std::fs::copy(race_ini_path, &bak_path)?;
-    }
+    // Armed before the write, so a failure putting the generated file in place
+    // still puts the author's own back.
+    let guard = back_up_race_ini(race_ini_path)?;
 
     std::fs::write(
         race_ini_path,
-        build_race_ini(preview_name, car_id, config_track),
+        build_race_ini(preview_name, car_id, "default", config_track),
     )?;
-
-    let guard = RaceIniGuard::new(race_ini_path.to_path_buf(), bak_path, had_original);
 
     let _status = std::process::Command::new(acs_exe)
         .current_dir(ac_root)
@@ -194,17 +215,13 @@ fn apply_replacements(
         patch_kn5(&preview_kn5, group)?;
     }
 
+    // Both segments come over IPC and are joined onto the preview copy, which
+    // the guard deletes afterwards: a climbing one would write, and later
+    // remove, outside it.
     for r in replacements {
         if let Some(skin_folder) = &r.skin_folder {
-            let dst = preview_root
-                .join("skins")
-                .join(skin_folder)
-                .join(&r.texture_name);
-            let png_data = std::fs::read(&r.source_path)?;
-            let img = image::load_from_memory(&png_data)
-                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
-            let dds_data = dds::encode_from_image(&img, &r.original_format)?;
-            std::fs::write(&dst, dds_data)?;
+            ensure_safe_folder_name(skin_folder)?;
+            write_replacement(&preview_root.join("skins").join(skin_folder), r)?;
         }
     }
 
@@ -221,9 +238,9 @@ fn apply_replacements(
     Ok(())
 }
 
-fn build_race_ini(track: &str, car: &str, config_track: &str) -> String {
+pub(crate) fn build_race_ini(track: &str, car: &str, skin: &str, config_track: &str) -> String {
     format!(
-        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN=default\nTRACK={track}\nCONFIG_TRACK={config_track}\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nDURATION_MINUTES=0\nLAPS=0\nWAIT_TIME=60\nSPAWN_SET=PIT\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
+        "[HEADER]\nVERSION=2\n\n[RACE]\nMODEL={car}\nSKIN={skin}\nTRACK={track}\nCONFIG_TRACK={config_track}\nAI_LEVEL=95\nFIXED_SETUP=0\nRANDOM_SETUP=0\nPENALTIES=1\nJUMP_START_PENALTY=0\n\n[SESSION_0]\nNAME=Free Practice\nTYPE=1\nDURATION_MINUTES=0\nLAPS=0\nWAIT_TIME=60\nSPAWN_SET=PIT\n\n[LAP_INVALIDATOR]\nALLOWED_TYRES_OUT=-1\n"
     )
 }
 
@@ -244,13 +261,51 @@ fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
+
+    /// Two runs overlapping used to share `race.bak`: the second backed up the
+    /// first's generated file, and the author's own was gone for good.
+    #[test]
+    fn each_run_backs_race_ini_up_under_its_own_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let race_ini = dir.path().join("race.ini");
+        std::fs::write(&race_ini, b"the author's own").unwrap();
+
+        let first = back_up_race_ini(&race_ini).unwrap();
+        std::fs::write(&race_ini, b"generated by the first run").unwrap();
+        let second = back_up_race_ini(&race_ini).unwrap();
+
+        second.finish().unwrap();
+        assert_eq!(
+            std::fs::read(&race_ini).unwrap(),
+            b"generated by the first run".to_vec()
+        );
+
+        first.finish().unwrap();
+        assert_eq!(
+            std::fs::read(&race_ini).unwrap(),
+            b"the author's own".to_vec(),
+            "the outer run must still restore the file it found"
+        );
+    }
+
+    #[test]
+    fn a_run_that_found_no_race_ini_leaves_none_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let race_ini = dir.path().join("race.ini");
+
+        let guard = back_up_race_ini(&race_ini).unwrap();
+        std::fs::write(&race_ini, b"generated").unwrap();
+        guard.finish().unwrap();
+
+        assert!(!race_ini.exists());
+    }
     use super::*;
     use std::fs;
     use tempfile::TempDir;
 
     #[test]
     fn build_race_ini_contains_track_and_car() {
-        let ini = build_race_ini("my_track_preview", "ks_abarth500", "");
+        let ini = build_race_ini("my_track_preview", "ks_abarth500", "default", "");
         assert!(ini.contains("TRACK=my_track_preview"));
         assert!(ini.contains("MODEL=ks_abarth500"));
         assert!(ini.contains("CONFIG_TRACK=\n"));
@@ -260,7 +315,12 @@ mod tests {
 
     #[test]
     fn build_race_ini_sets_config_track_when_layout_name_given() {
-        let ini = build_race_ini("my_track_preview", "ks_abarth500", "international");
+        let ini = build_race_ini(
+            "my_track_preview",
+            "ks_abarth500",
+            "default",
+            "international",
+        );
         assert!(ini.contains("CONFIG_TRACK=international\n"));
     }
 
@@ -339,6 +399,34 @@ mod tests {
             fs::read_to_string(dst.join("sub/nested.txt")).unwrap(),
             "world"
         );
+    }
+
+    #[test]
+    fn apply_replacements_refuses_a_skin_replacement_that_climbs_out() {
+        let tmp = TempDir::new().unwrap();
+        let preview = tmp.path().join("preview");
+        fs::create_dir_all(preview.join("skins/red")).unwrap();
+        let source = tmp.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&source)
+            .unwrap();
+        let replacement = |folder: &str, name: &str| TextureReplacementOpt {
+            texture_id: "tex".to_string(),
+            source_path: source.to_string_lossy().to_string(),
+            kn5_file: None,
+            texture_name: name.to_string(),
+            skin_folder: Some(folder.to_string()),
+            original_format: "PNG".to_string(),
+            hero_image_path: None,
+        };
+
+        for (folder, name) in [("../..", "x.dds"), ("red", "../../x.dds")] {
+            assert!(
+                apply_replacements(&preview, "", &[replacement(folder, name)]).is_err(),
+                "{folder}/{name} must be refused"
+            );
+        }
+        assert!(!tmp.path().join("x.dds").exists());
     }
 
     #[test]

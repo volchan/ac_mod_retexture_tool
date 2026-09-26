@@ -1,19 +1,26 @@
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 import { save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type {
   AcInstallInfo,
+  CarMeshData,
+  CleanedMaps,
   EnhanceOptions,
   EnhanceResult,
   ImportScanResult,
   LibraryEntry,
+  LiveryEditSave,
+  LiveryModel,
   Mod,
   ProgressInfo,
   RepackOptions,
+  SkinArt,
+  SkinEntry,
+  SkinExportOptions,
   Texture,
   TextureReplacementOpt,
 } from '@/types/index'
@@ -43,6 +50,10 @@ export async function listAcContent(path: string): Promise<LibraryEntry[]> {
 
 export async function listAcCars(acPath: string): Promise<LibraryEntry[]> {
   return invoke('list_ac_cars', { acPath })
+}
+
+export async function listCarSkins(carPath: string): Promise<SkinEntry[]> {
+  return invoke('list_car_skins', { carPath })
 }
 
 export async function listTrackLayouts(modPath: string): Promise<string[]> {
@@ -81,8 +92,47 @@ export async function scanModFolder(path: string): Promise<Mod> {
   return invoke('scan_mod_folder', { path })
 }
 
-export async function decodeModTextures(modPath: string, modType: string): Promise<void> {
-  return invoke('decode_mod_textures', { modPath, modType })
+export async function decodeModTextures(
+  modPath: string,
+  modType: string,
+  skinFolder?: string,
+): Promise<void> {
+  return invoke('decode_mod_textures', { modPath, modType, skinFolder })
+}
+
+export async function exportSkin(options: SkinExportOptions): Promise<void> {
+  return invoke('export_skin', { opts: options })
+}
+
+/// Writes one of a skin's two display images. `payload` is bare base64, which
+/// is what a canvas data URL carries after its comma.
+export async function writeSkinArt(
+  carPath: string,
+  skin: string,
+  art: SkinArt,
+  payload: string,
+): Promise<string> {
+  return invoke('write_skin_art', { carPath, skin, art, payload })
+}
+
+/// The file this car wears its livery on, as the KN5 names it. Measured from the
+/// model, because the files cannot answer it: a mask ships at the livery's own
+/// resolution and looks identical from the outside.
+export async function mainLiveryTexture(carPath: string): Promise<string | null> {
+  return invoke('main_livery_texture', { carPath })
+}
+
+/// Where a texture's bytes are. A car keeps most of its textures inside the KN5
+/// and only the painted ones as files on disk.
+export type TextureBytes =
+  | { kind: 'file'; path: string }
+  | { kind: 'embedded'; kn5: string; name: string }
+
+/// The colours a texture wears, most-worn first. Counted on the backend, where
+/// the full-resolution pixels are: a `previewUrl` is a 128 pixel thumbnail, and
+/// a livery sheet reduced that far has had its stripes averaged away.
+export async function sampleTextureColours(texture: TextureBytes, wanted = 2): Promise<string[]> {
+  return invoke('sample_texture_colours', { texture, wanted })
 }
 
 export async function cancelDecode(): Promise<void> {
@@ -144,6 +194,34 @@ export async function previewReplacementImage(imagePath: string): Promise<string
 
 export async function loadReplacementFull(imagePath: string): Promise<string> {
   return invoke('load_replacement_full', { imagePath })
+}
+
+export async function getUvTemplate(
+  carPath: string,
+  textureName: string,
+  width: number,
+  height: number,
+): Promise<string> {
+  return invoke('get_uv_template', { carPath, textureName, width, height })
+}
+
+/// `overrides` pairs a texture name with a queued replacement file, so the car
+/// shows what a repack would produce rather than what is on disk.
+export async function getLiveryModel(
+  carPath: string,
+  skin: string,
+  maxTexture: number,
+  overrides: [string, string][],
+): Promise<LiveryModel> {
+  return invoke('get_livery_model', { carPath, skin, maxTexture, overrides })
+}
+
+export async function getCarMesh(carPath: string, textureName: string): Promise<CarMeshData> {
+  return invoke('get_car_mesh', { carPath, textureName })
+}
+
+export async function listSystemFonts(): Promise<string[]> {
+  return invoke('list_system_fonts')
 }
 
 export async function readCarPreview(imagePath: string, acPath: string): Promise<string> {
@@ -261,4 +339,35 @@ export async function scanImportFolder(
     textureKn5s,
     textureSkinFolders,
   })
+}
+
+export async function saveLiveryEdit(opts: LiveryEditSave): Promise<string> {
+  return invoke('save_livery_edit', { opts })
+}
+
+/// The finish textures the car's model pairs with a colour sheet, by name.
+export async function liveryMaps(carPath: string, diffuse: string): Promise<string[]> {
+  return invoke('livery_maps', { carPath, diffuse })
+}
+
+/// Writes a copy of `maps` with the old finish gone from under `coverage`, a PNG
+/// data URL of the editor's layers alone at the maps' own size.
+export async function cleanLiveryMaps(
+  maps: TextureBytes,
+  mapsKey: string,
+  coverage: string,
+): Promise<CleanedMaps> {
+  return invoke('clean_livery_maps', { maps, mapsKey, coverage })
+}
+
+export async function loadLiveryDocument(textureKey: string): Promise<string | null> {
+  return invoke('load_livery_document', { textureKey })
+}
+
+export async function requestLiveryEditor(textureId: string): Promise<void> {
+  return emit('open-livery-editor', { textureId })
+}
+
+export async function onLiveryEditorRequest(cb: (textureId: string) => void): Promise<() => void> {
+  return listen('open-livery-editor', (e) => cb((e.payload as { textureId: string }).textureId))
 }

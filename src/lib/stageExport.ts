@@ -1,0 +1,112 @@
+import type Konva from 'konva'
+
+/// The colour the livery actually shows at one texture pixel, guides and markers
+/// excluded. Rendered as a one pixel crop rather than read back from the visible
+/// layer: the sheet is drawn at whatever zoom the user is at, and the overlays
+/// they work against would tint the sample.
+export function pickColor(stage: Konva.Stage, x: number, y: number): string | null {
+  const pixel = { x: Math.floor(x), y: Math.floor(y), width: 1, height: 1 }
+  const canvas = withoutChrome(stage, pixel, 1, (options) => stage.toCanvas(options))
+  const context = canvas.getContext('2d')
+  if (!context) return null
+
+  const [r, g, b, alpha] = context.getImageData(0, 0, 1, 1).data
+  if (alpha === 0) return null
+  return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+}
+
+/// Renders the stage at texture resolution rather than at the zoom the user
+/// happens to be at, and without the selection handles, which are chrome rather
+/// than part of the livery. A canvas rather than a PNG: encoding a 7168 pixel
+/// texture and decoding it back into an Image costs hundreds of milliseconds,
+/// which the 3D preview cannot afford while the user is still drawing the
+/// stroke, and a save encodes it once from here.
+export function stageToCanvas(
+  stage: Konva.Stage,
+  width: number,
+  height: number,
+  pixelRatio = 1,
+): HTMLCanvasElement {
+  const sheet = { x: 0, y: 0, width, height }
+  return withoutChrome(stage, sheet, pixelRatio, (options) => stage.toCanvas(options))
+}
+
+/// Where the editor's own paint hides the sheet, as alpha: the layers alone,
+/// without the texture under them and without `tints`, the layers that recolour
+/// what is there rather than cover it.
+export function coverageToCanvas(
+  stage: Konva.Stage,
+  width: number,
+  height: number,
+  tints: string[],
+): HTMLCanvasElement {
+  const sheet = { x: 0, y: 0, width, height }
+  const tinting = new Set(tints)
+  const hidden = [
+    ...stage.find('.editor-base'),
+    ...stage.find((node: Konva.Node) => tinting.has(node.id())),
+  ]
+  return withoutChrome(stage, sheet, 1, (options) => stage.toCanvas(options), hidden)
+}
+
+// ------------------------------------------------------------------------------
+// MARK: HELPERS
+// ------------------------------------------------------------------------------
+
+interface Crop {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+function withoutChrome<T>(
+  stage: Konva.Stage,
+  crop: Crop,
+  pixelRatio: number,
+  draw: (options: Record<string, unknown>) => T,
+  alsoHidden: Konva.Node[] = [],
+): T {
+  const view = { scaleX: stage.scaleX(), scaleY: stage.scaleY(), x: stage.x(), y: stage.y() }
+  const transformer = stage.findOne('Transformer') as Konva.Transformer | undefined
+  const attached = transformer ? transformer.nodes() : []
+  // Guides and hover markers are drawn over the livery to work against, never
+  // painted into it — and the flattened result feeds the 3D preview too, so one
+  // missed node ends up on the car itself.
+  const chrome = [...stage.find('.editor-chrome'), ...alsoHidden]
+  const wasVisible = chrome.map((node) => node.visible())
+
+  transformer?.nodes([])
+  for (const node of chrome) node.visible(false)
+  stage.scale({ x: 1, y: 1 })
+  stage.position({ x: 0, y: 0 })
+
+  try {
+    return draw({ ...crop, pixelRatio, mimeType: 'image/png' })
+  } finally {
+    stage.scale({ x: view.scaleX, y: view.scaleY })
+    stage.position({ x: view.x, y: view.y })
+    transformer?.nodes(attached)
+    chrome.forEach((node, index) => {
+      node.visible(wasVisible[index] ?? true)
+    })
+  }
+}
+
+/// A thumbnail wide enough for the texture tile, whatever the texture's own size.
+export function thumbnailRatio(width: number, maxSize = 256) {
+  return width === 0 ? 1 : Math.min(1, maxSize / width)
+}
+
+/// The tile's copy of an already flattened sheet. Scaled off the canvas rather
+/// than rendered again: flattening a 7168 pixel stage takes seconds, and the
+/// thumbnail is the same picture smaller.
+export function thumbnailOf(sheet: HTMLCanvasElement, ratio: number): string {
+  const thumbnail = document.createElement('canvas')
+  thumbnail.width = Math.max(1, Math.round(sheet.width * ratio))
+  thumbnail.height = Math.max(1, Math.round(sheet.height * ratio))
+  const context = thumbnail.getContext('2d')
+  if (!context) throw new Error('this browser will not draw the texture thumbnail')
+  context.drawImage(sheet, 0, 0, thumbnail.width, thumbnail.height)
+  return thumbnail.toDataURL('image/png')
+}

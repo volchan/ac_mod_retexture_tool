@@ -3,6 +3,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { open } from '@tauri-apps/plugin-dialog'
 import { UploadIcon } from 'lucide-vue-next'
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useLiveryEditor } from '@/composables/useLiveryEditor'
 import { modKbd } from '@/lib/platform'
 
 const emit = defineEmits<{
@@ -11,10 +12,16 @@ const emit = defineEmits<{
 
 const isDragOver = ref(false)
 let unlisten: (() => void) | null = null
+const { isOpen: isEditing } = useLiveryEditor()
 
 onMounted(async () => {
   const webview = getCurrentWebviewWindow()
   unlisten = await webview.onDragDropEvent((event) => {
+    // A drop reaches every listener on the webview, and this panel stays mounted
+    // under the livery editor: a PNG dropped onto the livery is a new layer
+    // there, not a replacement for whichever texture shares its name here.
+    if (isEditing.value) return
+
     if (event.payload.type === 'over') {
       isDragOver.value = true
     } else if (event.payload.type === 'leave') {
