@@ -5,6 +5,7 @@
   "windows": ["preview_*"],
   "permissions": [
     "core:default",
-    "core:window:allow-close"
+    "core:window:allow-close",
+    "core:window:allow-show"
   ]
 }
