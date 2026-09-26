@@ -3,6 +3,8 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { useLiveryEditor } from '@/composables/useLiveryEditor'
+import type { Texture } from '@/types/index'
 import ImportDropZone from './ImportDropZone.vue'
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -33,6 +35,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  useLiveryEditor().close()
 })
 
 describe('ImportDropZone', () => {
@@ -87,6 +90,23 @@ describe('ImportDropZone', () => {
     fire({ type: 'drop', paths: ['/Users/user/livery_pack'] })
     await nextTick()
     expect(wrapper.emitted('import')).toEqual([['/Users/user/livery_pack']])
+  })
+
+  /// The drop reaches every listener on the webview. With the editor open, the
+  /// PNG is a new layer on the livery — reading it as a replacement too would
+  /// swap out whichever texture shares its name.
+  it('leaves a drop alone while the livery editor is open', async () => {
+    const { fire } = mockWebview()
+    const wrapper = mount(ImportDropZone)
+    await nextTick()
+    useLiveryEditor().open({ id: 'tex', name: 'body.dds' } as Texture, 'data:image/png;base64,AA')
+
+    fire({ type: 'over' })
+    fire({ type: 'drop', paths: ['/Users/user/sponsor.png'] })
+    await nextTick()
+
+    expect(wrapper.emitted('import')).toBeFalsy()
+    expect(wrapper.vm.isDragOver).toBe(false)
   })
 
   it('does not emit when drop has no paths', async () => {
