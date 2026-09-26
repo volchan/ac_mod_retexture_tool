@@ -17,6 +17,9 @@ export function paintedBytes(texture: Texture | null): TextureBytes | null {
 
 /// The texture as the car ships it, whatever the queue holds for it.
 export function originalBytes(texture: Texture): TextureBytes | null {
-  if (texture.kn5File) return { kind: 'embedded', kn5: texture.kn5File, name: texture.name }
+  // `kn5File` is the scan's own bookkeeping, and for a `kn5`-sourced texture
+  // that is a bare filename, not a path: `path` is the kn5 the scan actually
+  // opened.
+  if (texture.kn5File) return { kind: 'embedded', kn5: texture.path, name: texture.name }
   return texture.path ? { kind: 'file', path: texture.path } : null
 }

@@ -96,6 +96,47 @@ describe('useSkinArt', () => {
     unmount()
   })
 
+  /// The panel, the sidebar, and the preview dialog each call `useSkinArt()`
+  /// from their own setup while mounted together — a second pair of watchers
+  /// per caller doubled every request to the backend for the same answer.
+  it('asks the backend once, however many callers share the car', async () => {
+    const first = await withSetup(() => useSkinArt())
+    const second = await withSetup(() => useSkinArt())
+
+    useTextures().textures.value = [texture({ path: '/cars/gtm/skins/blue/body.dds' })]
+    await nextTick()
+    await nextTick()
+
+    expect(sampleTextureColours).toHaveBeenCalledTimes(1)
+    first.unmount()
+    second.unmount()
+  })
+
+  /// A slower response from an earlier change landing after a newer one would
+  /// leave the badge showing colours for a texture that is no longer picked.
+  it('does not let a stale sample overwrite a newer one', async () => {
+    let resolveFirst!: (colours: string[]) => void
+    sampleTextureColours.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveFirst = resolve)),
+    )
+    sampleTextureColours.mockResolvedValueOnce(['#00ff00'])
+
+    const { result, unmount } = await withSetup(() => useSkinArt())
+    useTextures().textures.value = [texture({ id: 'a', path: '/a.dds' })]
+    await nextTick()
+
+    useTextures().textures.value = [texture({ id: 'b', path: '/b.dds' })]
+    await nextTick()
+    await nextTick()
+
+    resolveFirst(['#ff0000'])
+    await nextTick()
+    await nextTick()
+
+    expect(result.badgeColours.value).toEqual(['#00ff00'])
+    unmount()
+  })
+
   /// A stock Kunos car keeps every texture inside its KN5 and leaves only the
   /// painted ones on disk, so a path is no answer for most of them.
   it('reads a texture out of the KN5 when that is where it lives', async () => {
@@ -114,6 +155,28 @@ describe('useSkinArt', () => {
       kind: 'embedded',
       kn5: '/cars/ks_ferrari_f40/f40.kn5',
       name: 'f40_body.dds',
+    })
+    unmount()
+  })
+
+  /// `kn5File` on a `kn5`-sourced texture is the scan's bare filename, not a
+  /// path the backend could open — `path` is the kn5 the scan actually read.
+  it('opens the kn5 by its path, not the bare filename the scan recorded', async () => {
+    useTextures().textures.value = [
+      texture({
+        name: 'body.dds',
+        source: 'kn5',
+        path: '/cars/gtm/gtm.kn5',
+        kn5File: 'gtm.kn5',
+      }),
+    ]
+    const { unmount } = await withSetup(() => useSkinArt())
+    await nextTick()
+
+    expect(sampleTextureColours).toHaveBeenCalledWith({
+      kind: 'embedded',
+      kn5: '/cars/gtm/gtm.kn5',
+      name: 'body.dds',
     })
     unmount()
   })
@@ -333,6 +396,29 @@ describe('useSkinArt', () => {
       ]
 
       expect(pickedId()).toBe('mine')
+    })
+
+    /// The badge's own picture, and the selection-screen shot beside it, are
+    /// both `skin`-sourced files too — without this, a car whose real livery
+    /// sheet is still unpainted in the KN5 would have the badge sample its
+    /// own prior output, or the whole-car preview render, as the car's colour.
+    it('never picks the preview images as the livery sheet', () => {
+      useTextures().textures.value = [
+        texture({ id: 'preview', name: 'preview.jpg', category: 'preview', width: 1024 * 4 }),
+        texture({ id: 'badge', name: 'livery.png', category: 'preview', width: 1024 * 4 }),
+        texture({ id: 'sheet', name: 'body.dds', category: 'other', width: 512 }),
+      ]
+
+      expect(pickedId()).toBe('sheet')
+    })
+
+    it('does not name-match a preview image either', () => {
+      useTextures().textures.value = [
+        texture({ id: 'preview', name: 'skin_00.dds', category: 'preview' }),
+        texture({ id: 'sheet', name: 'skin_00b.dds', category: 'other' }),
+      ]
+
+      expect(pickedId('skin_00.dds')).toBe('sheet')
     })
 
     /// The car's own model names the texture on its bodywork, and nothing else

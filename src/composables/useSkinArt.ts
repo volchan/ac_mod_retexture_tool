@@ -33,67 +33,81 @@ const badgeError = ref<string | null>(null)
 /// for comparison against however the skin spells it.
 const liverySheet = ref<string | null>(null)
 
+const { textures } = useTextures()
+const { carPath } = useSkinPicker()
+
+/// Which texture the badge speaks for, for the library to point at. A car
+/// carries over a hundred sheets and the one that is the livery looks like
+/// any other in a grid of thumbnails.
+const liveryTextureId = computed(() => liveryTexture(textures.value, liverySheet.value)?.id ?? null)
+
+/// Every caller shares one car, so these watch the module's own refs rather
+/// than being set up again per call: a panel and the export button both
+/// calling `useSkinArt()` used to register a second pair of watchers, doubling
+/// every request to the backend for the same answer.
+///
+/// Bumped on every request, so a slower response from an earlier change can
+/// never land after, and overwrite, a newer one.
+let sheetRequest = 0
+let coloursRequest = 0
+
+/// Asked of the model rather than worked out from the files, because the
+/// files cannot answer it. A mask ships at the livery's own resolution, and
+/// `EXT_Series_Mask.png` is the same 7168x3584 as the sheet beside it — while
+/// the sheet itself may not be in this skin's folder at all, as on a stock
+/// Kunos car that keeps it in the KN5.
+watch(
+  carPath,
+  async (path) => {
+    const request = ++sheetRequest
+    liverySheet.value = null
+    if (!path) return
+
+    try {
+      const sheet = await mainLiveryTexture(path)
+      if (request !== sheetRequest) return
+      liverySheet.value = sheet?.toLowerCase() ?? null
+    } catch (e) {
+      if (request !== sheetRequest) return
+      badgeError.value = e instanceof Error ? e.message : String(e)
+    }
+  },
+  { immediate: true },
+)
+
+/// Read off the pixels rather than the editor's layers: a livery is as often
+/// a dropped image as a stack of drawn shapes, and sampling covers both. A
+/// queued replacement wins, so the badge shows what a repack would produce.
+///
+/// Watched by path rather than by the texture object: queueing a replacement
+/// repaints the car without swapping the object the list holds, and watching
+/// that object would leave the badge on the colours it was first built with.
+watch(
+  () => JSON.stringify(paintedBytes(liveryTexture(textures.value, liverySheet.value))),
+  async (serialised) => {
+    const request = ++coloursRequest
+    const source: TextureBytes | null = JSON.parse(serialised)
+    if (!source) {
+      badgeColours.value = FALLBACK_COLOURS
+      badgeError.value = null
+      return
+    }
+
+    try {
+      const sampled = await sampleTextureColours(source)
+      if (request !== coloursRequest) return
+      badgeColours.value = sampled.length > 0 ? sampled : FALLBACK_COLOURS
+      badgeError.value = sampled.length > 0 ? null : 'Nothing painted on this texture'
+    } catch (e) {
+      if (request !== coloursRequest) return
+      badgeColours.value = FALLBACK_COLOURS
+      badgeError.value = e instanceof Error ? e.message : String(e)
+    }
+  },
+  { immediate: true },
+)
+
 export function useSkinArt() {
-  const { textures } = useTextures()
-  const { carPath } = useSkinPicker()
-
-  /// Which texture the badge speaks for, for the library to point at. A car
-  /// carries over a hundred sheets and the one that is the livery looks like
-  /// any other in a grid of thumbnails.
-  const liveryTextureId = computed(
-    () => liveryTexture(textures.value, liverySheet.value)?.id ?? null,
-  )
-
-  /// Asked of the model rather than worked out from the files, because the
-  /// files cannot answer it. A mask ships at the livery's own resolution, and
-  /// `EXT_Series_Mask.png` is the same 7168x3584 as the sheet beside it — while
-  /// the sheet itself may not be in this skin's folder at all, as on a stock
-  /// Kunos car that keeps it in the KN5.
-  watch(
-    carPath,
-    async (path) => {
-      liverySheet.value = null
-      if (!path) return
-
-      try {
-        const sheet = await mainLiveryTexture(path)
-        liverySheet.value = sheet?.toLowerCase() ?? null
-      } catch (e) {
-        badgeError.value = e instanceof Error ? e.message : String(e)
-      }
-    },
-    { immediate: true },
-  )
-
-  /// Read off the pixels rather than the editor's layers: a livery is as often
-  /// a dropped image as a stack of drawn shapes, and sampling covers both. A
-  /// queued replacement wins, so the badge shows what a repack would produce.
-  ///
-  /// Watched by path rather than by the texture object: queueing a replacement
-  /// repaints the car without swapping the object the list holds, and watching
-  /// that object would leave the badge on the colours it was first built with.
-  watch(
-    () => JSON.stringify(paintedBytes(liveryTexture(textures.value, liverySheet.value))),
-    async (serialised) => {
-      const source: TextureBytes | null = JSON.parse(serialised)
-      if (!source) {
-        badgeColours.value = FALLBACK_COLOURS
-        badgeError.value = null
-        return
-      }
-
-      try {
-        const sampled = await sampleTextureColours(source)
-        badgeColours.value = sampled.length > 0 ? sampled : FALLBACK_COLOURS
-        badgeError.value = sampled.length > 0 ? null : 'Nothing painted on this texture'
-      } catch (e) {
-        badgeColours.value = FALLBACK_COLOURS
-        badgeError.value = e instanceof Error ? e.message : String(e)
-      }
-    },
-    { immediate: true },
-  )
-
   function paintBadge(canvas: HTMLCanvasElement, raceNumber: string): void {
     drawLiveryBadge(canvas, badgeColours.value, raceNumber)
   }
@@ -166,13 +180,18 @@ export function useSkinArt() {
 /// category — that one is read off the file name and calls anything without
 /// `body` in it `other`, which is most mod cars.
 export function liveryTexture(textures: Texture[], sheet?: string | null): Texture | null {
-  const named = textures.find((t) => t.name.toLowerCase() === sheet)
+  // The badge's own picture, and the selection-screen shot beside it, are
+  // never the livery: candidacy off them would have the badge sample its own
+  // last output, or the car's whole preview render, as the car's colours.
+  const candidates = textures.filter((t) => t.category !== 'preview')
+
+  const named = candidates.find((t) => t.name.toLowerCase() === sheet)
   if (named) return named
 
   // The skin's own textures come first whatever their size: one it never touches
   // still wears the donor car's colours, which is not what this livery is.
-  const owned = textures.filter((t) => t.replacement != null || t.source === 'skin')
-  const pool = owned.length > 0 ? owned : textures
+  const owned = candidates.filter((t) => t.replacement != null || t.source === 'skin')
+  const pool = owned.length > 0 ? owned : candidates
 
   return [...pool].sort(byPaintedThenSize)[0] ?? null
 }

@@ -3,7 +3,8 @@ import type { Texture } from '@/types/index'
 import { originalBytes, paintedBytes } from './textureBytes'
 
 const onDisk = { name: 'body.dds', path: '/cars/gtm/skins/blue/body.dds' } as Texture
-const inModel = { name: 'body.dds', path: '', kn5File: '/cars/gtm/gtm.kn5' } as Texture
+// `kn5File` is the scan's bare filename bookkeeping; `path` is the kn5 it actually opened.
+const inModel = { name: 'body.dds', path: '/cars/gtm/gtm.kn5', kn5File: 'gtm.kn5' } as Texture
 const queued = {
   ...onDisk,
   replacement: { sourcePath: '/edits/body.png', previewUrl: '', width: 1, height: 1 },
