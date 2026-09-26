@@ -11,13 +11,20 @@ import LiveryEditor from './LiveryEditor.vue'
 
 const mocks = vi.hoisted(() => ({
   save: vi.fn(async () => undefined),
+  clearUnder: vi.fn(async (): Promise<string[]> => []),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
+  toastWarning: vi.fn(),
 }))
 
 vi.mock('vue-sonner', () => ({
-  toast: { error: mocks.toastError, success: mocks.toastSuccess },
+  toast: { error: mocks.toastError, success: mocks.toastSuccess, warning: mocks.toastWarning },
 }))
+
+vi.mock('@/composables/useLiveryMaps', async () => {
+  const { ref } = await import('vue')
+  return { useLiveryMaps: () => ({ isClearing: ref(false), clearUnder: mocks.clearUnder }) }
+})
 
 vi.mock('@/composables/useLiveryPersistence', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/composables/useLiveryPersistence')>()
@@ -145,6 +152,51 @@ describe('LiveryEditor', () => {
 
     expect(mocks.toastError).toHaveBeenCalledWith('Disk full')
     expect(useLiveryEditor().texture.value).not.toBeNull()
+  })
+
+  /// The old lettering lives on in the car's finish texture too, and in game it
+  /// catches the light through whatever was painted over it.
+  it('clears the old finish under the paint and says which textures it touched', async () => {
+    mocks.clearUnder.mockResolvedValueOnce(['Chassis_AO.png'])
+    const wrapper = await editor()
+    useLiveryEditor().carPath.value = '/cars/furiano'
+
+    await wrapper.vm.handleSave()
+
+    expect(mocks.clearUnder).toHaveBeenCalledWith(
+      expect.anything(),
+      texture,
+      '/cars/furiano',
+      expect.any(Array),
+    )
+    expect(mocks.toastSuccess).toHaveBeenCalledWith(
+      'Saved skin_body.dds, old finish cleared from Chassis_AO.png',
+    )
+  })
+
+  /// The sheet is already written by then: a finish that will not clean costs
+  /// some shine, not the user's paint, and holding the editor open would say otherwise.
+  it('warns and still closes when the old finish cannot be cleared', async () => {
+    mocks.clearUnder.mockRejectedValueOnce(new Error('maps.dds will not decode'))
+    const wrapper = await editor()
+    useLiveryEditor().carPath.value = '/cars/furiano'
+
+    await wrapper.vm.handleSave()
+
+    expect(mocks.toastWarning).toHaveBeenCalledWith(
+      expect.stringContaining('maps.dds will not decode'),
+    )
+    expect(useLiveryEditor().texture.value).toBeNull()
+  })
+
+  it('leaves the finish alone when the sheet itself did not save', async () => {
+    mocks.save.mockRejectedValueOnce(new Error('Disk full'))
+    const wrapper = await editor()
+    useLiveryEditor().carPath.value = '/cars/furiano'
+
+    await wrapper.vm.handleSave()
+
+    expect(mocks.clearUnder).not.toHaveBeenCalled()
   })
 
   it('closes on Escape', async () => {

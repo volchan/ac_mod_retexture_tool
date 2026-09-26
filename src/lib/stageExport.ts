@@ -31,6 +31,24 @@ export function stageToCanvas(
   return withoutChrome(stage, sheet, pixelRatio, (options) => stage.toCanvas(options))
 }
 
+/// Where the editor's own paint hides the sheet, as alpha: the layers alone,
+/// without the texture under them and without `tints`, the layers that recolour
+/// what is there rather than cover it.
+export function coverageToCanvas(
+  stage: Konva.Stage,
+  width: number,
+  height: number,
+  tints: string[],
+): HTMLCanvasElement {
+  const sheet = { x: 0, y: 0, width, height }
+  const tinting = new Set(tints)
+  const hidden = [
+    ...stage.find('.editor-base'),
+    ...stage.find((node: Konva.Node) => tinting.has(node.id())),
+  ]
+  return withoutChrome(stage, sheet, 1, (options) => stage.toCanvas(options), hidden)
+}
+
 // ------------------------------------------------------------------------------
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
@@ -47,6 +65,7 @@ function withoutChrome<T>(
   crop: Crop,
   pixelRatio: number,
   draw: (options: Record<string, unknown>) => T,
+  alsoHidden: Konva.Node[] = [],
 ): T {
   const view = { scaleX: stage.scaleX(), scaleY: stage.scaleY(), x: stage.x(), y: stage.y() }
   const transformer = stage.findOne('Transformer') as Konva.Transformer | undefined
@@ -54,7 +73,7 @@ function withoutChrome<T>(
   // Guides and hover markers are drawn over the livery to work against, never
   // painted into it — and the flattened result feeds the 3D preview too, so one
   // missed node ends up on the car itself.
-  const chrome = stage.find('.editor-chrome')
+  const chrome = [...stage.find('.editor-chrome'), ...alsoHidden]
   const wasVisible = chrome.map((node) => node.visible())
 
   transformer?.nodes([])

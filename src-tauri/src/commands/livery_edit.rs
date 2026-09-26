@@ -71,7 +71,7 @@ fn save_livery_edit_inner(app: &AppHandle, opts: &LiveryEditSave) -> Result<Stri
 
 /// Sized before it is decoded: the check is the whole point, and decoding a
 /// runaway string first would cost the memory it is there to refuse.
-fn decode_sheet(png_base64: &str) -> Result<Vec<u8>, AppError> {
+pub(crate) fn decode_sheet(png_base64: &str) -> Result<Vec<u8>, AppError> {
     let payload = strip_data_url(png_base64);
     if payload.len() / 4 * 3 > MAX_EDIT_BYTES {
         return Err(AppError::InvalidInput(format!(
@@ -84,7 +84,7 @@ fn decode_sheet(png_base64: &str) -> Result<Vec<u8>, AppError> {
         .map_err(|e| AppError::ImageDecode(e.to_string()))
 }
 
-fn edits_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
+pub(crate) fn edits_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
     let base = app
         .path()
         .app_data_dir()
@@ -104,7 +104,7 @@ const READABLE_STEM_LIMIT: usize = 120;
 /// there to make the folder browsable: two texture keys that differ solely by
 /// punctuation collapse onto the same characters, so the digest of the full key
 /// is what actually keeps them apart.
-fn sanitize(key: &str) -> String {
+pub(crate) fn sanitize(key: &str) -> String {
     let readable: String = key
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })

@@ -1,6 +1,12 @@
 import type Konva from 'konva'
 import { describe, expect, it, vi } from 'vitest'
-import { pickColor, stageToCanvas, thumbnailOf, thumbnailRatio } from './stageExport'
+import {
+  coverageToCanvas,
+  pickColor,
+  stageToCanvas,
+  thumbnailOf,
+  thumbnailRatio,
+} from './stageExport'
 
 function fakeStage(
   transformer?: { nodes: (v?: unknown[]) => unknown[] },
@@ -169,5 +175,47 @@ describe('pickColor', () => {
     const { stage, state } = fakeStage()
     pickColor(stage as unknown as Konva.Stage, 5, 5)
     expect(state).toEqual({ scaleX: 0.25, scaleY: 0.25, x: 40, y: 90 })
+  })
+})
+
+describe('coverageToCanvas', () => {
+  /// What the finish is cleaned under is the new paint alone: the sheet under it
+  /// covers everything, and a tint hides nothing.
+  it('renders without the base texture and the tints, then shows them again', () => {
+    const shown = new Map<string, boolean>([
+      ['base', true],
+      ['tint', true],
+      ['sticker', true],
+    ])
+    const node = (id: string) => ({
+      id: () => id,
+      visible: (v?: boolean) => {
+        if (v !== undefined) shown.set(id, v)
+        return shown.get(id) ?? true
+      },
+    })
+    const nodes = [node('base'), node('tint'), node('sticker')]
+    const during: Array<[string, boolean][]> = []
+    const { stage } = fakeStage()
+    const fake = stage as unknown as Record<string, unknown>
+    fake.find = (selector: string | ((n: ReturnType<typeof node>) => boolean)) => {
+      if (selector === '.editor-base') return [nodes[0]]
+      if (typeof selector === 'function') return nodes.filter(selector)
+      return []
+    }
+    fake.toCanvas = (opts: Record<string, unknown>) => {
+      during.push([...shown.entries()])
+      return opts
+    }
+
+    const canvas = coverageToCanvas(stage as unknown as Konva.Stage, 2048, 1024, ['tint'])
+
+    expect(canvas).toMatchObject({ width: 2048, height: 1024, pixelRatio: 1 })
+    expect(during[0]).toEqual([
+      ['base', false],
+      ['tint', false],
+      ['sticker', true],
+    ])
+    expect([...shown.values()]).toEqual([true, true, true])
   })
 })

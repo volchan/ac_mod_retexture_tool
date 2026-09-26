@@ -88,7 +88,7 @@ pub async fn sample_texture_colours(
 /// Every read here names the file it failed on. A bare "No such file or
 /// directory" says nothing about which of a car's sixty textures went missing,
 /// and the answer is the whole diagnosis.
-fn texture_bytes(texture: &TextureBytes) -> Result<Vec<u8>, AppError> {
+pub(crate) fn texture_bytes(texture: &TextureBytes) -> Result<Vec<u8>, AppError> {
     match texture {
         TextureBytes::File { path } => {
             let path = Path::new(path);

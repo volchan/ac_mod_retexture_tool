@@ -10,6 +10,7 @@ import {
   type TextureBytes,
   writeSkinArt,
 } from '@/lib/tauri'
+import { paintedBytes } from '@/lib/textureBytes'
 import type { SkinArtPayload, Texture } from '@/types/index'
 
 /// The two images AC shows for a skin: the entry-list badge, drawn from the
@@ -181,22 +182,6 @@ function byPaintedThenSize(a: Texture, b: Texture): number {
   if (painted !== 0) return painted
 
   return b.width * b.height - a.width * a.height
-}
-
-/// Which pixels the badge speaks for: what the queue is about to write, else
-/// what the texture is now — which for most of a car is bytes inside the KN5
-/// rather than a file anyone can open.
-///
-/// The file on disk, never the thumbnail the webview holds: that one is 128
-/// pixels wide and has already averaged the livery into one tone.
-function paintedBytes(texture: Texture | null): TextureBytes | null {
-  if (!texture) return null
-
-  const queued = texture.replacement?.sourcePath
-  if (queued) return { kind: 'file', path: queued }
-
-  if (texture.kn5File) return { kind: 'embedded', kn5: texture.kn5File, name: texture.name }
-  return texture.path ? { kind: 'file', path: texture.path } : null
 }
 
 async function save(

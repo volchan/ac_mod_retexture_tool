@@ -328,7 +328,10 @@ function startPan(event: PointerEvent) {
     @pointerleave="handlePointerLeave"
   >
     <v-layer>
-      <v-image v-if="props.baseImage" :config="{ image: props.baseImage, listening: false }" />
+      <v-image
+        v-if="props.baseImage"
+        :config="{ image: props.baseImage, name: 'editor-base', listening: false }"
+      />
 
       <template v-for="layer in layers" :key="layer.id">
         <template v-if="layer.visible">

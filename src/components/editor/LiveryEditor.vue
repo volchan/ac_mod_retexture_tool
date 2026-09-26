@@ -26,6 +26,7 @@ import { useEditorTools } from '@/composables/useEditorTools'
 import { useEditorViewport } from '@/composables/useEditorViewport'
 import { useLiveryDocument } from '@/composables/useLiveryDocument'
 import { useLiveryEditor } from '@/composables/useLiveryEditor'
+import { useLiveryMaps } from '@/composables/useLiveryMaps'
 import { useLiveryPersistence } from '@/composables/useLiveryPersistence'
 import { useUvTemplate } from '@/composables/useUvTemplate'
 import type { CarHover } from '@/lib/carScene'
@@ -34,6 +35,7 @@ const { texture, baseDataUrl, restoredDocument, carPath, close } = useLiveryEdit
 const { document, layers, init, reset, canUndo, canRedo, undo, redo, selectedId, removeLayer } =
   useLiveryDocument()
 const { isSaving, save } = useLiveryPersistence()
+const { isClearing, clearUnder } = useLiveryMaps()
 const { addImageFromPath, isImagePath, imageError } = useEditorTools()
 const { clearMasks } = useBucketMasks()
 const {
@@ -93,13 +95,26 @@ const canSave = computed(() => document.value !== null && baseImage.value !== nu
 async function handleSave() {
   const stage = canvasRef.value?.getStage()
   if (!stage || !texture.value || !canSave.value) return
+  const sheet = texture.value
   try {
-    await save(stage, texture.value)
-    toast.success(`Saved ${texture.value.name}`)
-    close()
+    await save(stage, sheet)
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
+    return
   }
+
+  // The sheet is saved either way: a finish that will not clean costs the old
+  // lettering's shine showing through, not the user's paint.
+  try {
+    const cleaned = carPath.value ? await clearUnder(stage, sheet, carPath.value, layers.value) : []
+    const alsoCleaned = cleaned.length > 0 ? `, old finish cleared from ${cleaned.join(', ')}` : ''
+    toast.success(`Saved ${sheet.name}${alsoCleaned}`)
+  } catch (e) {
+    toast.warning(
+      `Saved ${sheet.name}, but its old finish is still there: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
+  close()
 }
 
 watch(
@@ -278,6 +293,7 @@ defineExpose({
   canSave,
   handleSave,
   isSaving,
+  isClearing,
   canvasRef,
   EditorToolbar,
   CheckIcon,
@@ -360,7 +376,7 @@ defineExpose({
         <Button variant="ghost" size="icon" title="Fit to window" @click="resetView">
           <MaximizeIcon class="size-4" />
         </Button>
-        <Button size="sm" :disabled="isSaving || !canSave" @click="handleSave">
+        <Button size="sm" :disabled="isSaving || isClearing || !canSave" @click="handleSave">
           <CheckIcon class="size-4" />
           Save as replacement
         </Button>

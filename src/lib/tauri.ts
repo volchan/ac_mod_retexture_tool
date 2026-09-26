@@ -8,6 +8,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import type {
   AcInstallInfo,
   CarMeshData,
+  CleanedMaps,
   EnhanceOptions,
   EnhanceResult,
   ImportScanResult,
@@ -342,6 +343,21 @@ export async function scanImportFolder(
 
 export async function saveLiveryEdit(opts: LiveryEditSave): Promise<string> {
   return invoke('save_livery_edit', { opts })
+}
+
+/// The finish textures the car's model pairs with a colour sheet, by name.
+export async function liveryMaps(carPath: string, diffuse: string): Promise<string[]> {
+  return invoke('livery_maps', { carPath, diffuse })
+}
+
+/// Writes a copy of `maps` with the old finish gone from under `coverage`, a PNG
+/// data URL of the editor's layers alone at the maps' own size.
+export async function cleanLiveryMaps(
+  maps: TextureBytes,
+  mapsKey: string,
+  coverage: string,
+): Promise<CleanedMaps> {
+  return invoke('clean_livery_maps', { maps, mapsKey, coverage })
 }
 
 export async function loadLiveryDocument(textureKey: string): Promise<string | null> {

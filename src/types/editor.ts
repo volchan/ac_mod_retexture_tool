@@ -105,3 +105,9 @@ export interface LiveryEditSave {
   pngBase64: string
   documentJson: string
 }
+
+/// A car's finish texture with the old finish gone from under the editor's paint.
+export interface CleanedMaps {
+  sourcePath: string
+  previewUrl: string
+}

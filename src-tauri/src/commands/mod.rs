@@ -7,6 +7,7 @@ pub mod fonts;
 pub mod image_source;
 pub mod import;
 pub mod livery_edit;
+pub mod livery_maps;
 pub mod livery_model;
 pub mod livery_serving;
 pub mod livery_sheet;

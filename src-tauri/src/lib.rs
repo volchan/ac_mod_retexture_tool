@@ -69,6 +69,8 @@ pub fn run() {
             commands::ac_detect::list_ac_tracks,
             commands::livery_edit::save_livery_edit,
             commands::livery_edit::load_livery_document,
+            commands::livery_maps::livery_maps,
+            commands::livery_maps::clean_livery_maps,
             commands::livery_model::get_livery_model,
         ])
         .run(tauri::generate_context!())
