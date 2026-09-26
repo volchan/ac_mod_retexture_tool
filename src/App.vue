@@ -140,8 +140,9 @@ async function handleDrop(path: string) {
   }
   if (!mod.value) return
   if (mod.value.modType === 'car') {
+    const name = mod.value.meta.name
     closeMod()
-    toast.error('Open cars from the library to pick a skin.')
+    await handleOpenCar(path, name)
     return
   }
   if (mod.value.modType !== 'track') {
