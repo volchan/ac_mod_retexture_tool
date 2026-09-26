@@ -13,6 +13,7 @@ const DDS_PF_FLAGS_OFFSET: usize = 80;
 const DDS_PF_BITCOUNT_OFFSET: usize = 88;
 const DDS_DDPF_RGB: u32 = 0x40;
 const DDS_DDPF_ALPHAPIXELS: u32 = 0x01;
+const DDS_DDPF_LUMINANCE: u32 = 0x20000;
 const PNG_MAGIC: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 const JPEG_MAGIC: &[u8; 3] = b"\xff\xd8\xff";
 const PNG_WIDTH_OFFSET: usize = 16;
@@ -36,12 +37,28 @@ fn decode_uncompressed(data: &[u8]) -> Option<DynamicImage> {
             .ok()?,
     );
 
+    let pixel_data = &data[DDS_HEADER_MIN_LEN..];
+    let has_alpha = pf_flags & DDS_DDPF_ALPHAPIXELS != 0;
+
+    // AC ships some masks (paintable-area, dirt) as luminance-alpha rather than
+    // RGB: one greyscale byte and one alpha byte per pixel, no colour channels.
+    if pf_flags & DDS_DDPF_LUMINANCE != 0 && bit_count == 16 && has_alpha {
+        let bytes_needed = width * height * 2;
+        if pixel_data.len() < bytes_needed {
+            return None;
+        }
+        let img = ImageBuffer::<Rgba<u8>, _>::from_fn(width as u32, height as u32, |x, y| {
+            let i = (y as usize * width + x as usize) * 2;
+            let lum = pixel_data[i];
+            let alpha = pixel_data[i + 1];
+            Rgba([lum, lum, lum, alpha])
+        });
+        return Some(DynamicImage::ImageRgba8(img));
+    }
+
     if pf_flags & DDS_DDPF_RGB == 0 {
         return None;
     }
-
-    let pixel_data = &data[DDS_HEADER_MIN_LEN..];
-    let has_alpha = pf_flags & DDS_DDPF_ALPHAPIXELS != 0;
 
     match (bit_count, has_alpha) {
         (24, false) => {
@@ -425,6 +442,42 @@ mod tests {
             DynamicImage::ImageRgba8(ImageBuffer::from_fn(4, 4, |_, _| Rgba([0, 0, 255, 255])));
         let result = encode_from_image(&img, "INVALID_FORMAT");
         assert!(result.is_err());
+    }
+
+    fn build_luminance_alpha_dds(width: u32, height: u32, pixels: &[u8]) -> Vec<u8> {
+        let mut data = vec![0u8; DDS_HEADER_MIN_LEN];
+        data[0..4].copy_from_slice(DDS_MAGIC);
+        data[4..8].copy_from_slice(&124u32.to_le_bytes());
+        data[DDS_HEIGHT_OFFSET..DDS_HEIGHT_OFFSET + 4].copy_from_slice(&height.to_le_bytes());
+        data[DDS_WIDTH_OFFSET..DDS_WIDTH_OFFSET + 4].copy_from_slice(&width.to_le_bytes());
+        data[76..80].copy_from_slice(&32u32.to_le_bytes()); // pixel format size
+        data[DDS_PF_FLAGS_OFFSET..DDS_PF_FLAGS_OFFSET + 4]
+            .copy_from_slice(&(DDS_DDPF_ALPHAPIXELS | DDS_DDPF_LUMINANCE).to_le_bytes());
+        data[DDS_PF_BITCOUNT_OFFSET..DDS_PF_BITCOUNT_OFFSET + 4]
+            .copy_from_slice(&16u32.to_le_bytes());
+        data.extend_from_slice(pixels);
+        data
+    }
+
+    #[test]
+    fn test_decode_to_image_luminance_alpha() {
+        // AC's mask textures: one grey byte, one alpha byte per pixel, no RGB channels.
+        let pixels = [10u8, 20, 30, 40, 50, 60, 70, 80];
+        let data = build_luminance_alpha_dds(2, 2, &pixels);
+
+        let result = decode_to_image(&data).unwrap();
+        assert_eq!((result.width(), result.height()), (2, 2));
+        let rgba = result.to_rgba8();
+        assert_eq!(rgba.get_pixel(0, 0).0, [10, 10, 10, 20]);
+        assert_eq!(rgba.get_pixel(1, 0).0, [30, 30, 30, 40]);
+        assert_eq!(rgba.get_pixel(0, 1).0, [50, 50, 50, 60]);
+        assert_eq!(rgba.get_pixel(1, 1).0, [70, 70, 70, 80]);
+    }
+
+    #[test]
+    fn test_decode_to_image_luminance_alpha_truncated_is_error() {
+        let data = build_luminance_alpha_dds(2, 2, &[10, 20]); // only one pixel's worth
+        assert!(decode_to_image(&data).is_err());
     }
 
     #[test]
