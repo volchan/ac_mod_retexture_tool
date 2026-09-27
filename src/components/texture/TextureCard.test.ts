@@ -214,4 +214,42 @@ describe('TextureCard', () => {
     })
     expect(wrapper.find('.h-\\[152px\\]').exists()).toBe(true)
   })
+
+  it('asks to edit the texture without opening the detail view', async () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture({}), isSelected: false },
+    })
+    await wrapper.get('[aria-label="Edit livery"]').trigger('click')
+    expect(wrapper.emitted('edit')).toHaveLength(1)
+    expect(wrapper.emitted('open-detail')).toBeUndefined()
+    expect(wrapper.emitted('toggle-select')).toBeUndefined()
+  })
+
+  it('offers no editing until the texture has finished decoding', () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture({ isDecoded: false }), isSelected: false },
+    })
+    expect(wrapper.get('[aria-label="Edit livery"]').attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('pointing at the livery sheet', () => {
+  /// A car carries over a hundred sheets, and the one that is the livery looks
+  /// like any other in a grid of thumbnails — on the F40 it is the one called
+  /// `Carpaint_skin2.dds`, three screens down under "From the car".
+  it('marks the sheet the car wears its livery on', () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture(), isSelected: false, isLivery: true },
+    })
+
+    expect(wrapper.text()).toContain('Livery')
+  })
+
+  it('leaves every other sheet unmarked', () => {
+    const wrapper = mount(TextureCard, {
+      props: { texture: makeTexture(), isSelected: false },
+    })
+
+    expect(wrapper.text()).not.toContain('Livery')
+  })
 })

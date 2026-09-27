@@ -7,6 +7,9 @@ use std::io::Write;
 use std::path::Path;
 use tauri::{AppHandle, Emitter};
 
+// Formats Assetto Corsa loads directly, so replacements are copied byte for byte.
+const PASSTHROUGH_FORMATS: &[&str] = &["PNG", "JPEG"];
+
 /// Locates a KN5 file inside `copy_root` that corresponds to `original_kn5_path`.
 ///
 /// Tries relative-path matching first (correct when multiple KN5 files share
@@ -50,7 +53,7 @@ pub(crate) fn find_kn5_in_copy(
         .ok_or_else(|| AppError::NotFound(format!("KN5 not found: {kn5_name}")))
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), AppError> {
+pub(crate) fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), AppError> {
     std::fs::create_dir_all(dst)?;
     for entry in walkdir::WalkDir::new(src)
         .min_depth(1)
@@ -150,21 +153,66 @@ pub(crate) fn patch_kn5(
 ) -> Result<(), AppError> {
     let mut kn5 = Kn5File::open(copied_kn5_path)?;
     for r in replacements {
-        let png_data = std::fs::read(&r.source_path)?;
-        let texture_data = if r.original_format == "PNG" {
-            png_data
-        } else {
-            let img = image::load_from_memory(&png_data)
-                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
-            dds::encode_from_image(&img, &r.original_format)?
-        };
+        let texture_data = encode_replacement(r)?;
         kn5.replace_texture_data(&r.texture_name, texture_data)?;
     }
     kn5.save(copied_kn5_path)?;
     Ok(())
 }
 
-fn create_zip_archive(
+/// Writes one replacement into `dir` under the name the car knows the texture by.
+///
+/// The name arrives over IPC and is joined straight onto a directory, so it is
+/// held to a single path component: `../` in one would otherwise let the caller
+/// place a file anywhere the app can write.
+pub(crate) fn write_replacement(dir: &Path, r: &TextureReplacementOpt) -> Result<(), AppError> {
+    crate::commands::skin::ensure_safe_file_name(&r.texture_name)?;
+    std::fs::write(dir.join(&r.texture_name), encode_replacement(r)?)?;
+    Ok(())
+}
+
+/// Mod authors ship loose PNG/JPEG textures that Assetto Corsa reads as-is, so
+/// re-encoding them would both fail and change the format the car expects.
+pub(crate) fn encode_replacement(r: &TextureReplacementOpt) -> Result<Vec<u8>, AppError> {
+    let source_data = std::fs::read(&r.source_path)?;
+    if PASSTHROUGH_FORMATS.contains(&r.original_format.as_str()) {
+        // Copying byte for byte is only right when the bytes already are that
+        // format. The livery editor always writes PNG, so an edited JPEG texture
+        // would otherwise ship PNG data under a .jpg name.
+        if dds::detect_format(&source_data) == r.original_format {
+            return Ok(source_data);
+        }
+        let img = image::load_from_memory(&source_data)
+            .map_err(|e| AppError::ImageDecode(e.to_string()))?;
+        return encode_plain_image(&img, &r.original_format);
+    }
+    let img =
+        image::load_from_memory(&source_data).map_err(|e| AppError::ImageDecode(e.to_string()))?;
+    dds::encode_from_image(&img, &r.original_format)
+}
+
+/// Re-encodes to one of the formats Assetto Corsa reads directly. JPEG carries no
+/// alpha channel, so the image drops to RGB rather than failing on a texture that
+/// happens to have transparency.
+fn encode_plain_image(img: &image::DynamicImage, format: &str) -> Result<Vec<u8>, AppError> {
+    let mut out = Vec::new();
+    let result = match format {
+        "PNG" => img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png),
+        "JPEG" => image::DynamicImage::ImageRgb8(img.to_rgb8()).write_to(
+            &mut std::io::Cursor::new(&mut out),
+            image::ImageFormat::Jpeg,
+        ),
+        other => {
+            return Err(AppError::ImageDecode(format!(
+                "unsupported passthrough format: {other}"
+            )))
+        }
+    };
+    result.map_err(|e| AppError::ImageDecode(e.to_string()))?;
+    Ok(out)
+}
+
+pub(crate) fn create_zip_archive(
     src_dir: &Path,
     output_path: &Path,
     progress_cb: &dyn Fn(&str, u32, u32),
@@ -263,11 +311,7 @@ pub fn repack_mod_inner(
                 .join("skins")
                 .join(skin_folder)
                 .join(&r.texture_name);
-            let png_data = std::fs::read(&r.source_path)?;
-            let img = image::load_from_memory(&png_data)
-                .map_err(|e| AppError::ImageDecode(e.to_string()))?;
-            let dds_data = dds::encode_from_image(&img, &r.original_format)?;
-            std::fs::write(&dst, dds_data)?;
+            std::fs::write(&dst, encode_replacement(r)?)?;
         }
     }
 
@@ -308,6 +352,112 @@ pub async fn repack_mod(app: AppHandle, opts: RepackOptions) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn png_bytes() -> Vec<u8> {
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4));
+        let mut out = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .unwrap();
+        out
+    }
+
+    #[test]
+    fn png_replacing_a_jpeg_is_re_encoded_as_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("edit.png");
+        std::fs::write(&source, png_bytes()).unwrap();
+
+        let encoded = encode_replacement(&replacement(source.to_str().unwrap(), "JPEG")).unwrap();
+
+        assert_eq!(dds::detect_format(&encoded), "JPEG");
+    }
+
+    #[test]
+    fn a_png_replacing_a_png_is_copied_byte_for_byte() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("edit.png");
+        let bytes = png_bytes();
+        std::fs::write(&source, &bytes).unwrap();
+
+        let encoded = encode_replacement(&replacement(source.to_str().unwrap(), "PNG")).unwrap();
+
+        assert_eq!(encoded, bytes);
+    }
+
+    fn replacement(source_path: &str, original_format: &str) -> TextureReplacementOpt {
+        TextureReplacementOpt {
+            texture_id: "tex".to_string(),
+            source_path: source_path.to_string(),
+            kn5_file: None,
+            texture_name: "EXT_Panels.png".to_string(),
+            skin_folder: Some("red".to_string()),
+            original_format: original_format.to_string(),
+            hero_image_path: None,
+        }
+    }
+
+    #[test]
+    fn encode_replacement_copies_png_sources_verbatim() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("new.png");
+        let png = image::RgbaImage::new(4, 4);
+        image::DynamicImage::ImageRgba8(png).save(&src).unwrap();
+        let expected = std::fs::read(&src).unwrap();
+
+        let out = encode_replacement(&replacement(src.to_str().unwrap(), "PNG")).unwrap();
+
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn write_replacement_lands_under_the_name_the_car_knows() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&src)
+            .unwrap();
+
+        write_replacement(dir.path(), &replacement(src.to_str().unwrap(), "PNG")).unwrap();
+
+        assert!(dir.path().join("EXT_Panels.png").is_file());
+    }
+
+    /// The name comes over IPC and is joined onto a directory the app can write
+    /// to, so it never reaches the filesystem without being held to one segment.
+    #[test]
+    fn write_replacement_refuses_a_name_that_climbs_out_of_the_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let skin = dir.path().join("skin");
+        std::fs::create_dir_all(&skin).unwrap();
+        let src = dir.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&src)
+            .unwrap();
+
+        for name in ["../escaped.png", "nested/escaped.png", "..\\escaped.png"] {
+            let mut opt = replacement(src.to_str().unwrap(), "PNG");
+            opt.texture_name = name.to_string();
+
+            let Err(err) = write_replacement(&skin, &opt) else {
+                panic!("{name} must be refused");
+            };
+            assert!(matches!(err, AppError::InvalidInput(_)), "got {err:?}");
+        }
+        assert!(!dir.path().join("escaped.png").exists());
+    }
+
+    #[test]
+    fn encode_replacement_recompresses_dds_sources() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("new.png");
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(4, 4))
+            .save(&src)
+            .unwrap();
+
+        let out = encode_replacement(&replacement(src.to_str().unwrap(), "BC1")).unwrap();
+
+        assert_eq!(&out[0..4], b"DDS ");
+    }
     use crate::models::mod_info::ModMeta;
     use image::{DynamicImage, ImageBuffer, Rgba};
     use image_dds::{dds_from_image, ImageFormat, Mipmaps, Quality};

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ArchiveIcon, PlayIcon } from 'lucide-vue-next'
+import { ArchiveIcon, BoxIcon, PlayIcon } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
+import SkinMetaPanel from '@/components/skin/SkinMetaPanel.vue'
 import QueueDrawer from '@/components/texture/QueueDrawer.vue'
 import { useGlobalCommands } from '@/composables/useGlobalCommands'
 import { useTextures } from '@/composables/useTextures'
@@ -14,6 +15,8 @@ defineProps<{
 const emit = defineEmits<{
   repack: []
   'test-in-game': []
+  'export-skin': []
+  'view-3d': []
 }>()
 
 const { textures } = useTextures()
@@ -49,8 +52,10 @@ const mismatchCount = computed(
 
 defineExpose({
   ArchiveIcon,
+  BoxIcon,
   PlayIcon,
   QueueDrawer,
+  SkinMetaPanel,
   activeTab,
   replacementCount,
   replacementByKn5,
@@ -96,6 +101,8 @@ defineExpose({
 
     <!-- Info tab -->
     <div v-else class="flex flex-col gap-4 p-3 pb-4 flex-1 overflow-auto">
+      <SkinMetaPanel @export-skin="$emit('export-skin')" />
+
       <section>
         <p class="text-[10.5px] uppercase tracking-widest text-muted-foreground font-semibold mb-2">
           General
@@ -201,6 +208,14 @@ defineExpose({
         >
           <PlayIcon :size="12" />
           Test in Game
+        </button>
+        <button
+          v-if="mod.modType === 'car'"
+          class="w-full flex items-center justify-center gap-1.5 text-[12px] px-3 py-2 rounded-[7px] bg-muted border border-border hover:bg-accent transition-colors font-medium"
+          @click="$emit('view-3d')"
+        >
+          <BoxIcon :size="12" />
+          View in 3D
         </button>
         <button
           class="w-full flex items-center justify-center gap-1.5 text-[12px] px-3 py-2 rounded-[7px] bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-medium"

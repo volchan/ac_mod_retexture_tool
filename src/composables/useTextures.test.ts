@@ -83,6 +83,34 @@ describe('useTextures', () => {
     unmount()
   })
 
+  it('init forwards the scoped skin folder to the backend', async () => {
+    let received: Record<string, unknown> | undefined
+    mockInvokeHandler('decode_mod_textures', (args) => {
+      received = args as Record<string, unknown>
+      return undefined
+    })
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod, 'red_01')
+
+    expect(received?.skinFolder).toBe('red_01')
+    unmount()
+  })
+
+  it('init sends no skin folder when the workspace is not scoped', async () => {
+    let received: Record<string, unknown> | undefined
+    mockInvokeHandler('decode_mod_textures', (args) => {
+      received = args as Record<string, unknown>
+      return undefined
+    })
+
+    const { result, unmount } = await withSetup(() => useTextures())
+    await result.init(baseMod)
+
+    expect(received?.skinFolder).toBeUndefined()
+    unmount()
+  })
+
   it('init registers decode-texture and decode-progress listeners', async () => {
     mockInvokeHandler('decode_mod_textures', () => undefined)
 

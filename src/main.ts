@@ -10,7 +10,8 @@ const params = new URLSearchParams(window.location.search)
     createApp(TexturePreviewApp).mount('#app')
   } else {
     const { default: App } = await import('./App.vue')
-    createApp(App).mount('#app')
+    const { default: VueKonva } = await import('vue-konva')
+    createApp(App).use(VueKonva).mount('#app')
   }
 
   try {

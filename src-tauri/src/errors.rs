@@ -16,6 +16,8 @@ pub enum AppError {
     Serialize(String),
     #[error("Not found: {0}")]
     NotFound(String),
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 impl From<AppError> for String {

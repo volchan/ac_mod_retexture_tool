@@ -54,6 +54,15 @@ export const webviewWindow = {
 
 export const { getCurrentWebviewWindow } = webviewWindow
 
+/** Mocked Tauri webview — the drop target the editor listens on. */
+export const webview = {
+  getCurrentWebview: vi.fn(() => ({
+    onDragDropEvent: vi.fn(async (_handler: (event: unknown) => void) => () => {}),
+  })),
+}
+
+export const { getCurrentWebview } = webview
+
 /** Mocked WebviewWindow — tracks constructor calls and getByLabel lookups. */
 export const WebviewWindow = vi.fn()
 ;(WebviewWindow as unknown as Record<string, unknown>).getByLabel = vi.fn(async () => null)

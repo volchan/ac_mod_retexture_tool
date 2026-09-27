@@ -1,13 +1,38 @@
 <script setup lang="ts">
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { PenToolIcon } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { Button } from '@/components/ui/button'
 import { useTextureDetail } from '@/composables/useTextureDetail'
+import { requestLiveryEditor } from '@/lib/tauri'
 
 const { activeTexture } = useTextureDetail()
 
-defineExpose({ activeTexture })
+const canEdit = computed(() => activeTexture.value !== null)
+
+/// This panel runs in its own webview window, which holds neither the texture list
+/// nor the replacement state, so the editor has to open in the main window.
+async function openEditor() {
+  const texture = activeTexture.value
+  if (!texture) return
+  await requestLiveryEditor(texture.id)
+  // Closing is a courtesy so the editor is not left behind this window; the editor
+  // is already on its way either way.
+  await getCurrentWebviewWindow()
+    .close()
+    .catch(() => {})
+}
+
+defineExpose({ activeTexture, canEdit, openEditor, Button, PenToolIcon })
 </script>
 
 <template>
   <div class="flex flex-col gap-5 p-4 overflow-y-auto bg-muted/30 w-72 shrink-0">
+    <Button class="w-full" :disabled="!canEdit" @click="openEditor">
+      <PenToolIcon class="size-4" />
+      Edit livery
+    </Button>
+
     <div>
       <p class="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Texture</p>
       <p class="text-sm font-medium font-mono break-all">{{ activeTexture?.name ?? '—' }}</p>

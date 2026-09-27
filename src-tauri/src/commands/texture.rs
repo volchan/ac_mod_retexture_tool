@@ -39,9 +39,10 @@ pub fn get_skin_texture(mod_path: String, file_path: String) -> Result<String, S
         .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase());
-    if ext.as_deref() != Some("dds") {
+    let is_supported = matches!(ext.as_deref(), Some("dds" | "png" | "jpg" | "jpeg"));
+    if !is_supported {
         return Err(format!(
-            "unsupported file type: expected .dds, got {:?}",
+            "unsupported file type: expected an image, got {:?}",
             ext.as_deref().unwrap_or("none")
         ));
     }
@@ -53,8 +54,19 @@ pub fn get_skin_texture(mod_path: String, file_path: String) -> Result<String, S
         return Err("path escapes mod directory".to_string());
     }
     let data = std::fs::read(&canonical_file).map_err(|e| e.to_string())?;
-    let img = dds::decode_to_image(&data).map_err(|e| e.to_string())?;
-    image_to_data_url(img)
+    // A skin folder holds loose PNG and JPEG textures next to its DDS ones, and the
+    // browser reads those as they are: only DDS needs decoding first.
+    if ext.as_deref() == Some("dds") {
+        let img = dds::decode_to_image(&data).map_err(|e| e.to_string())?;
+        return image_to_data_url(img);
+    }
+    let mime = if ext.as_deref() == Some("png") {
+        "image/png"
+    } else {
+        "image/jpeg"
+    };
+    let b64 = general_purpose::STANDARD.encode(&data);
+    Ok(format!("data:{mime};base64,{b64}"))
 }
 
 pub fn build_texture_map(kn5_path: &str) -> Result<TextureMap, String> {
@@ -275,14 +287,39 @@ mod tests {
     }
 
     #[test]
-    fn get_skin_texture_rejects_non_dds_extension() {
+    fn get_skin_texture_rejects_a_file_that_is_not_an_image() {
         let dir = tempfile::tempdir().unwrap();
         let result = get_skin_texture(
             dir.path().to_str().unwrap().to_string(),
-            "/some/path/texture.png".to_string(),
+            "/some/path/skin.ini".to_string(),
         );
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("unsupported file type"));
+    }
+
+    #[test]
+    fn get_skin_texture_serves_a_loose_png_without_decoding_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sponsor.png");
+        std::fs::write(&path, make_png_bytes()).unwrap();
+        let result = get_skin_texture(
+            dir.path().to_str().unwrap().to_string(),
+            path.to_str().unwrap().to_string(),
+        );
+        assert!(result.unwrap().starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn get_skin_texture_serves_a_loose_jpeg_as_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("preview.jpg");
+        let img = DynamicImage::ImageRgb8(ImageBuffer::from_fn(4, 4, |_, _| image::Rgb([1, 2, 3])));
+        img.save(&path).unwrap();
+        let result = get_skin_texture(
+            dir.path().to_str().unwrap().to_string(),
+            path.to_str().unwrap().to_string(),
+        );
+        assert!(result.unwrap().starts_with("data:image/jpeg;base64,"));
     }
 
     #[test]

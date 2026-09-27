@@ -5,6 +5,8 @@ use serde::Serialize;
 use std::io::Cursor;
 use std::path::Path;
 
+use crate::commands::image_source::ensure_readable_image;
+
 const THUMBNAIL_MAX: u32 = 256;
 const PREVIEW_FILENAME: &str = "preview.png";
 
@@ -155,7 +157,7 @@ pub fn preview_replacement_image(image_path: String) -> Result<String, String> {
     Ok(format!("data:image/png;base64,{b64}"))
 }
 
-fn mime_for_path(path: &str) -> &'static str {
+pub(crate) fn mime_for_path(path: &str) -> &'static str {
     let lower = path.to_lowercase();
     if lower.ends_with(".png") {
         "image/png"
@@ -165,13 +167,12 @@ fn mime_for_path(path: &str) -> &'static str {
         "image/webp"
     } else if lower.ends_with(".bmp") {
         "image/bmp"
+    } else if lower.ends_with(".svg") {
+        "image/svg+xml"
     } else {
         "image/jpeg"
     }
 }
-
-const ALLOWED_IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "dds"];
-const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
 
 // AC skin preview files can have no extension (raw JPEG without `.jpg`)
 const ALLOWED_PREVIEW_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", ""];
@@ -213,21 +214,7 @@ pub fn read_car_preview(image_path: String, ac_path: String) -> Result<String, S
 
 #[tauri::command]
 pub fn load_replacement_full(image_path: String) -> Result<String, String> {
-    let path = Path::new(&image_path);
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default();
-    if !ALLOWED_IMAGE_EXTS.contains(&ext.as_str()) {
-        return Err(format!("unsupported file type: {ext}"));
-    }
-    let size = std::fs::metadata(&image_path)
-        .map_err(|e| e.to_string())?
-        .len();
-    if size > MAX_IMAGE_BYTES {
-        return Err(format!("file too large: {size} bytes (max 64 MB)"));
-    }
+    ensure_readable_image(Path::new(&image_path)).map_err(|e| e.to_string())?;
     let bytes = std::fs::read(&image_path).map_err(|e| e.to_string())?;
     let mime = mime_for_path(&image_path);
     let b64 = general_purpose::STANDARD.encode(&bytes);

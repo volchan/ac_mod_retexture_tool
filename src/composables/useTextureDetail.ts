@@ -1,6 +1,5 @@
 import { computed, ref } from 'vue'
-import { isSafeRelativePath } from '@/lib/previewPayload'
-import { getKn5Texture, getSkinTexture, getTrackHeroImage } from '@/lib/tauri'
+import { loadTextureImage } from '@/lib/textureImage'
 import type { Texture } from '@/types/index'
 
 const activeTextureId = ref<string | null>(null)
@@ -33,63 +32,13 @@ export function useTextureDetail() {
       return
     }
 
-    if (tex.source === 'skin') {
-      isLoadingOriginal.value = false
-      if (tex.category === 'preview' && modPath.value) {
-        if (!isSafeRelativePath(tex.path)) {
-          loadError.value = 'Invalid texture path'
-          return
-        }
-        isLoadingOriginal.value = true
-        await new Promise((resolve) => setTimeout(resolve, 0))
-        if (activeTextureId.value !== capturedId) return
-        try {
-          const dataUrl = await getTrackHeroImage(modPath.value, tex.path)
-          if (activeTextureId.value !== capturedId) return
-          if (dataUrl === null) {
-            loadError.value = 'Preview image not found'
-          } else {
-            originalDataUrl.value = dataUrl
-            loadError.value = null
-          }
-        } catch (e) {
-          if (activeTextureId.value !== capturedId) return
-          loadError.value = e instanceof Error ? e.message : String(e)
-        } finally {
-          if (activeTextureId.value === capturedId) {
-            isLoadingOriginal.value = false
-          }
-        }
-        return
-      }
-      if (!modPath.value) {
-        loadError.value = 'Mod path unavailable'
-        return
-      }
-      isLoadingOriginal.value = true
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      if (activeTextureId.value !== capturedId) return
-      try {
-        const dataUrl = await getSkinTexture(modPath.value, tex.path)
-        if (activeTextureId.value !== capturedId) return
-        originalDataUrl.value = dataUrl
-        loadError.value = null
-      } catch (e) {
-        if (activeTextureId.value !== capturedId) return
-        loadError.value = e instanceof Error ? e.message : String(e)
-      } finally {
-        if (activeTextureId.value === capturedId) {
-          isLoadingOriginal.value = false
-        }
-      }
-      return
-    }
-
     isLoadingOriginal.value = true
+    // Yield once so the loading state paints before a large decode blocks the thread.
     await new Promise((resolve) => setTimeout(resolve, 0))
     if (activeTextureId.value !== capturedId) return
+
     try {
-      const dataUrl = await getKn5Texture(tex.path, tex.name)
+      const dataUrl = await loadTextureImage(tex, modPath.value)
       if (activeTextureId.value !== capturedId) return
       originalDataUrl.value = dataUrl
       loadError.value = null

@@ -9,12 +9,20 @@ import {
 } from '@/lib/tauri'
 import type { MatchedTexture, Mod, ProgressInfo, Texture, TextureCategory } from '@/types/index'
 
+/// A display image as the editor knows it: everything a scan would have read
+/// off the file, minus what only a scan decides.
+export type SkinArtEntry = Omit<Texture, 'id' | 'source' | 'category' | 'isDecoded'>
+
 const textures = ref<Texture[]>([])
 const selected = ref<Set<string>>(new Set())
 const decodeProgress = ref<ProgressInfo>({ current: 0, total: 0, label: '' })
 const isDecoding = ref(false)
 const currentModPath = ref<string | undefined>(undefined)
 const lastImportFolder = ref<string | undefined>(undefined)
+
+/// Module-wide, like the `textures` they feed: one per instance leaves orphans
+/// pushing into the same array after a remount, and every texture lands twice.
+let unlisten: (() => void) | null = null
 
 async function persist() {
   if (!currentModPath.value) return
@@ -32,8 +40,6 @@ async function persist() {
 }
 
 export function useTextures() {
-  let unlisten: (() => void) | null = null
-
   function reset() {
     textures.value = []
     selected.value = new Set()
@@ -47,7 +53,8 @@ export function useTextures() {
     }
   }
 
-  async function init(mod: Mod) {
+  /** `skinFolder` limits a car workspace to one skin; tracks pass nothing. */
+  async function init(mod: Mod, skinFolder?: string) {
     if (isDecoding.value) {
       await cancelDecode()
     }
@@ -58,6 +65,8 @@ export function useTextures() {
     const unlistenTexture = await onDecodeTexture((tex) => {
       textures.value = [...textures.value, tex]
     })
+    // Claimed before the next await, so a racing `init` can detach it.
+    unlisten = unlistenTexture
 
     const unlistenProgress = await onDecodeProgress((info) => {
       decodeProgress.value = info
@@ -69,7 +78,7 @@ export function useTextures() {
     }
 
     try {
-      await decodeModTextures(mod.path, mod.modType)
+      await decodeModTextures(mod.path, mod.modType, skinFolder)
     } finally {
       isDecoding.value = false
     }
@@ -160,6 +169,26 @@ export function useTextures() {
     persist().catch((err) => console.error('Failed to persist replacements:', err))
   }
 
+  /// Puts a display image the editor just wrote back into the list. Nothing
+  /// rescans the skin folder after a write, so without this the panel keeps
+  /// showing the file that was replaced, at the size it used to be — and a skin
+  /// that had no preview at all never grows one.
+  ///
+  /// Matched on the path rather than the name: with several skins scanned the
+  /// list shows the folder in the name, and the path is the same either way.
+  function putSkinArt(art: SkinArtEntry) {
+    const found = textures.value.find((t) => t.category === 'preview' && t.path === art.path)
+    if (found) {
+      textures.value = textures.value.map((t) => (t.id === found.id ? { ...t, ...art } : t))
+      return
+    }
+
+    textures.value = [
+      ...textures.value,
+      { ...art, id: crypto.randomUUID(), source: 'skin', category: 'preview', isDecoded: true },
+    ]
+  }
+
   function revertReplacement(id: string) {
     textures.value = textures.value.map((t) => (t.id === id ? { ...t, replacement: undefined } : t))
     persist().catch((err) => console.error('Failed to persist revert:', err))
@@ -192,6 +221,7 @@ export function useTextures() {
     deselectAll,
     filteredTextures,
     applyReplacements,
+    putSkinArt,
     revertReplacement,
     revertAll,
     cleanup,
