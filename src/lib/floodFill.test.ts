@@ -3,6 +3,7 @@ import {
   type FillRegion,
   floodFillMask,
   isHexColor,
+  islandRegion,
   type Pixels,
   paintedMask,
   parseHexColor,
@@ -140,35 +141,45 @@ function islands(): Pixels {
   return { data, width, height }
 }
 
-describe('filling a zone rather than a colour', () => {
-  /// A panel is rarely one flat colour: a livery runs stripes and logos across
-  /// it, and matching the seed's colour recolours the stripe, not the panel.
-  it('takes the whole island whatever is painted on it', () => {
-    const region = floodFillMask(islands(), { x: 0, y: 0 }, 0, RED, undefined, 'zone')
+/// The panel the fill was aimed at: the left island, two pixels wide.
+const LEFT_PANEL = { inside: new Uint8Array([1, 1]), x: 0, y: 0, width: 2, height: 1 }
+
+describe('staying inside the panel', () => {
+  /// A car sheet is mostly holes of one colour, and a fill that ran across them
+  /// covered the whole texture — on every move of the pointer.
+  it('never leaves the panel it started in, however wide the tolerance', () => {
+    const region = floodFillMask(islands(), { x: 0, y: 0 }, 1000, RED, LEFT_PANEL)
 
     expect(filledCount(region)).toBe(2)
-  })
-
-  it('leaves the island across the hole alone', () => {
-    const region = floodFillMask(islands(), { x: 0, y: 0 }, 0, RED, undefined, 'zone')
-
-    expect(region.x).toBe(0)
     expect(region.width).toBe(2)
   })
 
-  /// Started on a hole, a zone fill would run through the empty atlas and cover
-  /// the car from behind.
-  it('fills nothing when it starts on a hole', () => {
-    const region = floodFillMask(islands(), { x: 2, y: 0 }, 0, RED, undefined, 'zone')
+  it('fills nothing when it starts outside the panel', () => {
+    const region = floodFillMask(islands(), { x: 3, y: 0 }, 1000, RED, LEFT_PANEL)
 
     expect(filledCount(region)).toBe(0)
   })
 
-  it('still stops at a wall the UV outline puts in its way', () => {
-    const wall = new Uint8Array([0, 1, 0, 0, 0])
-    const region = floodFillMask(islands(), { x: 0, y: 0 }, 0, RED, wall, 'zone')
+  /// A panel left bare for the car's paint colour is transparent black, and a
+  /// stripe painted black next to it is not the same panel.
+  it('tells transparent black from painted black', () => {
+    const data = new Uint8ClampedArray([0, 0, 0, 0, 0, 0, 0, 255])
+
+    const region = floodFillMask({ data, width: 2, height: 1 }, { x: 0, y: 0 }, 0, RED)
 
     expect(filledCount(region)).toBe(1)
+  })
+})
+
+describe('islandRegion', () => {
+  /// A zone is the whole panel, whatever is painted on it.
+  it('paints every pixel of the panel and nothing else', () => {
+    const mask = { inside: new Uint8Array([1, 0, 1]), x: 4, y: 2, width: 3, height: 1 }
+
+    const region = islandRegion(mask, RED)
+
+    expect(region).toMatchObject({ x: 4, y: 2, width: 3, height: 1 })
+    expect(Array.from(region.data)).toEqual([255, 0, 0, 255, 0, 0, 0, 0, 255, 0, 0, 255])
   })
 })
 

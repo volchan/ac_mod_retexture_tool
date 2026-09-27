@@ -11,6 +11,7 @@ import LiveryEditor from './LiveryEditor.vue'
 
 const mocks = vi.hoisted(() => ({
   save: vi.fn(async () => undefined),
+  getCarMesh: vi.fn(async () => new Promise(() => {})),
   clearUnder: vi.fn(async (): Promise<string[]> => []),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
@@ -39,7 +40,11 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(async () => null) }))
 // A dropped file reaches the webview as a data URL from the backend, never as a path.
 vi.mock('@/lib/tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/tauri')>()
-  return { ...actual, loadReplacementFull: vi.fn(async () => 'data:image/png;base64,AAA') }
+  return {
+    ...actual,
+    loadReplacementFull: vi.fn(async () => 'data:image/png;base64,AAA'),
+    getCarMesh: mocks.getCarMesh,
+  }
 })
 
 const texture = {
@@ -197,6 +202,18 @@ describe('LiveryEditor', () => {
     await wrapper.vm.handleSave()
 
     expect(mocks.clearUnder).not.toHaveBeenCalled()
+  })
+
+  /// The bucket fills panels from the model, so the model is read on open,
+  /// not whenever the 3D view happens to be switched on.
+  it('reads the car’s panels as soon as a texture opens', async () => {
+    await editor()
+    useLiveryEditor().carPath.value = '/cars/furiano'
+
+    useLiveryEditor().open({ ...texture, id: 'tex2' }, 'data:image/png;base64,AAA')
+    await nextTick()
+
+    expect(mocks.getCarMesh).toHaveBeenCalledWith('/cars/furiano', 'skin_body.dds')
   })
 
   it('closes on Escape', async () => {

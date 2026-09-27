@@ -16,7 +16,14 @@ let generation = 0
 export function useCarPreview() {
   async function toggle(texture: Texture | null, carPath: string | null) {
     isEnabled.value = !isEnabled.value
-    if (!isEnabled.value || mesh.value || !texture || !carPath) return
+    if (!isEnabled.value || !texture || !carPath) return
+    await ensureMesh(texture, carPath)
+  }
+
+  /// Reads the geometry without showing the car: the bucket needs its panels
+  /// whether or not anyone is looking at it in 3D.
+  async function ensureMesh(texture: Texture, carPath: string) {
+    if (mesh.value || isLoading.value) return
     await load(texture, carPath)
   }
 
@@ -28,7 +35,7 @@ export function useCarPreview() {
     error.value = null
   }
 
-  return { isEnabled, mesh, isLoading, error, toggle, reset }
+  return { isEnabled, mesh, isLoading, error, toggle, ensureMesh, reset }
 }
 
 // ------------------------------------------------------------------------------

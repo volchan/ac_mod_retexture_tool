@@ -53,6 +53,7 @@ const {
   isLoading: carLoading,
   error: carError,
   toggle: toggleCar,
+  ensureMesh,
   reset: resetCar,
 } = useCarPreview()
 
@@ -85,6 +86,9 @@ watch(texture, (next) => {
   }
   init(next, restoredDocument.value ?? undefined)
   resetView()
+  // The bucket fills panels as the model lays them out, so it needs the model
+  // before the first click rather than whenever the 3D view happens to open.
+  if (carPath.value) ensureMesh(next, carPath.value)
 })
 
 /// Saving flattens the stage and serialises the document, so both have to exist

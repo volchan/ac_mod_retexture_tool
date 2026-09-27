@@ -11,7 +11,11 @@ const mocks = vi.hoisted(() => ({
   pickColor: vi.fn(() => '#abcdef'),
   maskFor: vi.fn(() => ({ canvas: {} as HTMLCanvasElement, x: 12, y: 34 })),
   previewMask: vi.fn(() => ({ canvas: {} as HTMLCanvasElement, x: 5, y: 6 })),
+  fillBlocker: vi.fn((): unknown => null),
+  toastError: vi.fn(),
 }))
+
+vi.mock('vue-sonner', () => ({ toast: { error: mocks.toastError } }))
 
 vi.mock('@/lib/stageExport', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/stageExport')>()
@@ -22,6 +26,7 @@ vi.mock('@/composables/useBucketMasks', () => ({
   useBucketMasks: () => ({
     maskFor: mocks.maskFor,
     previewMask: mocks.previewMask,
+    fillBlocker: mocks.fillBlocker,
     clearMasks: vi.fn(),
   }),
 }))
@@ -160,6 +165,25 @@ describe('EditorCanvas', () => {
       x: 40,
       y: 80,
     })
+  })
+
+  /// A layer that fills nothing is still an undo step and a row in the panel.
+  it('adds nothing for a click on a hole in the atlas', () => {
+    mocks.fillBlocker.mockReturnValueOnce({ kind: 'hole' })
+    useEditorTools().setTool('bucket')
+    pressOn(canvas())
+
+    expect(useLiveryDocument().layers.value).toHaveLength(0)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('says why when the car’s panels are not there to fill', () => {
+    mocks.fillBlocker.mockReturnValueOnce({ kind: 'no-model', reason: 'Still reading the car' })
+    useEditorTools().setTool('bucket')
+    pressOn(canvas())
+
+    expect(useLiveryDocument().layers.value).toHaveLength(0)
+    expect(mocks.toastError).toHaveBeenCalledWith('Still reading the car')
   })
 
   it('starts a stroke under the brush', () => {

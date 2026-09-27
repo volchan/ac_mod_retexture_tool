@@ -192,11 +192,11 @@ function projectedCentre(
   return { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
 }
 
-function decodeFloats(base64: string): Float32Array {
+export function decodeFloats(base64: string): Float32Array {
   return new Float32Array(decodeBytes(base64).buffer)
 }
 
-function decodeIndices(base64: string): Uint32Array {
+export function decodeIndices(base64: string): Uint32Array {
   return new Uint32Array(decodeBytes(base64).buffer)
 }
 

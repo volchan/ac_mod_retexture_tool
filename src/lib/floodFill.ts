@@ -1,3 +1,5 @@
+import type { IslandMask } from '@/lib/uvIslands'
+
 export interface Pixels {
   data: Uint8ClampedArray
   width: number
@@ -6,15 +8,14 @@ export interface Pixels {
 
 /// What decides whether a pixel joins the fill.
 ///
-/// `colour` matches the seed's own colour within a tolerance — one panel of a
-/// livery. `zone` takes every pixel that carries paint at all, so a panel split
-/// across four colours is recoloured in one click. `sheet` needs no seed: it is
-/// every painted pixel on the texture, which is what tinting a car means.
+/// `colour` matches the seed's own colour within a tolerance, inside the panel
+/// clicked. `zone` is that whole panel as the model lays it out, so a panel
+/// split across four colours is recoloured in one click. `sheet` needs no seed:
+/// it is every painted pixel on the texture, which is what tinting a car means.
 export type FillMode = 'colour' | 'zone' | 'sheet'
 
-/// Under this a pixel is a hole in the atlas rather than bodywork. A car sheet
-/// is mostly holes, and a zone fill bleeding into one would cover the whole
-/// texture.
+/// Under this a pixel is a hole in the atlas rather than bodywork, as far as a
+/// tint can tell without the model.
 const PAINTED = 8
 
 export interface FillColor {
@@ -47,20 +48,16 @@ const EMPTY_REGION: FillRegion = {
 /// millions of pixels, and a naive four-way recursion overflows the stack long
 /// before it finishes a car panel.
 ///
-/// `barrier` marks pixels the fill may not cross, one byte per pixel. A car
-/// texture is mostly flat colour, so a plain colour fill runs from the bonnet
-/// straight across the sheet into the doors; the UV island outlines stop it at
-/// the panel it was aimed at.
-///
-/// In `zone` mode colour stops mattering and only paint does: the fill spreads
-/// across every pixel of the island it was aimed at, whatever is drawn on it.
+/// `within` is the panel the fill may not leave. A car texture is mostly flat
+/// colour and mostly holes, so a plain colour fill runs from the bonnet across
+/// every hole on the sheet into the doors — and on a 22 megapixel sheet, doing
+/// that on every move of the pointer is what took the whole app down.
 export function floodFillMask(
   source: Pixels,
   seed: { x: number; y: number },
   tolerance: number,
   color: FillColor,
-  barrier?: Uint8Array,
-  mode: Exclude<FillMode, 'sheet'> = 'colour',
+  within?: IslandMask,
 ): FillRegion {
   const { width, height, data } = source
 
@@ -69,15 +66,13 @@ export function floodFillMask(
   if (startX < 0 || startY < 0 || startX >= width || startY >= height) {
     return EMPTY_REGION
   }
-
-  const target = readPixel(data, (startY * width + startX) * 4)
-  const limit = tolerance * tolerance
-
-  /// A zone fill started on a hole would otherwise spread across every hole on
-  /// the sheet and cover the car from behind.
-  if (mode === 'zone' && data[(startY * width + startX) * 4 + 3] < PAINTED) {
+  if (within && !covers(within, startX, startY)) {
     return EMPTY_REGION
   }
+
+  const target = (startY * width + startX) * 4
+  const limit = tolerance * tolerance
+
   const filled = new Uint8Array(width * height)
   const stack: number[] = [startX, startY]
   const bounds = { minX: width, minY: height, maxX: -1, maxY: -1 }
@@ -89,8 +84,7 @@ export function floodFillMask(
   const open = (x: number, y: number) => {
     const index = y * width + x
     if (filled[index] === 1) return false
-    if (barrier && barrier[index] !== 0) return false
-    if (mode === 'zone') return data[index * 4 + 3] >= PAINTED
+    if (within && !covers(within, x, y)) return false
     return matches(data, index * 4, target, limit)
   }
 
@@ -156,21 +150,42 @@ export function paintedMask(source: Pixels, color: FillColor): FillRegion {
 // MARK: HELPERS
 // ------------------------------------------------------------------------------
 
-function readPixel(data: Uint8ClampedArray, offset: number): FillColor {
-  return { r: data[offset], g: data[offset + 1], b: data[offset + 2] }
-}
-
-/// Squared distance, so the comparison needs no square root per pixel.
+/// Squared distance, so the comparison needs no square root per pixel. Alpha
+/// counts: a panel left bare for the car's paint colour is transparent black,
+/// and matching colour alone would run it into every black stripe on the car.
 function matches(
   data: Uint8ClampedArray,
   offset: number,
-  target: FillColor,
+  target: number,
   squaredTolerance: number,
-): boolean {
-  const dr = data[offset] - target.r
-  const dg = data[offset + 1] - target.g
-  const db = data[offset + 2] - target.b
-  return dr * dr + dg * dg + db * db <= squaredTolerance
+) {
+  let distance = 0
+  for (let channel = 0; channel < 4; channel += 1) {
+    const delta = data[offset + channel] - data[target + channel]
+    distance += delta * delta
+  }
+  return distance <= squaredTolerance
+}
+
+function covers(mask: IslandMask, x: number, y: number): boolean {
+  const localX = x - mask.x
+  const localY = y - mask.y
+  if (localX < 0 || localY < 0 || localX >= mask.width || localY >= mask.height) {
+    return false
+  }
+  return mask.inside[localY * mask.width + localX] === 1
+}
+
+/// The island itself, in `color`: a zone fill is the whole panel, whatever is
+/// painted on it and whatever colour the sheet leaves it.
+export function islandRegion(mask: IslandMask, color: FillColor): FillRegion {
+  const data = new Uint8ClampedArray(mask.width * mask.height * 4)
+  mask.inside.forEach((isInside, pixel) => {
+    if (isInside === 1) {
+      data.set([color.r, color.g, color.b, 255], pixel * 4)
+    }
+  })
+  return { data, x: mask.x, y: mask.y, width: mask.width, height: mask.height }
 }
 
 interface Bounds {

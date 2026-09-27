@@ -2,6 +2,7 @@
 import { useRafFn, watchDebounced } from '@vueuse/core'
 import type Konva from 'konva'
 import { onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { type BucketMask, useBucketMasks } from '@/composables/useBucketMasks'
 import { useEditorTools } from '@/composables/useEditorTools'
 import { useImageAssets } from '@/composables/useImageAssets'
@@ -41,7 +42,7 @@ const {
   fillColor,
   fillTolerance,
 } = useEditorTools()
-const { maskFor, previewMask } = useBucketMasks()
+const { maskFor, previewMask, fillBlocker } = useBucketMasks()
 const { resolve } = useImageAssets()
 
 /// How wide the pulse swings, and how long a full swing takes. Slow enough to
@@ -267,9 +268,17 @@ function pickAtPointer(stage: Konva.Stage) {
   if (hex) sampleColor(hex)
 }
 
+/// A layer that fills nothing is still an undo step and a row in the panel, so
+/// a click that would fill nothing adds nothing.
 function fillAtPointer(stage: Konva.Stage, mode: FillMode) {
   const point = stage.getRelativePointerPosition()
   if (!point) return
+  const blocker = fillBlocker(point, props.baseImage, mode)
+  if (blocker?.kind === 'no-model') {
+    toast.error(blocker.reason)
+    return
+  }
+  if (blocker?.kind === 'hole') return
   addBucketLayer(point, mode)
 }
 

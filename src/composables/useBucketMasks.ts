@@ -1,12 +1,21 @@
-import { useUvTemplate } from '@/composables/useUvTemplate'
+import { useCarPreview } from '@/composables/useCarPreview'
 import {
   type FillMode,
+  type FillRegion,
   floodFillMask,
+  islandRegion,
   type Pixels,
   paintedMask,
   parseHexColor,
 } from '@/lib/floodFill'
-import type { BucketLayer } from '@/types/index'
+import {
+  type IslandMask,
+  islandAt,
+  islandMask,
+  type UvGeometry,
+  uvGeometryOf,
+} from '@/lib/uvIslands'
+import type { BucketLayer, CarMeshData } from '@/types/index'
 
 /// Budgeted in pixels rather than entries: a fill is cropped to the panel it
 /// covers, so a sheet of small ones all stay cached where a handful of
@@ -16,7 +25,8 @@ const MASK_BUDGET_PIXELS = 64_000_000
 
 const masks = new Map<string, CachedMask>()
 const basePixels = new WeakMap<HTMLImageElement, Pixels>()
-const barriers = new WeakMap<HTMLImageElement, Uint8Array>()
+const geometries = new WeakMap<CarMeshData, UvGeometry>()
+const islandMasks = new WeakMap<UvGeometry, Map<string, IslandMask>>()
 
 let hovered: { key: string; mask: CachedMask } | null = null
 
@@ -27,6 +37,10 @@ export interface BucketMask {
   x: number
   y: number
 }
+
+/// A click on a hole in the atlas fills nothing and says nothing: the preview
+/// already showed nothing there. A missing model is worth saying out loud.
+export type FillBlocker = { kind: 'hole' } | { kind: 'no-model'; reason: string }
 
 /// What the cache holds: the mask plus the colour it is painted in, so a
 /// recolour is told apart from a refill.
@@ -39,24 +53,37 @@ interface CachedMask extends BucketMask {
 /// parameters that change the shape — moving the seed or widening the tolerance
 /// invalidates the entry, recolouring reuses it.
 export function useBucketMasks() {
-  const { image: template, isEnabled } = useUvTemplate()
+  const { mesh, isLoading, error } = useCarPreview()
 
-  /// The seams a fill may not cross, and only while they are on screen. A wall
-  /// the user cannot see is a fill that stops for no reason — and the seam
-  /// itself is never filled, so painting over one means turning the overlay off.
-  const seams = () => (isEnabled.value ? template.value : null)
+  /// The panels a fill spreads across, once the model has been read. Read
+  /// inside the render, so a fill aimed before it arrived draws once it does.
+  const geometry = () => (mesh.value ? geometryOf(mesh.value) : null)
 
-  /// The seams are what a fill stops at, so a mask filled without them describes
-  /// a different region than the same layer filled with them. Toggling the UV
-  /// overlay has to miss the cache rather than redraw the pre-barrier shape.
-  const walls = () => (seams() ? 'uv' : 'raw')
+  /// Why a click here would fill nothing, or null when it would fill something.
+  function fillBlocker(
+    point: { x: number; y: number },
+    base: HTMLImageElement | null,
+    mode: FillMode,
+  ): FillBlocker | null {
+    if (mode === 'sheet' || !base) return null
+    const panels = geometry()
+    if (!panels) {
+      const reason = isLoading.value
+        ? 'Still reading the car’s panels — try again in a moment'
+        : `The bucket needs the car’s panels: ${error.value ?? 'the model is not loaded'}`
+      return { kind: 'no-model', reason }
+    }
+    const island = islandAt(panels, point.x / base.naturalWidth, point.y / base.naturalHeight)
+    return island === null ? { kind: 'hole' } : null
+  }
 
   function maskFor(layer: BucketLayer, base: HTMLImageElement | null): BucketMask | null {
-    const key = `${maskKey(layer)}:${walls()}`
+    const panels = geometry()
+    const key = maskKey(layer)
     const cached = masks.get(key)
     if (cached) return tinted(cached, layer.color)
 
-    const mask = buildMask(layer, layer.tolerance, layer.color, base, seams(), layer.mode)
+    const mask = buildMask(layer, layer.tolerance, layer.color, base, panels, layer.mode)
     if (!mask) return null
 
     masks.set(key, mask)
@@ -74,10 +101,11 @@ export function useBucketMasks() {
     base: HTMLImageElement | null,
     mode: FillMode = 'colour',
   ): BucketMask | null {
-    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${mode}:${walls()}`
+    const panels = geometry()
+    const key = `${Math.round(point.x)}:${Math.round(point.y)}:${tolerance}:${mode}:${panels ? 'panels' : 'none'}`
     if (hovered?.key === key) return tinted(hovered.mask, color)
 
-    const mask = buildMask(point, tolerance, color, base, seams(), mode)
+    const mask = buildMask(point, tolerance, color, base, panels, mode)
     hovered = mask ? { key, mask } : null
     return mask
   }
@@ -87,7 +115,7 @@ export function useBucketMasks() {
     hovered = null
   }
 
-  return { maskFor, previewMask, clearMasks }
+  return { maskFor, previewMask, clearMasks, fillBlocker }
 }
 
 // ------------------------------------------------------------------------------
@@ -99,7 +127,7 @@ function buildMask(
   tolerance: number,
   color: string,
   base: HTMLImageElement | null,
-  template: HTMLImageElement | null,
+  panels: UvGeometry | null,
   mode: FillMode = 'colour',
 ): CachedMask | null {
   if (!base) return null
@@ -107,14 +135,8 @@ function buildMask(
   const source = pixelsOf(base)
   if (!source) return null
 
-  const paint = parseHexColor(color)
-  // A tint has no seed to spread from, so the UV walls have nothing to stop.
-  const walls = template ? barrierOf(template, source) : undefined
-  const region =
-    mode === 'sheet'
-      ? paintedMask(source, paint)
-      : floodFillMask(source, seed, tolerance, paint, walls, mode)
-  if (region.width === 0 || region.height === 0) return null
+  const region = regionFor(seed, tolerance, parseHexColor(color), source, panels, mode)
+  if (!region || region.width === 0 || region.height === 0) return null
 
   const canvas = document.createElement('canvas')
   canvas.width = region.width
@@ -147,27 +169,51 @@ function tinted(mask: CachedMask, color: string): CachedMask {
   return mask
 }
 
-/// The template is drawn as opaque lines on transparent pixels, so its alpha
-/// channel already is the wall map the fill needs.
-function barrierOf(template: HTMLImageElement, source: Pixels): Uint8Array | undefined {
-  const cached = barriers.get(template)
+/// A tint has no seed and no panel; everything else stays inside the panel
+/// clicked, and without the model there is no panel to stay inside of.
+function regionFor(
+  seed: { x: number; y: number },
+  tolerance: number,
+  paint: ReturnType<typeof parseHexColor>,
+  source: Pixels,
+  panels: UvGeometry | null,
+  mode: FillMode,
+): FillRegion | null {
+  if (mode === 'sheet') return paintedMask(source, paint)
+  if (!panels) return null
+
+  const island = islandAt(panels, seed.x / source.width, seed.y / source.height)
+  if (island === null) return null
+
+  const panel = panelMask(panels, island, source)
+  if (mode === 'zone') return islandRegion(panel, paint)
+  return floodFillMask(source, seed, tolerance, paint, panel)
+}
+
+/// Rasterising an island walks every triangle in it, and the hover preview asks
+/// for the same one on every move of the pointer across it.
+function panelMask(panels: UvGeometry, island: number, source: Pixels): IslandMask {
+  let cache = islandMasks.get(panels)
+  if (!cache) {
+    cache = new Map()
+    islandMasks.set(panels, cache)
+  }
+
+  const key = `${island}:${source.width}x${source.height}`
+  const cached = cache.get(key)
   if (cached) return cached
 
-  const canvas = document.createElement('canvas')
-  canvas.width = source.width
-  canvas.height = source.height
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) return undefined
+  const mask = islandMask(panels, island, source.width, source.height)
+  cache.set(key, mask)
+  return mask
+}
 
-  context.drawImage(template, 0, 0, source.width, source.height)
-  const { data } = context.getImageData(0, 0, source.width, source.height)
-
-  const walls = new Uint8Array(source.width * source.height)
-  for (let pixel = 0; pixel < walls.length; pixel += 1) {
-    walls[pixel] = data[pixel * 4 + 3] > 0 ? 1 : 0
-  }
-  barriers.set(template, walls)
-  return walls
+function geometryOf(mesh: CarMeshData): UvGeometry {
+  const cached = geometries.get(mesh)
+  if (cached) return cached
+  const built = uvGeometryOf(mesh)
+  geometries.set(mesh, built)
+  return built
 }
 
 /// Insertion order is eviction order: the mask untouched for longest goes first.

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { twoPanels } from '@/test-fixtures/mesh'
 import type { BucketLayer } from '@/types/index'
 import { useBucketMasks } from './useBucketMasks'
+import { useCarPreview } from './useCarPreview'
 import { useUvTemplate } from './useUvTemplate'
 
 function bucket(id: string, over: Partial<BucketLayer> = {}): BucketLayer {
@@ -45,17 +47,12 @@ function baseImage() {
   return img
 }
 
-function showSeams() {
-  useUvTemplate().image.value = baseImage()
-  useUvTemplate().isEnabled.value = true
-}
-
 describe('useBucketMasks', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     useBucketMasks().clearMasks()
-    useUvTemplate().image.value = null
-    useUvTemplate().isEnabled.value = false
+    useCarPreview().reset()
+    useCarPreview().mesh.value = twoPanels()
   })
 
   it('reuses the mask when nothing about the fill changed', () => {
@@ -146,44 +143,89 @@ describe('useBucketMasks', () => {
     expect(maskFor(bucket('a'), base)).toBe(layer)
   })
 
-  /// The seams are what the fill stops at, so a mask filled without them covers
-  /// a different region than the same layer filled with them.
-  it('refills when the UV seams are switched on', () => {
+  /// The panels come from the model, so the overlay is only something to look
+  /// at: hiding it once left the fill with no walls at all, running across every
+  /// hole on the sheet until the app gave out.
+  it('fills the same panel whether the UV overlay is shown or not', () => {
     stubCanvas()
     const { maskFor } = useBucketMasks()
     const base = baseImage()
-    const flat = maskFor(bucket('a'), base)
+    const hidden = maskFor(bucket('a'), base)
 
-    showSeams()
-    expect(maskFor(bucket('a'), base)).not.toBe(flat)
+    useUvTemplate().image.value = baseImage()
+    useUvTemplate().isEnabled.value = true
 
-    useUvTemplate().isEnabled.value = false
-    expect(maskFor(bucket('a'), base)).toBe(flat)
+    expect(maskFor(bucket('a'), base)).toBe(hidden)
+    useUvTemplate().reset()
   })
 
-  /// A seam is never filled, only stopped at, so the hairline of old paint under
-  /// it is only paintable with the walls down. A wall the user cannot see is a
-  /// fill that stops for no reason at all.
-  it('drops the walls when the overlay is hidden, template still loaded', () => {
+  it('waits for the model before filling a panel', () => {
     stubCanvas()
     const { maskFor } = useBucketMasks()
     const base = baseImage()
-    const flat = maskFor(bucket('a'), base)
+    useCarPreview().mesh.value = null
 
-    showSeams()
-    useUvTemplate().isEnabled.value = false
+    expect(maskFor(bucket('a'), base)).toBeNull()
 
-    expect(maskFor(bucket('a'), base)).toBe(flat)
+    useCarPreview().mesh.value = twoPanels()
+    expect(maskFor(bucket('a'), base)).not.toBeNull()
   })
 
-  it('refills the hover preview when the UV seams are switched on', () => {
-    stubCanvas()
-    const { previewMask } = useBucketMasks()
-    const base = baseImage()
-    const flat = previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)
+  /// A tint covers every painted pixel and needs no panel to stay inside of.
+  it('tints the sheet without the model', () => {
+    const context = stubCanvas()
+    context.getImageData.mockReturnValue({
+      data: new Uint8ClampedArray(4 * 4 * 4).fill(255),
+      width: 4,
+      height: 4,
+    })
+    useCarPreview().mesh.value = null
 
-    showSeams()
-    expect(previewMask({ x: 1, y: 1 }, 32, '#ff0000', base)).not.toBe(flat)
+    expect(useBucketMasks().maskFor(bucket('a', { mode: 'sheet' }), baseImage())).not.toBeNull()
+  })
+
+  it('fills nothing over a hole in the atlas', () => {
+    stubCanvas()
+
+    expect(useBucketMasks().maskFor(bucket('a', { x: 2.2 }), baseImage())).toBeNull()
+  })
+
+  describe('fillBlocker', () => {
+    it('lets a click on a panel through', () => {
+      expect(useBucketMasks().fillBlocker({ x: 1, y: 1 }, baseImage(), 'zone')).toBeNull()
+    })
+
+    it('stops a click on a hole without a word', () => {
+      expect(useBucketMasks().fillBlocker({ x: 2.2, y: 1 }, baseImage(), 'colour')).toEqual({
+        kind: 'hole',
+      })
+    })
+
+    it('says the model is still on its way', () => {
+      useCarPreview().mesh.value = null
+      useCarPreview().isLoading.value = true
+
+      expect(useBucketMasks().fillBlocker({ x: 1, y: 1 }, baseImage(), 'zone')).toMatchObject({
+        kind: 'no-model',
+        reason: expect.stringContaining('Still reading'),
+      })
+    })
+
+    it('passes on why the model could not be read', () => {
+      useCarPreview().mesh.value = null
+      useCarPreview().error.value = 'no kn5 in this folder'
+
+      expect(useBucketMasks().fillBlocker({ x: 1, y: 1 }, baseImage(), 'zone')).toMatchObject({
+        kind: 'no-model',
+        reason: expect.stringContaining('no kn5 in this folder'),
+      })
+    })
+
+    it('never blocks a tint', () => {
+      useCarPreview().mesh.value = null
+
+      expect(useBucketMasks().fillBlocker({ x: 1, y: 1 }, baseImage(), 'sheet')).toBeNull()
+    })
   })
 
   it('has no hover preview without a base texture', () => {

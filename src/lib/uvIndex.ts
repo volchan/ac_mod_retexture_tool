@@ -59,23 +59,35 @@ export function locate(
   u: number,
   v: number,
 ): [number, number, number] | null {
+  const face = faceAt(index, uvs, u, v)
+  if (face === null) {
+    return null
+  }
+
+  const [a, b, c] = corners(index, face)
+  const weights = barycentric(uvs, a, b, c, u, v) as [number, number, number]
+  return [0, 1, 2].map(
+    (axis) =>
+      positions[a * 3 + axis] * weights[0] +
+      positions[b * 3 + axis] * weights[1] +
+      positions[c * 3 + axis] * weights[2],
+  ) as [number, number, number]
+}
+
+/// The triangle whose UVs cover `(u, v)`, or null over a hole in the atlas.
+export function faceAt(index: UvIndex, uvs: Float32Array, u: number, v: number): number | null {
   const cell = cellOf(v) * UV_CELLS + cellOf(u)
   for (const face of index.cells.get(cell) ?? []) {
-    const [a, b, c] = [
-      index.triangles[face * 3],
-      index.triangles[face * 3 + 1],
-      index.triangles[face * 3 + 2],
-    ]
-    const weights = barycentric(uvs, a, b, c, u, v)
-    if (!weights) continue
-    return [0, 1, 2].map(
-      (axis) =>
-        positions[a * 3 + axis] * weights[0] +
-        positions[b * 3 + axis] * weights[1] +
-        positions[c * 3 + axis] * weights[2],
-    ) as [number, number, number]
+    const [a, b, c] = corners(index, face)
+    if (barycentric(uvs, a, b, c, u, v)) {
+      return face
+    }
   }
   return null
+}
+
+function corners(index: UvIndex, face: number): [number, number, number] {
+  return [index.triangles[face * 3], index.triangles[face * 3 + 1], index.triangles[face * 3 + 2]]
 }
 
 export function barycentric(
