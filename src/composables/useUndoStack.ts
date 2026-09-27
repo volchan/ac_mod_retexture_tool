@@ -8,7 +8,10 @@ const HISTORY_LIMIT = 50
 export function useUndoStack<T>(read: () => T, write: (snapshot: T) => void) {
   const past = shallowRef<T[]>([])
   const future = shallowRef<T[]>([])
-  const pending = ref<T | null>(null)
+  // Shallow for the same reason as the stacks: a deep ref hands its snapshot
+  // back as a reactive copy, and one written back as the document poisons every
+  // snapshot taken after it — `structuredClone` refuses a proxy.
+  const pending = shallowRef<T | null>(null)
   const holding = ref(false)
 
   const canUndo = computed(() => past.value.length > 0)

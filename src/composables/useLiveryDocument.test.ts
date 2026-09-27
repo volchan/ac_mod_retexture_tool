@@ -109,6 +109,24 @@ describe('useLiveryDocument', () => {
     expect(doc.layers.value).toHaveLength(1)
   })
 
+  /// The snapshot waiting for a held edit to finish sat in a deep ref, so what
+  /// came back out was a reactive copy. Undoing a held edit wrote that copy back
+  /// as the stack, and the next edit could not snapshot it: every click in the
+  /// editor threw from then on.
+  it('keeps editing after undoing a held edit', () => {
+    const doc = useLiveryDocument()
+    const zone = fillLayer('Zone')
+    doc.addLayer(zone)
+    doc.holdEdits()
+    doc.updateLayer(zone.id, { x: 50 })
+    doc.releaseEdits()
+
+    doc.undo()
+
+    expect(() => doc.addLayer(fillLayer('Fill'))).not.toThrow()
+    expect(() => structuredClone(doc.layers.value)).not.toThrow()
+  })
+
   it('collapses held edits into one undo step', () => {
     const doc = useLiveryDocument()
     const layer = fillLayer('Base coat')
